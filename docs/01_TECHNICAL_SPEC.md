@@ -49,7 +49,7 @@ AIProvider、DocumentParser、RetrievalService、ClaimProvider、DeviceProvider�
 
 # 5. Application Services
 
-Project、Artifact、ArtifactDependency、Evidence、Claim、ClaimResolver、Issue、Decision、Traceability、Job、Permission、ResourceLock、Budget、Requirement、Document、Device、PinPlanner、Architecture、HardwareDesign、CircuitDesign、MCUConfig、FirmwareDesign、MotorControl、Protocol、Test、Review、Debug、Repair、Memory、Knowledge、Discovery、RepositoryIntelligence、ProjectImport、Plugin、ToolRegistry。
+Project、Artifact、ArtifactDependency、Evidence、Claim、ClaimResolver、Issue、Decision、Traceability、Job、Permission、ResourceLock、Budget、Requirement、Document、Device、PinPlanner、Architecture、HardwareDesign、CircuitDesign、MCUConfig、FirmwareDesign、DomainExtension、DomainComposition、DomainCapability、Protocol、Test、Review、Debug、Repair、Memory、Knowledge、Discovery、RepositoryIntelligence、ProjectImport、Plugin、ToolRegistry。
 
 # 6. Agent Runtime
 
@@ -109,7 +109,9 @@ class EngineeringValue(BaseModel):
 
 # 13. Schema Versioning
 
-Requirement、EngineeringClaim、HardwareIR、CircuitIR、MCUConfigIR、FirmwareIR、MotorControlIR、ProtocolIR、TestIR、KnowledgeEntry、PluginManifest 均带 schema_version。Breaking change 使用新 major + migration。
+Requirement、EngineeringClaim、HardwareIR、CircuitIR、MCUConfigIR、FirmwareIR、DomainDescriptor、DomainActivation、DomainIREnvelope、ProtocolIR、TestIR、KnowledgeEntry、PluginManifest 均带 schema_version。Breaking change 使用新 major + migration。
+
+具体 Domain IR 的 schema_version 由对应 Domain Plugin 管理；Core 只验证 Plugin API compatibility、DomainDescriptor 和 DomainIREnvelope。
 
 # 14. API / Frontend
 

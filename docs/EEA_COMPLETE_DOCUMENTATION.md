@@ -349,7 +349,7 @@ AIProvider、DocumentParser、RetrievalService、ClaimProvider、DeviceProvider�
 
 # 5. Application Services
 
-Project、Artifact、ArtifactDependency、Evidence、Claim、ClaimResolver、Issue、Decision、Traceability、Job、Permission、ResourceLock、Budget、Requirement、Document、Device、PinPlanner、Architecture、HardwareDesign、CircuitDesign、MCUConfig、FirmwareDesign、MotorControl、Protocol、Test、Review、Debug、Repair、Memory、Knowledge、Discovery、RepositoryIntelligence、ProjectImport、Plugin、ToolRegistry。
+Project、Artifact、ArtifactDependency、Evidence、Claim、ClaimResolver、Issue、Decision、Traceability、Job、Permission、ResourceLock、Budget、Requirement、Document、Device、PinPlanner、Architecture、HardwareDesign、CircuitDesign、MCUConfig、FirmwareDesign、DomainExtension、DomainComposition、DomainCapability、Protocol、Test、Review、Debug、Repair、Memory、Knowledge、Discovery、RepositoryIntelligence、ProjectImport、Plugin、ToolRegistry。
 
 # 6. Agent Runtime
 
@@ -409,7 +409,9 @@ class EngineeringValue(BaseModel):
 
 # 13. Schema Versioning
 
-Requirement、EngineeringClaim、HardwareIR、CircuitIR、MCUConfigIR、FirmwareIR、MotorControlIR、ProtocolIR、TestIR、KnowledgeEntry、PluginManifest 均带 schema_version。Breaking change 使用新 major + migration。
+Requirement、EngineeringClaim、HardwareIR、CircuitIR、MCUConfigIR、FirmwareIR、DomainDescriptor、DomainActivation、DomainIREnvelope、ProtocolIR、TestIR、KnowledgeEntry、PluginManifest 均带 schema_version。Breaking change 使用新 major + migration。
+
+具体 Domain IR 的 schema_version 由对应 Domain Plugin 管理；Core 只验证 Plugin API compatibility、DomainDescriptor 和 DomainIREnvelope。
 
 # 14. API / Frontend
 
@@ -650,9 +652,27 @@ layers、modules、tasks、interrupts、shared_resources、mcu_config_id、build
 
 FirmwareModule：name、layer、responsibility、public_api、dependencies、timing、state、errors、testability、requirement_ids。
 
-# 17. MotorControlIR
+# 17. DomainIRRef / DomainIREnvelope
 
-至少：motor、inverter、encoder、current_sense、pwm、adc_sampling、electrical_angle、loops、sign_convention、startup、limits、faults。详见 16 文档。
+DomainIRRef：
+- project_id
+- domain_id
+- domain_ir_id
+- domain_schema_version
+- plugin_id
+- plugin_version
+- revision
+
+DomainIREnvelope：
+- ref: DomainIRRef
+- requirement_ids
+- evidence_ids
+- core_ir_refs
+- extension_payload_ref
+
+Core 只保存 Domain IR 的统一引用/封装，不定义 MotorControlIR、EtherCATIR、RoboticsIR 等具体领域字段。
+
+具体 MotorControlIR 仅定义在 `16_MOTOR_CONTROL_DOMAIN_SPEC.md` 以及 `plugins/builtin/motor_control/`。
 
 # 18. RTOS
 
