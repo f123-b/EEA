@@ -1,0 +1,9 @@
+EEA V1.3 Architecture Freeze Complete Documentation Package
+Version: 1.3.0
+Contents: 27 numbered specifications (00-26), complete merged documentation, README, changelogs, audit/consistency reports, and original ELKB update reference.
+Key V1.3 additions:
+- Hardware Commissioning & Safety
+- Transactional Outbox / Recovery
+- Deterministic Domain Composition
+- Source Authority / Git Workspace SSOT
+- Non-Functional Reliability / Failure Injection / Renderer Security / Canonical Units
