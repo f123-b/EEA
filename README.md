@@ -9,7 +9,7 @@ Implementation advances one milestone at a time using the required sequence:
 
 ## Current milestone
 
-M0 Repository Skeleton is implemented:
+M1 Core Domain is implemented on the M0 foundation:
 
 - FastAPI backend with health and version endpoints;
 - SQLAlchemy 2.x and Alembic migration foundation;
@@ -17,8 +17,11 @@ M0 Repository Skeleton is implemented:
 - React/TypeScript desktop shell with a Tauri placeholder;
 - pytest, ruff, mypy, frontend checks, and CI;
 - generated OpenAPI contract at [`schemas/openapi.json`](schemas/openapi.json).
-
-No M1 domain behavior is included yet.
+- framework-independent Project, Artifact, Evidence, Issue, Decision, Job, Permission, and
+  Traceability entities;
+- Project lifecycle API with ETag/If-Match optimistic concurrency and soft deletion;
+- schema registry plus synchronized Python/OpenAPI/TypeScript Core enums;
+- V1.3.1 corrected JobStatus, Permission, and engineering error catalogs.
 
 ## Development
 
@@ -49,6 +52,7 @@ pnpm lint
 pnpm typecheck
 pnpm build
 eea openapi export --check
+eea openapi typescript --check
 ```
 
 The API listens on loopback by default. Set `EEA_SESSION_TOKEN` to require a bearer token for

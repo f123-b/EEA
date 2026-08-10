@@ -1,6 +1,6 @@
 # V1.3.1 Incremental Fix Status
 
-Assessment point: after M0, before M1 implementation.
+Assessment point: after M1 acceptance.
 
 | Fix | Status | Current evidence / insertion point |
 |---|---|---|
@@ -11,7 +11,7 @@ Assessment point: after M0, before M1 implementation.
 | FIX-05 Durable Outbox ACK | NOT_STARTED | Required before the first critical event consumer; M0/M1 do not dispatch business events |
 | FIX-06 Hardware three-layer fail-safe | NOT_STARTED | Required before commissioning gates; no hardware execution exists yet |
 | FIX-07 FOC gate / adapter order | NOT_STARTED | Required at M19A/M19B; no FOC or hardware adapter exists yet |
-| FIX-08 Job / Permission / API Error sync | PARTIAL | Corrected enums and error catalog are mandatory in M1 and are the active implementation work |
+| FIX-08 Job / Permission / API Error sync | DONE | Canonical values are synchronized across Core/Pydantic, SQL constraints, OpenAPI, generated TypeScript, and exhaustive frontend JobStatus handling; three named cross-surface invariants pass |
 | FIX-09 CapabilityBroker / safe ports | NOT_STARTED | Required before raw hardware adapters; none exist yet |
 | FIX-10 Consistency / invariants | PARTIAL | Architecture state is now CANDIDATE; FIX-01 invariants exist, later invariants remain gated by their implementations |
 
