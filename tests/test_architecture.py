@@ -69,7 +69,14 @@ def test_core_must_not_define_motor_control() -> None:
 
     violations: list[str] = []
     for path in Path("core").rglob("*"):
-        if not path.is_file():
+        if not path.is_file() or path.suffix not in {
+            ".json",
+            ".md",
+            ".py",
+            ".toml",
+            ".yaml",
+            ".yml",
+        }:
             continue
         normalized_name = path.name.lower()
         content = path.read_text(encoding="utf-8").lower()

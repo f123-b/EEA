@@ -13,9 +13,22 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
     config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path.as_posix()}")
 
     command.upgrade(config, "head")
+    command.check(config)
 
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
-    assert "system_metadata" in inspect(engine).get_table_names()
+    table_names = set(inspect(engine).get_table_names())
+    assert {
+        "artifacts",
+        "engineering_decisions",
+        "evidence",
+        "issues",
+        "jobs",
+        "permissions_audit",
+        "projects",
+        "schema_registry",
+        "system_metadata",
+        "traceability_edges",
+    } <= table_names
     with engine.connect() as connection:
         assert (
             connection.execute(
