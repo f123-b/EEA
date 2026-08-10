@@ -1,0 +1,11 @@
+{
+  "name": "embedded-engineering-agent",
+  "private": true,
+  "packageManager": "pnpm@11.16.0",
+  "scripts": {
+    "build": "pnpm --filter @eea/desktop build",
+    "dev": "pnpm --filter @eea/desktop dev",
+    "lint": "pnpm --filter @eea/desktop lint",
+    "typecheck": "pnpm --filter @eea/desktop typecheck"
+  }
+}
