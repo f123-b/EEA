@@ -22,6 +22,7 @@ jobs:
       - run: python -m eea_cli db upgrade
       - run: pytest
       - run: eea openapi export --check
+      - run: eea openapi typescript --check
 
   desktop:
     runs-on: ubuntu-latest

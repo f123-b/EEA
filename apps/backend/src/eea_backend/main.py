@@ -4,9 +4,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
+from eea_core.errors import EngineeringError
 from fastapi import APIRouter, Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 
+from eea_backend.api import router as core_router
 from eea_backend.database import check_database, create_database_engine
+from eea_backend.errors import engineering_error_handler, validation_error_handler
 from eea_backend.schemas import ApiEnvelope, HealthResponse, VersionData
 from eea_backend.security import require_session_token
 from eea_backend.settings import Settings
@@ -32,6 +36,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.state.settings = resolved_settings
     application.state.engine = engine
+    application.add_exception_handler(EngineeringError, engineering_error_handler)  # type: ignore[arg-type]
+    application.add_exception_handler(RequestValidationError, validation_error_handler)  # type: ignore[arg-type]
 
     @application.middleware("http")
     async def attach_request_id(request: Request, call_next):  # type: ignore[no-untyped-def]
@@ -54,10 +60,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             product="Embedded Engineering Agent",
             version=__version__,
             api_version="v1",
-            milestone="M0",
+            milestone="M1",
         )
         return ApiEnvelope(data=data, request_id=request.state.request_id)
 
+    api.include_router(core_router)
     application.include_router(api)
     return application
 

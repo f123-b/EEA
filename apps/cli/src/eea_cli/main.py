@@ -13,6 +13,8 @@ from eea_backend.main import create_app
 from eea_backend.settings import Settings
 from eea_backend.version import __version__
 
+from eea_cli.codegen import render_typescript_contract
+
 app = typer.Typer(help="Embedded Engineering Agent developer CLI.", no_args_is_help=True)
 db_app = typer.Typer(help="Manage the EEA SQL schema.")
 openapi_app = typer.Typer(help="Export and validate the OpenAPI contract.")
@@ -103,6 +105,29 @@ def openapi_export(
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(rendered, encoding="utf-8", newline="\n")
     typer.echo(f"OpenAPI schema written to {output}")
+
+
+@openapi_app.command("typescript")
+def openapi_typescript(
+    output: Annotated[Path, typer.Option(help="Generated TypeScript contract path.")] = Path(
+        "apps/desktop/src/api/generated.ts"
+    ),
+    check: Annotated[
+        bool, typer.Option(help="Fail if the generated contract is out of date.")
+    ] = False,
+) -> None:
+    """Generate the dependency-free TypeScript Core API contract."""
+
+    rendered = render_typescript_contract()
+    if check:
+        if not output.is_file() or output.read_text(encoding="utf-8") != rendered:
+            typer.echo(f"TypeScript contract is out of date: {output}", err=True)
+            raise typer.Exit(code=1)
+        typer.echo(f"TypeScript contract is current: {output}")
+        return
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(rendered, encoding="utf-8", newline="\n")
+    typer.echo(f"TypeScript contract written to {output}")
 
 
 if __name__ == "__main__":

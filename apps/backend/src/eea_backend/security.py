@@ -3,7 +3,9 @@
 import hmac
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request, status
+from eea_core.enums import EngineeringErrorCode
+from eea_core.errors import EngineeringError
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -19,6 +21,6 @@ def require_session_token(
     if configured is None:
         return
     if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+        raise EngineeringError(EngineeringErrorCode.AUTH_REQUIRED, "Missing bearer token")
     if not hmac.compare_digest(credentials.credentials, configured.get_secret_value()):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid bearer token")
+        raise EngineeringError(EngineeringErrorCode.AUTH_REQUIRED, "Invalid bearer token")

@@ -1,6 +1,121 @@
 {
   "components": {
     "schemas": {
+      "ApiEnvelope_EnumCatalogData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EnumCatalogData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[EnumCatalogData]",
+        "type": "object"
+      },
+      "ApiEnvelope_ProjectData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ProjectData]",
+        "type": "object"
+      },
+      "ApiEnvelope_ProjectListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ProjectListData]",
+        "type": "object"
+      },
+      "ApiEnvelope_SchemaData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SchemaData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[SchemaData]",
+        "type": "object"
+      },
+      "ApiEnvelope_SchemaListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SchemaListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[SchemaListData]",
+        "type": "object"
+      },
       "ApiEnvelope_VersionData_": {
         "properties": {
           "data": {
@@ -22,6 +137,199 @@
           "request_id"
         ],
         "title": "ApiEnvelope[VersionData]",
+        "type": "object"
+      },
+      "ArtifactStatus": {
+        "enum": [
+          "CURRENT",
+          "STALE",
+          "INVALID",
+          "DEPRECATED",
+          "ARCHIVED"
+        ],
+        "title": "ArtifactStatus",
+        "type": "string"
+      },
+      "DecisionStatus": {
+        "enum": [
+          "PROPOSED",
+          "ACCEPTED",
+          "SUPERSEDED",
+          "REJECTED"
+        ],
+        "title": "DecisionStatus",
+        "type": "string"
+      },
+      "EngineeringErrorCode": {
+        "description": "Stable API error catalog, including the FIX-08 additions.",
+        "enum": [
+          "VALIDATION_ERROR",
+          "PROJECT_NOT_FOUND",
+          "DOCUMENT_PARSE_FAILED",
+          "CLAIM_CONFLICT",
+          "DEVICE_NOT_FOUND",
+          "PIN_CONFLICT",
+          "PIN_FUNCTION_INVALID",
+          "INVALID_REQUIREMENT",
+          "REVISION_CONFLICT",
+          "BUILD_FAILED",
+          "ERC_FAILED",
+          "STATIC_ANALYSIS_FAILED",
+          "TOOL_UNAVAILABLE",
+          "CAPABILITY_UNAVAILABLE",
+          "AI_PROVIDER_UNAVAILABLE",
+          "PERMISSION_REQUIRED",
+          "RESOURCE_BUSY",
+          "BUDGET_EXCEEDED",
+          "KNOWLEDGE_SCOPE_DENIED",
+          "REPOSITORY_UNTRUSTED",
+          "JOB_CANCELLED",
+          "SCHEMA_VERSION_UNSUPPORTED",
+          "AUTH_REQUIRED",
+          "SOURCE_REVISION_CONFLICT",
+          "DOMAIN_COMPOSITION_CONFLICT",
+          "DOMAIN_DEPENDENCY_MISSING",
+          "DOMAIN_INCOMPATIBLE",
+          "COMMISSIONING_REQUIRED",
+          "COMMISSIONING_BLOCKED",
+          "SAFETY_LIMIT_VIOLATION",
+          "TARGET_IDENTITY_MISMATCH",
+          "SAFE_STATE_FAILED",
+          "EMERGENCY_STOP_ACTIVE",
+          "RECOVERY_REQUIRED",
+          "EVENT_DELIVERY_FAILED",
+          "INDEX_REBUILD_REQUIRED",
+          "BUILD_INPUT_UNDECLARED"
+        ],
+        "title": "EngineeringErrorCode",
+        "type": "string"
+      },
+      "EnumCatalogData": {
+        "properties": {
+          "enums": {
+            "$ref": "#/components/schemas/EnumValues"
+          }
+        },
+        "required": [
+          "enums"
+        ],
+        "title": "EnumCatalogData",
+        "type": "object"
+      },
+      "EnumValues": {
+        "properties": {
+          "ArtifactStatus": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactStatus"
+            },
+            "title": "Artifactstatus",
+            "type": "array"
+          },
+          "DecisionStatus": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionStatus"
+            },
+            "title": "Decisionstatus",
+            "type": "array"
+          },
+          "EngineeringErrorCode": {
+            "items": {
+              "$ref": "#/components/schemas/EngineeringErrorCode"
+            },
+            "title": "Engineeringerrorcode",
+            "type": "array"
+          },
+          "EvidenceType": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceType"
+            },
+            "title": "Evidencetype",
+            "type": "array"
+          },
+          "IssueSeverity": {
+            "items": {
+              "$ref": "#/components/schemas/IssueSeverity"
+            },
+            "title": "Issueseverity",
+            "type": "array"
+          },
+          "IssueStatus": {
+            "items": {
+              "$ref": "#/components/schemas/IssueStatus"
+            },
+            "title": "Issuestatus",
+            "type": "array"
+          },
+          "JobStatus": {
+            "items": {
+              "$ref": "#/components/schemas/JobStatus"
+            },
+            "title": "Jobstatus",
+            "type": "array"
+          },
+          "Permission": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permission",
+            "type": "array"
+          },
+          "ProjectStatus": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectStatus"
+            },
+            "title": "Projectstatus",
+            "type": "array"
+          },
+          "TraceabilityRelation": {
+            "items": {
+              "$ref": "#/components/schemas/TraceabilityRelation"
+            },
+            "title": "Traceabilityrelation",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ArtifactStatus",
+          "DecisionStatus",
+          "EngineeringErrorCode",
+          "EvidenceType",
+          "IssueSeverity",
+          "IssueStatus",
+          "JobStatus",
+          "Permission",
+          "ProjectStatus",
+          "TraceabilityRelation"
+        ],
+        "title": "EnumValues",
+        "type": "object"
+      },
+      "EvidenceType": {
+        "enum": [
+          "DOCUMENT",
+          "DEVICE_DB",
+          "REPOSITORY",
+          "RULE",
+          "TOOL",
+          "SIMULATION",
+          "HARDWARE_TEST",
+          "USER_CONFIRMATION",
+          "IMPORTED_PROJECT"
+        ],
+        "title": "EvidenceType",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
         "type": "object"
       },
       "HealthResponse": {
@@ -48,6 +356,358 @@
           "database"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "IssueSeverity": {
+        "enum": [
+          "INFO",
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "CRITICAL"
+        ],
+        "title": "IssueSeverity",
+        "type": "string"
+      },
+      "IssueStatus": {
+        "enum": [
+          "OPEN",
+          "RESOLVED",
+          "IGNORED"
+        ],
+        "title": "IssueStatus",
+        "type": "string"
+      },
+      "JobStatus": {
+        "description": "FIX-08 canonical Job state machine.",
+        "enum": [
+          "QUEUED",
+          "RUNNING",
+          "BLOCKED_PERMISSION",
+          "BLOCKED_RESOURCE",
+          "RECOVERING",
+          "SUCCESS",
+          "FAILED",
+          "FAILED_NEEDS_RECONCILE",
+          "CANCELLED"
+        ],
+        "title": "JobStatus",
+        "type": "string"
+      },
+      "Permission": {
+        "description": "FIX-08 canonical permission catalog.",
+        "enum": [
+          "READ",
+          "WRITE",
+          "BUILD",
+          "NETWORK",
+          "SECRET_USE",
+          "FLASH",
+          "DEBUG",
+          "HARDWARE_CONTROL",
+          "ACTUATOR_ENABLE",
+          "DELETE",
+          "PLUGIN_INSTALL",
+          "KNOWLEDGE_PROMOTE",
+          "EXPORT_PRIVATE"
+        ],
+        "title": "Permission",
+        "type": "string"
+      },
+      "ProjectCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Description",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ProjectCreate",
+        "type": "object"
+      },
+      "ProjectData": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "name",
+          "description",
+          "status"
+        ],
+        "title": "ProjectData",
+        "type": "object"
+      },
+      "ProjectListData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectData"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ProjectListData",
+        "type": "object"
+      },
+      "ProjectStatus": {
+        "enum": [
+          "DRAFT",
+          "ACTIVE",
+          "ARCHIVED"
+        ],
+        "title": "ProjectStatus",
+        "type": "string"
+      },
+      "ProjectUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "ProjectUpdate",
+        "type": "object"
+      },
+      "SchemaData": {
+        "properties": {
+          "json_schema": {
+            "additionalProperties": true,
+            "title": "Json Schema",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "schema_version",
+          "json_schema"
+        ],
+        "title": "SchemaData",
+        "type": "object"
+      },
+      "SchemaDescriptorData": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "schema_version"
+        ],
+        "title": "SchemaDescriptorData",
+        "type": "object"
+      },
+      "SchemaListData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SchemaDescriptorData"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "SchemaListData",
+        "type": "object"
+      },
+      "TraceabilityRelation": {
+        "enum": [
+          "IMPLEMENTS",
+          "DERIVED_FROM",
+          "VERIFIED_BY",
+          "AFFECTS",
+          "DEPENDS_ON",
+          "GENERATED_FROM",
+          "INVALIDATES"
+        ],
+        "title": "TraceabilityRelation",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
         "type": "object"
       },
       "VersionData": {
@@ -90,10 +750,36 @@
   "info": {
     "description": "Versioned API for the Embedded Engineering Agent platform.",
     "title": "Embedded Engineering Agent API",
-    "version": "1.3.0.dev0"
+    "version": "1.3.1.dev0"
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/meta/enums": {
+      "get": {
+        "operationId": "enums_api_v1_meta_enums_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_EnumCatalogData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Enums",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/api/v1/meta/version": {
       "get": {
         "operationId": "version_api_v1_meta_version_get",
@@ -117,6 +803,347 @@
         "summary": "Version",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/api/v1/projects": {
+      "get": {
+        "operationId": "list_projects_api_v1_projects_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ProjectListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Projects",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "operationId": "create_project_api_v1_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ProjectData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}": {
+      "delete": {
+        "operationId": "delete_project_api_v1_projects__project_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_revision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Revision"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ProjectData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Project",
+        "tags": [
+          "projects"
+        ]
+      },
+      "get": {
+        "operationId": "get_project_api_v1_projects__project_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ProjectData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Project",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "operationId": "update_project_api_v1_projects__project_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ProjectData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/v1/schemas": {
+      "get": {
+        "operationId": "schemas_api_v1_schemas_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_SchemaListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Schemas",
+        "tags": [
+          "schemas"
+        ]
+      }
+    },
+    "/api/v1/schemas/{schema_name}": {
+      "get": {
+        "operationId": "schema_api_v1_schemas__schema_name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schema_name",
+            "required": true,
+            "schema": {
+              "title": "Schema Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_SchemaData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Schema",
+        "tags": [
+          "schemas"
         ]
       }
     },

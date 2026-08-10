@@ -17,7 +17,7 @@ export function App() {
         </p>
         <div className="status" role="status">
           <span className="status-dot" aria-hidden="true" />
-          M0 repository skeleton ready
+          M1 Core Domain ready
         </div>
       </section>
 
@@ -28,7 +28,7 @@ export function App() {
             <li key={item}>{item}</li>
           ))}
         </ul>
-        <p className="next">Next gated milestone: M1 Core Domain</p>
+        <p className="next">Next gated milestone: M2 AI Provider Foundation</p>
       </section>
     </main>
   );

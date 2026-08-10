@@ -13,7 +13,7 @@ def test_version_command() -> None:
     result = runner.invoke(app, ["version"])
 
     assert result.exit_code == 0
-    assert result.stdout.strip() == "1.3.0.dev0"
+    assert result.stdout.strip() == "1.3.1.dev0"
 
 
 def test_openapi_check_detects_stale_file(tmp_path: Path) -> None:
@@ -30,9 +30,7 @@ def test_openapi_export_then_check(tmp_path: Path) -> None:
     output = tmp_path / "openapi.json"
 
     export_result = runner.invoke(app, ["openapi", "export", "--output", str(output)])
-    check_result = runner.invoke(
-        app, ["openapi", "export", "--output", str(output), "--check"]
-    )
+    check_result = runner.invoke(app, ["openapi", "export", "--output", str(output), "--check"])
 
     assert export_result.exit_code == 0
     assert check_result.exit_code == 0
@@ -52,3 +50,14 @@ def test_db_upgrade_command(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{(tmp_path / 'eea.db').as_posix()}")
     assert "system_metadata" in inspect(engine).get_table_names()
     engine.dispose()
+
+
+def test_typescript_contract_export_then_check(tmp_path: Path) -> None:
+    output = tmp_path / "generated.ts"
+
+    export_result = runner.invoke(app, ["openapi", "typescript", "--output", str(output)])
+    check_result = runner.invoke(app, ["openapi", "typescript", "--output", str(output), "--check"])
+
+    assert export_result.exit_code == 0
+    assert check_result.exit_code == 0
+    assert "export type Permission" in output.read_text(encoding="utf-8")
