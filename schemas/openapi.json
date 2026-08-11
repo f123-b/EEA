@@ -440,6 +440,29 @@
         "title": "ApiEnvelope[FirmwareBundleData]",
         "type": "object"
       },
+      "ApiEnvelope_FirmwareStaticAnalysisData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FirmwareStaticAnalysisData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[FirmwareStaticAnalysisData]",
+        "type": "object"
+      },
       "ApiEnvelope_MCUConfigBundleData_": {
         "properties": {
           "data": {
@@ -714,6 +737,29 @@
           "request_id"
         ],
         "title": "ApiEnvelope[SchematicBundleData]",
+        "type": "object"
+      },
+      "ApiEnvelope_StaticAnalysisListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaticAnalysisListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[StaticAnalysisListData]",
         "type": "object"
       },
       "ApiEnvelope_VersionData_": {
@@ -3485,6 +3531,13 @@
             "title": "Requirementvaluetype",
             "type": "array"
           },
+          "StaticAnalysisStatus": {
+            "items": {
+              "$ref": "#/components/schemas/StaticAnalysisStatus"
+            },
+            "title": "Staticanalysisstatus",
+            "type": "array"
+          },
           "TraceabilityRelation": {
             "items": {
               "$ref": "#/components/schemas/TraceabilityRelation"
@@ -3524,6 +3577,7 @@
           "RequirementStatus",
           "RequirementType",
           "RequirementValueType",
+          "StaticAnalysisStatus",
           "TraceabilityRelation",
           "VerificationLevel"
         ],
@@ -4561,6 +4615,115 @@
           "generator_version"
         ],
         "title": "FirmwareSourceFileData",
+        "type": "object"
+      },
+      "FirmwareStaticAnalysisData": {
+        "properties": {
+          "build_input_snapshot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Input Snapshot Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "firmware_id": {
+            "format": "uuid",
+            "title": "Firmware Id",
+            "type": "string"
+          },
+          "firmware_revision": {
+            "title": "Firmware Revision",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_hash": {
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "rule_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rule Results",
+            "type": "array"
+          },
+          "ruleset_version": {
+            "title": "Ruleset Version",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_revision_id": {
+            "format": "uuid",
+            "title": "Source Revision Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StaticAnalysisStatus"
+          },
+          "tool_results": {
+            "items": {
+              "$ref": "#/components/schemas/StaticAnalysisToolResult"
+            },
+            "title": "Tool Results",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "firmware_id",
+          "firmware_revision",
+          "source_revision_id",
+          "build_input_snapshot_id",
+          "input_hash",
+          "ruleset_version",
+          "status",
+          "rule_results",
+          "tool_results"
+        ],
+        "title": "FirmwareStaticAnalysisData",
         "type": "object"
       },
       "FirmwareTask": {
@@ -7667,6 +7830,137 @@
         "title": "StartupConfig",
         "type": "object"
       },
+      "StaticAnalysisListData": {
+        "properties": {
+          "analyses": {
+            "items": {
+              "$ref": "#/components/schemas/FirmwareStaticAnalysisData"
+            },
+            "title": "Analyses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "analyses"
+        ],
+        "title": "StaticAnalysisListData",
+        "type": "object"
+      },
+      "StaticAnalysisRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "firmware_id": {
+            "format": "uuid",
+            "title": "Firmware Id",
+            "type": "string"
+          },
+          "run_cppcheck": {
+            "default": true,
+            "title": "Run Cppcheck",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "firmware_id"
+        ],
+        "title": "StaticAnalysisRequest",
+        "type": "object"
+      },
+      "StaticAnalysisStatus": {
+        "description": "Lifecycle of one deterministic static-analysis execution.",
+        "enum": [
+          "PASS",
+          "FAIL",
+          "UNKNOWN",
+          "BLOCKED"
+        ],
+        "title": "StaticAnalysisStatus",
+        "type": "string"
+      },
+      "StaticAnalysisToolResult": {
+        "additionalProperties": false,
+        "description": "Bounded output from one static-analysis tool invocation.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "diagnostics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Diagnostics",
+            "type": "array"
+          },
+          "duration_ms": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "revision": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StaticAnalysisStatus"
+          },
+          "stderr": {
+            "default": "",
+            "maxLength": 200000,
+            "title": "Stderr",
+            "type": "string"
+          },
+          "stdout": {
+            "default": "",
+            "maxLength": 200000,
+            "title": "Stdout",
+            "type": "string"
+          },
+          "tool_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Tool Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool_id",
+          "version",
+          "status"
+        ],
+        "title": "StaticAnalysisToolResult",
+        "type": "object"
+      },
       "SystemArchitectureData": {
         "properties": {
           "blocks": {
@@ -8662,6 +8956,168 @@
         "summary": "Update Project",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/analysis/static": {
+      "get": {
+        "operationId": "list_firmware_static_analyses_api_v1_projects__project_id__analysis_static_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_StaticAnalysisListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Firmware Static Analyses",
+        "tags": [
+          "analysis"
+        ]
+      },
+      "post": {
+        "operationId": "analyze_firmware_static_api_v1_projects__project_id__analysis_static_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticAnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_FirmwareStaticAnalysisData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Analyze Firmware Static",
+        "tags": [
+          "analysis"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/analysis/static/{analysis_id}": {
+      "get": {
+        "operationId": "get_firmware_static_analysis_api_v1_projects__project_id__analysis_static__analysis_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "analysis_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Analysis Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_FirmwareStaticAnalysisData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Firmware Static Analysis",
+        "tags": [
+          "analysis"
         ]
       }
     },

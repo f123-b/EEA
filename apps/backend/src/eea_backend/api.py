@@ -22,6 +22,7 @@ from eea_application.requirements import (
     RequirementProfileRegistry,
 )
 from eea_application.schematic import SchematicService
+from eea_application.static_analysis import FirmwareStaticAnalysisService
 from eea_core.architecture import ArchitectureBundle
 from eea_core.build import BuildRun
 from eea_core.circuit import CircuitBundle
@@ -55,6 +56,7 @@ from eea_core.enums import (
     RequirementStatus,
     RequirementType,
     RequirementValueType,
+    StaticAnalysisStatus,
     TraceabilityRelation,
     VerificationLevel,
 )
@@ -66,6 +68,7 @@ from eea_core.pin_planner import PinAssignment, PinLock, PinPlan, PinRequirement
 from eea_core.requirements import RequirementProfile
 from eea_core.schema_registry import create_core_schema_registry
 from eea_core.schematic import SchematicBundle
+from eea_core.static_analysis import FirmwareStaticAnalysis
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.orm import Session
 
@@ -124,6 +127,7 @@ from eea_backend.schemas import (
     EvidenceData,
     FirmwareBundleData,
     FirmwareGenerateRequest,
+    FirmwareStaticAnalysisData,
     MCUConfigBundleData,
     MCUConfigGenerateRequest,
     MCUConfigValidateRequest,
@@ -151,8 +155,11 @@ from eea_backend.schemas import (
     SchematicGenerateRequest,
     SchematicValidateRequest,
     SoftwareComponentData,
+    StaticAnalysisListData,
+    StaticAnalysisRequest,
 )
 from eea_backend.schematic_repositories import SqlAlchemySchematicRepository
+from eea_backend.static_analysis_repositories import SqlAlchemyFirmwareStaticAnalysisRepository
 
 router = APIRouter()
 schema_registry = create_core_schema_registry()
@@ -228,6 +235,10 @@ def _firmware_bundle_data(bundle: FirmwareBundle) -> FirmwareBundleData:
 
 def _build_run_data(build: BuildRun) -> BuildRunData:
     return BuildRunData.model_validate(build.model_dump(mode="json"))
+
+
+def _static_analysis_data(analysis: FirmwareStaticAnalysis) -> FirmwareStaticAnalysisData:
+    return FirmwareStaticAnalysisData.model_validate(analysis.model_dump(mode="json"))
 
 
 def _component_data(
@@ -577,6 +588,7 @@ def enums(request: Request) -> ApiEnvelope[EnumCatalogData]:
             RequirementStatus,
             RequirementType,
             RequirementValueType,
+            StaticAnalysisStatus,
             TraceabilityRelation,
             VerificationLevel,
         )
@@ -1516,6 +1528,97 @@ def get_build(
             details={"build_id": str(build_id), "project_id": str(project_id)},
         )
     return ApiEnvelope(data=_build_run_data(build), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/analysis/static",
+    response_model=ApiEnvelope[FirmwareStaticAnalysisData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["analysis"],
+)
+def analyze_firmware_static(
+    project_id: UUID,
+    payload: StaticAnalysisRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[FirmwareStaticAnalysisData]:
+    _service(session).get(project_id)
+    firmwares = SqlAlchemyFirmwareRepository(session)
+    bundle = firmwares.get(payload.firmware_id, project_id=project_id)
+    latest = firmwares.latest_for_project(project_id)
+    if bundle is None or latest is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "FirmwareIR is not available for static analysis",
+            details={"firmware_id": str(payload.firmware_id), "project_id": str(project_id)},
+        )
+    if bundle.firmware.id != latest.firmware.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Selected FirmwareIR is stale",
+            details={
+                "reason": "STALE_FIRMWARE_IR",
+                "firmware_id": str(payload.firmware_id),
+                "latest_firmware_id": str(latest.firmware.id),
+            },
+        )
+    _ensure_current_firmware_mcu_config(session, project_id, bundle)
+    config_bundle = SqlAlchemyMCUConfigRepository(session).get(
+        bundle.firmware.mcu_config_id, project_id=project_id
+    )
+    analysis = FirmwareStaticAnalysisService(
+        getattr(request.app.state, "static_analysis_provider", None)
+    ).analyze(
+        bundle,
+        mcu_config=config_bundle.config if config_bundle is not None else None,
+        run_cppcheck=payload.run_cppcheck,
+    )
+    saved = SqlAlchemyFirmwareStaticAnalysisRepository(session).add(analysis)
+    return ApiEnvelope(data=_static_analysis_data(saved), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/analysis/static",
+    response_model=ApiEnvelope[StaticAnalysisListData],
+    tags=["analysis"],
+)
+def list_firmware_static_analyses(
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[StaticAnalysisListData]:
+    _service(session).get(project_id)
+    analyses = SqlAlchemyFirmwareStaticAnalysisRepository(session).list_for_project(project_id)
+    return ApiEnvelope(
+        data=StaticAnalysisListData(
+            analyses=[_static_analysis_data(analysis) for analysis in analyses]
+        ),
+        request_id=_request_id(request),
+    )
+
+
+@router.get(
+    "/projects/{project_id}/analysis/static/{analysis_id}",
+    response_model=ApiEnvelope[FirmwareStaticAnalysisData],
+    tags=["analysis"],
+)
+def get_firmware_static_analysis(
+    project_id: UUID,
+    analysis_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[FirmwareStaticAnalysisData]:
+    _service(session).get(project_id)
+    analysis = SqlAlchemyFirmwareStaticAnalysisRepository(session).get(
+        analysis_id, project_id=project_id
+    )
+    if analysis is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Firmware static analysis is not available for this project",
+            details={"analysis_id": str(analysis_id), "project_id": str(project_id)},
+        )
+    return ApiEnvelope(data=_static_analysis_data(analysis), request_id=_request_id(request))
 
 
 @router.post(

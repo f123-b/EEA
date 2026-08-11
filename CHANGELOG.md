@@ -34,6 +34,9 @@ the frozen documentation changelogs under `docs/`.
   HOST_SMOKE/DEVICE build profiles, CMake injection guards, disabled PlatformIO native fallback,
   Core-neutral ESCR component catalog/resolver/lock/materialization, official pinned STM32CubeG4
   provider, dependency-aware firmware snapshots, component APIs and migration `0015_m12a`.
+- M13 Firmware static analysis: deterministic FirmwareStaticAnalysis contracts, sandboxed
+  Cppcheck provider, four firmware RELEASE_GATE rules, normalized SQL persistence, migration
+  `0016_m13_firmware_static_analysis`, and project analysis APIs.
 - Alembic `0006_m5` migration extends the API error catalog for sandbox violations and resource
   limits.
 - M6 Requirement DSL: versioned generic requirement profiles, evidence contracts, structured

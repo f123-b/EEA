@@ -57,6 +57,8 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
         "dependency_locks",
         "dependency_lock_components",
         "component_materializations",
+        "firmware_static_analyses",
+        "firmware_static_analysis_results",
     } <= table_names
     with engine.connect() as connection:
         assert (
@@ -136,6 +138,8 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
         "dependency_locks",
         "dependency_lock_components",
         "component_materializations",
+        "firmware_static_analyses",
+        "firmware_static_analysis_results",
     } & set(inspect(engine).get_table_names())
     engine.dispose()
 

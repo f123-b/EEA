@@ -8,6 +8,7 @@ from uuid import uuid4
 from eea_adapters.ai import LiteLLMProvider
 from eea_adapters.components import Stm32CubeG4Provider
 from eea_adapters.secrets import KeyringSecretService
+from eea_adapters.static_analysis import CppcheckAdapter
 from eea_application.claims import ClaimPredicateRegistry
 from eea_application.requirements import (
     build_claim_predicate_definitions,
@@ -141,6 +142,7 @@ def create_app(
     application.state.settings = resolved_settings
     application.state.engine = engine
     application.state.ai_provider = resolved_ai_provider
+    application.state.static_analysis_provider = CppcheckAdapter()
     component_source = resolved_settings.stm32cube_g4_source
     if component_source is None:
         candidate = Path(".eea-component-cache/source/STM32CubeG4-v1.6.3")

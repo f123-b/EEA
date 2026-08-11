@@ -38,6 +38,7 @@ from eea_core.enums import (
     RequirementStatus,
     RequirementType,
     RequirementValueType,
+    StaticAnalysisStatus,
     TraceabilityRelation,
     VerificationLevel,
 )
@@ -62,6 +63,7 @@ from eea_core.mcu_config import (
     PeripheralConfigIR,
 )
 from eea_core.schematic import ErcIssue
+from eea_core.static_analysis import StaticAnalysisToolResult
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -206,6 +208,7 @@ class EnumValues(BaseModel):
     requirement_status: list[RequirementStatus] = Field(alias="RequirementStatus")
     requirement_type: list[RequirementType] = Field(alias="RequirementType")
     requirement_value_type: list[RequirementValueType] = Field(alias="RequirementValueType")
+    static_analysis_status: list[StaticAnalysisStatus] = Field(alias="StaticAnalysisStatus")
     traceability_relation: list[TraceabilityRelation] = Field(alias="TraceabilityRelation")
     verification_level: list[VerificationLevel] = Field(alias="VerificationLevel")
 
@@ -913,6 +916,36 @@ class BuildRunData(BaseModel):
 
 class BuildListData(BaseModel):
     builds: list[BuildRunData]
+
+
+class StaticAnalysisRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    firmware_id: UUID
+    run_cppcheck: bool = True
+
+
+class FirmwareStaticAnalysisData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    firmware_id: UUID
+    firmware_revision: int
+    source_revision_id: UUID
+    build_input_snapshot_id: UUID | None
+    input_hash: str
+    ruleset_version: str
+    status: StaticAnalysisStatus
+    rule_results: list[dict[str, object]]
+    tool_results: list[StaticAnalysisToolResult]
+
+
+class StaticAnalysisListData(BaseModel):
+    analyses: list[FirmwareStaticAnalysisData]
 
 
 class ErcImportRequest(BaseModel):

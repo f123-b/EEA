@@ -27,6 +27,7 @@ from eea_core.enums import (
     RequirementStatus,
     RequirementType,
     RequirementValueType,
+    StaticAnalysisStatus,
     TraceabilityRelation,
     VerificationLevel,
 )
@@ -55,6 +56,7 @@ CORE_ENUMS: tuple[type[StrEnum], ...] = (
     RequirementStatus,
     RequirementType,
     RequirementValueType,
+    StaticAnalysisStatus,
     TraceabilityRelation,
     VerificationLevel,
 )

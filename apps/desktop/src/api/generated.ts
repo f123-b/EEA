@@ -276,6 +276,14 @@ export const requirementValueTypeValues = [
 ] as const;
 export type RequirementValueType = (typeof requirementValueTypeValues)[number];
 
+export const staticAnalysisStatusValues = [
+  "PASS",
+  "FAIL",
+  "UNKNOWN",
+  "BLOCKED"
+] as const;
+export type StaticAnalysisStatus = (typeof staticAnalysisStatusValues)[number];
+
 export const traceabilityRelationValues = [
   "IMPLEMENTS",
   "DERIVED_FROM",

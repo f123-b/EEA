@@ -32,6 +32,7 @@ from eea_core.enums import (
     RequirementStatus,
     RequirementType,
     SoftwareComponentRole,
+    StaticAnalysisStatus,
     TraceabilityRelation,
 )
 from sqlalchemy import (
@@ -719,6 +720,65 @@ class BuildInputSnapshotRecord(CoreRecordMixin, Base):
     toolchain_manifest_hash: Mapped[str | None] = mapped_column(String(64))
     build_profile: Mapped[str | None] = mapped_column(String(30), nullable=True)
     build_input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class FirmwareStaticAnalysisRecord(CoreRecordMixin, Base):
+    __tablename__ = "firmware_static_analyses"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(f"status IN ({_enum_values(StaticAnalysisStatus)})", name="status"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    firmware_id: Mapped[str] = mapped_column(
+        ForeignKey("firmware_irs.id"), nullable=False, index=True
+    )
+    firmware_revision: Mapped[int] = mapped_column(nullable=False)
+    source_revision_id: Mapped[str] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=False, index=True
+    )
+    build_input_snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("build_input_snapshots.id"), nullable=True, index=True
+    )
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    ruleset_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    tool_results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+
+
+class FirmwareStaticAnalysisResultRecord(CoreRecordMixin, Base):
+    __tablename__ = "firmware_static_analysis_results"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            "stage IN ('PRE_GENERATION', 'POST_GENERATION', 'PRE_TOOL', 'POST_TOOL', "
+            "'RELEASE_GATE')",
+            name="stage",
+        ),
+        CheckConstraint(
+            "status IN ('PASS', 'FAIL', 'NOT_APPLICABLE', 'UNKNOWN')",
+            name="status",
+        ),
+        CheckConstraint(f"severity IN ({_enum_values(IssueSeverity)})", name="severity"),
+        UniqueConstraint("analysis_id", "rule_id", name="uq_static_analysis_rule"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    analysis_id: Mapped[str] = mapped_column(
+        ForeignKey("firmware_static_analyses.id"), nullable=False, index=True
+    )
+    rule_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    rule_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    stage: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    affected_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    measured: Mapped[object | None] = mapped_column(JSON)
+    threshold: Mapped[object | None] = mapped_column(JSON)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    recommendation: Mapped[str] = mapped_column(Text, nullable=False)
+    input_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
 
 
 class BuildRunRecord(CoreRecordMixin, Base):

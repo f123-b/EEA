@@ -122,6 +122,7 @@ from eea_core.sandbox import (
 )
 from eea_core.schematic import ErcIssue, ErcReport, SchematicBundle, SchematicIR
 from eea_core.source import BuildInputSnapshot, SourceRevision
+from eea_core.static_analysis import FirmwareStaticAnalysis, StaticAnalysisToolResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,6 +216,7 @@ def create_core_schema_registry() -> SchemaRegistry:
         FirmwareModule,
         FirmwareSourceFile,
         FirmwareTask,
+        FirmwareStaticAnalysis,
         GPIOConfig,
         InterruptConfigIR,
         Issue,
@@ -243,6 +245,7 @@ def create_core_schema_registry() -> SchemaRegistry:
         SharedResource,
         SourceRevision,
         StartupConfig,
+        StaticAnalysisToolResult,
         MemoryLayout,
         PeripheralDriverConfig,
         FollowUpQuestion,

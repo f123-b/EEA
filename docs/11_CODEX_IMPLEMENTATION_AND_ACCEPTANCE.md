@@ -91,11 +91,11 @@ ClockIR、GPIO、PWMConfig、ADCConfig、DMAIR、InterruptConfigIR。MCUConfigIR
 
 Firmware layers/modules、BSP/Platform、FirmwareIR、SourceRevision、BuildInputSnapshot、BuildRun 与 ESCR。M12R 要求 BuildRun 时间戳单调、构建时长聚合、CMake DSL 注入阻断、PlatformIO native fallback 禁用，并区分 `HOST_SMOKE` 与 `DEVICE`。M12A 要求 Core-neutral component catalog、immutable revision/hash、license/compatibility/reference-only policy、确定性 DependencyLock、离线缓存 materialization，以及官方 STM32CubeG4 固定提交的真实 STM32G431 CMake/ARM ELF 构建。
 
-验收：M12/M12A 本地测试与真实 DEVICE build 通过；远程 CI 必须绿色且人工复核后才可标记 ACCEPTED。远程未绿灯时停止在 M12，禁止进入 M13。
+验收：M12/M12A 本地测试与真实 DEVICE build 通过；远程 CI 必须绿色且人工复核后才可标记 ACCEPTED。M12 的远程 acceptance 与 M13 的本地实施并行记录，不能用本地结果替代远程 acceptance。
 
 # M13 Static Analysis + Firmware Rules
 
-Cppcheck；APP_DIRECT_HAL_CALL、ISR_BLOCKING、DEPENDENCY_CYCLE、MCUCONFIG_FIRMWARE_MISMATCH。FOC E2E 前必须完成。
+实现 `FirmwareStaticAnalysis` Core contract、`StaticAnalysisProvider` Port、无 shell/无网络 Cppcheck Adapter，以及四条 RELEASE_GATE 规则：`APP_DIRECT_HAL_CALL`、`ISR_BLOCKING_API`、`DRIVER_DEPENDENCY_CYCLE`、`MCUCONFIG_FIRMWARE_MISMATCH`。每条规则必须保存 rule id/version、输入快照、受影响引用、测量值/阈值、建议与 UNKNOWN 诊断；Cppcheck 未安装、不可执行或输出不完整时只能产生 `UNKNOWN`，不得转换成 PASS。分析运行和 RuleResult 必须持久化并提供创建、列表、详情 API。验收必须覆盖四条规则的 positive/negative/boundary/missing-input/applicability-mismatch 测试，并通过 OpenAPI/TypeScript 契约同步。FOC E2E 前必须完成。
 
 # M14 Domain Extension Infrastructure
 

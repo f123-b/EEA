@@ -213,7 +213,7 @@ EngineeringClaim 不允许长期依赖完全自由的 `value: Any`。引入 `Cla
 
 # 26. Static Analysis Baseline
 
-Cppcheck + Core Firmware Rules 属于 FOC Minimal E2E 前置能力，不再放在 E2E 之后。最少规则：APP_DIRECT_HAL_CALL、ISR_BLOCKING、DEPENDENCY_CYCLE、MCUCONFIG_FIRMWARE_MISMATCH。
+Cppcheck + Core Firmware Rules 属于 FOC Minimal E2E 前置能力，不再放在 E2E 之后。M13 通过 `FirmwareStaticAnalysisService` 消费 FirmwareBundle 与可选 MCUConfigIR，生成绑定 Firmware/SourcesRevision/input_hash 的 RELEASE_GATE 结果；工具执行经 `StaticAnalysisProvider` 进入无 shell、无网络 Sandbox。最少规则：APP_DIRECT_HAL_CALL、ISR_BLOCKING_API、DRIVER_DEPENDENCY_CYCLE、MCUCONFIG_FIRMWARE_MISMATCH。工具不可用、输入缺失或源版本不完整必须是 UNKNOWN，UNKNOWN 不得晋级 PASS；分析运行、工具结果与规范化 RuleResult 均须持久化并可通过 API 查询。
 
 # 27. V1.3 Execution Reliability
 

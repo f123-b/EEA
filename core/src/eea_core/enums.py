@@ -68,6 +68,15 @@ class BuildStatus(StrEnum):
     BLOCKED = "BLOCKED"
 
 
+class StaticAnalysisStatus(StrEnum):
+    """Lifecycle of one deterministic static-analysis execution."""
+
+    PASS = "PASS"
+    FAIL = "FAIL"
+    UNKNOWN = "UNKNOWN"
+    BLOCKED = "BLOCKED"
+
+
 class BuildProfile(StrEnum):
     HOST_SMOKE = "HOST_SMOKE"
     DEVICE = "DEVICE"
