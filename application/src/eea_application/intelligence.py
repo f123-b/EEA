@@ -62,13 +62,17 @@ class DocumentService:
         )
         return self._repository.add(document)
 
-    def get(self, document_id: UUID) -> Document:
-        document = self._repository.get(document_id)
+    def get(self, document_id: UUID, *, project_id: UUID | None) -> Document:
+        document = self._repository.get(document_id, project_id=project_id)
         if document is None:
             raise EngineeringError(
-                EngineeringErrorCode.DOCUMENT_PARSE_FAILED,
-                "Document was not found",
-                details={"document_id": str(document_id)},
+                (
+                    EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED
+                    if project_id is not None and self._repository.exists(document_id)
+                    else EngineeringErrorCode.DOCUMENT_PARSE_FAILED
+                ),
+                "Document is not available in the requested project scope",
+                details={"document_id": str(document_id), "project_id": str(project_id)},
             )
         return document
 

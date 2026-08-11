@@ -645,22 +645,22 @@ class RequirementAnalysisService:
                 EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
                 "Evidence validation is not configured",
             )
-        evidence = self._evidence_repository.get(evidence_id)
+        evidence = self._evidence_repository.get(evidence_id, project_id=project_id)
         if evidence is None:
+            if self._evidence_repository.exists(evidence_id):
+                raise EngineeringError(
+                    EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+                    "Evidence belongs to a different project",
+                    details={
+                        "evidence_ref": evidence_ref,
+                        "evidence_id": str(evidence_id),
+                        "project_id": str(project_id),
+                    },
+                )
             raise EngineeringError(
                 EngineeringErrorCode.INVALID_REQUIREMENT,
                 "Requirement analysis referenced unknown evidence",
                 details={"evidence_ref": evidence_ref, "evidence_id": str(evidence_id)},
-            )
-        if evidence.project_id is not None and evidence.project_id != project_id:
-            raise EngineeringError(
-                EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
-                "Evidence belongs to a different project",
-                details={
-                    "evidence_ref": evidence_ref,
-                    "evidence_id": str(evidence_id),
-                    "project_id": str(project_id),
-                },
             )
         if allowed_types and evidence.evidence_type not in allowed_types:
             raise EngineeringError(

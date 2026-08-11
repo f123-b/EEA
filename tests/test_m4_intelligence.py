@@ -43,8 +43,15 @@ class MemoryDocumentRepository:
         self.items[document.id] = document  # type: ignore[attr-defined]
         return document
 
-    def get(self, document_id: UUID) -> object | None:
-        return self.items.get(document_id)
+    def get(self, document_id: UUID, *, project_id: UUID | None) -> object | None:
+        document = self.items.get(document_id)
+        if document is None:
+            return None
+        owner = document.project_id  # type: ignore[attr-defined]
+        return document if owner is None or owner == project_id else None
+
+    def exists(self, document_id: UUID) -> bool:
+        return document_id in self.items
 
 
 class MemoryDocumentIRRepository:
@@ -55,7 +62,7 @@ class MemoryDocumentIRRepository:
         self.item = document_ir
         return document_ir
 
-    def get_for_document(self, document_id: UUID) -> DocumentIR | None:
+    def get_for_document(self, document_id: UUID, *, project_id: UUID | None) -> DocumentIR | None:
         return self.item if self.item and self.item.document_id == document_id else None
 
 
@@ -90,7 +97,7 @@ def test_docling_adapter_and_upload_preserve_document_locations(tmp_path: Path) 
     assert parsed.document_id == document.id
     assert parsed.pages[0].page_number == 1
     assert parsed.sections[0].title == "Alternate functions"
-    assert irs.get_for_document(document.id) == parsed
+    assert irs.get_for_document(document.id, project_id=document.project_id) == parsed
 
 
 def test_docling_adapter_reports_missing_optional_runtime() -> None:
@@ -163,8 +170,10 @@ def test_document_and_document_ir_sql_roundtrip(settings: Settings) -> None:
                 pages=[DocumentPage(page_number=1, text="content")],
             )
             SqlAlchemyDocumentIRRepository(session).add(ir)
-            assert SqlAlchemyDocumentRepository(session).get(saved.id) == saved
-            loaded_ir = SqlAlchemyDocumentIRRepository(session).get_for_document(saved.id)
+            assert SqlAlchemyDocumentRepository(session).get(saved.id, project_id=None) == saved
+            loaded_ir = SqlAlchemyDocumentIRRepository(session).get_for_document(
+                saved.id, project_id=None
+            )
             assert loaded_ir is not None
             assert loaded_ir.pages[0].text == "content"
     finally:
@@ -204,8 +213,11 @@ def test_multi_source_merge_retains_conflicts_and_unions_functions() -> None:
 
 
 def test_api_document_upload_and_device_query(client: TestClient) -> None:
+    project_response = client.post("/api/v1/projects", json={"name": "M4 document scope"})
+    assert project_response.status_code == 201
+    project_id = project_response.json()["data"]["id"]
     response = client.post(
-        "/api/v1/documents",
+        f"/api/v1/projects/{project_id}/documents",
         json={
             "filename": "fixture.pdf",
             "content_base64": base64.b64encode(b"fixture").decode(),
@@ -215,7 +227,7 @@ def test_api_document_upload_and_device_query(client: TestClient) -> None:
     assert response.status_code == 201
     document = response.json()["data"]
     assert document["parse_status"] == "UPLOADED"
-    fetched = client.get(f"/api/v1/documents/{document['id']}")
+    fetched = client.get(f"/api/v1/projects/{project_id}/documents/{document['id']}")
     assert fetched.status_code == 200
     assert fetched.json()["data"]["content_hash"] == document["content_hash"]
 

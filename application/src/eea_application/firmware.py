@@ -852,7 +852,16 @@ class FirmwareBuildService:
                         [diagnostic],
                     )
             policy = SandboxPolicy(
-                allowed_executables=tuple(sorted({executable, toolchain_executable}))
+                # The sandbox authorizes canonical executable identities, never basenames.
+                allowed_executables=tuple(
+                    sorted(
+                        {
+                            resolved
+                            for name in {executable, toolchain_executable}
+                            if (resolved := shutil.which(name)) is not None
+                        }
+                    )
+                )
             )
             try:
                 version = self._executor.execute(

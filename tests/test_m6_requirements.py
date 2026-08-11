@@ -75,8 +75,16 @@ class MemoryEvidenceRepository:
         self.items[evidence.id] = evidence
         return evidence
 
-    def get(self, evidence_id: UUID) -> Evidence | None:
-        return self.items.get(evidence_id)
+    def get(self, evidence_id: UUID, *, project_id: UUID | None) -> Evidence | None:
+        evidence = self.items.get(evidence_id)
+        if evidence is None:
+            return None
+        return (
+            evidence if evidence.project_id is None or evidence.project_id == project_id else None
+        )
+
+    def exists(self, evidence_id: UUID) -> bool:
+        return evidence_id in self.items
 
 
 class MemoryPromptRepository:

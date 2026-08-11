@@ -12,8 +12,7 @@ from eea_core.intelligence import (
     DocumentSection,
     DocumentTable,
 )
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from eea_backend.models import DocumentIRRecord, DocumentRecord
@@ -70,22 +69,31 @@ class SqlAlchemyDocumentRepository:
             parse_error=document.parse_error,
         )
         self._session.add(record)
-        try:
-            self._session.commit()
-        except IntegrityError:
-            self._session.rollback()
-            existing = self._session.scalar(
-                select(DocumentRecord).where(DocumentRecord.content_hash == document.content_hash)
-            )
-            if existing is None:
-                raise
-            return _to_document(existing)
+        self._session.commit()
         self._session.refresh(record)
         return _to_document(record)
 
-    def get(self, document_id: UUID) -> Document | None:
-        record = self._session.get(DocumentRecord, str(document_id))
+    def get(self, document_id: UUID, *, project_id: UUID | None) -> Document | None:
+        scope = (
+            DocumentRecord.project_id.is_(None)
+            if project_id is None
+            else or_(
+                DocumentRecord.project_id == str(project_id),
+                DocumentRecord.project_id.is_(None),
+            )
+        )
+        record = self._session.scalar(
+            select(DocumentRecord).where(DocumentRecord.id == str(document_id), scope)
+        )
         return _to_document(record) if record else None
+
+    def exists(self, document_id: UUID) -> bool:
+        return (
+            self._session.scalar(
+                select(DocumentRecord.id).where(DocumentRecord.id == str(document_id)).limit(1)
+            )
+            is not None
+        )
 
 
 def _to_document_ir(record: DocumentIRRecord) -> DocumentIR:
@@ -146,8 +154,18 @@ class SqlAlchemyDocumentIRRepository:
         self._session.refresh(record)
         return _to_document_ir(record)
 
-    def get_for_document(self, document_id: UUID) -> DocumentIR | None:
+    def get_for_document(self, document_id: UUID, *, project_id: UUID | None) -> DocumentIR | None:
+        scope = (
+            DocumentRecord.project_id.is_(None)
+            if project_id is None
+            else or_(
+                DocumentRecord.project_id == str(project_id),
+                DocumentRecord.project_id.is_(None),
+            )
+        )
         record = self._session.scalar(
-            select(DocumentIRRecord).where(DocumentIRRecord.document_id == str(document_id))
+            select(DocumentIRRecord)
+            .join(DocumentRecord, DocumentRecord.id == DocumentIRRecord.document_id)
+            .where(DocumentIRRecord.document_id == str(document_id), scope)
         )
         return _to_document_ir(record) if record else None

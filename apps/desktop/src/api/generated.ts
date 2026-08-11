@@ -325,3 +325,55 @@ export interface ProjectData {
   description: string;
   status: ProjectStatus;
 }
+
+export interface DocumentUploadRequest {
+  filename: string;
+  content_base64: string;
+  document_type: DocumentType;
+  vendor: string | null;
+  product: string | null;
+  version_label: string | null;
+}
+
+export interface DocumentData {
+  id: string;
+  schema_version: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+  project_id: string | null;
+  filename: string;
+  document_type: DocumentType;
+  vendor: string | null;
+  product: string | null;
+  version_label: string | null;
+  content_hash: string;
+  storage_uri: string;
+  parse_status: DocumentParseStatus;
+  parse_error: string | null;
+}
+
+export interface EvidenceCreateRequest {
+  evidence_type: EvidenceType;
+  locator: Record<string, unknown>;
+  source_uri: string | null;
+  content_hash: string | null;
+  summary: string;
+}
+
+export interface EvidenceData {
+  id: string;
+  schema_version: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+  project_id: string | null;
+  evidence_type: EvidenceType;
+  locator: Record<string, unknown>;
+  source_uri: string | null;
+  content_hash: string | null;
+  files: string[];
+  summary: string;
+}

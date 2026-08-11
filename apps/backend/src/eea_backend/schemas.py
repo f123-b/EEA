@@ -111,7 +111,6 @@ class EvidenceCreateRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    project_id: UUID
     evidence_type: EvidenceType
     locator: dict[str, object] = Field(default_factory=dict)
     source_uri: str | None = Field(default=None, max_length=2000)
@@ -968,7 +967,6 @@ class SchemaData(BaseModel):
 class DocumentUploadRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    project_id: UUID | None = None
     filename: str = Field(min_length=1, max_length=500)
     content_base64: str = Field(min_length=1, max_length=20_000_000)
     document_type: DocumentType = DocumentType.UNKNOWN

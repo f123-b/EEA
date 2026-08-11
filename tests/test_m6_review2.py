@@ -199,9 +199,8 @@ def test_claim_predicate_contract_is_seeded_and_registered(client: TestClient) -
 def test_client_cannot_forge_trusted_evidence_types(client: TestClient) -> None:
     project_id = _project(client, "M6 evidence")
     allowed = client.post(
-        "/api/v1/evidence",
+        f"/api/v1/projects/{project_id}/evidence",
         json={
-            "project_id": str(project_id),
             "evidence_type": EvidenceType.DOCUMENT.value,
             "locator": {"filename": "requirements.pdf"},
             "summary": "Uploaded requirements document",
@@ -209,15 +208,14 @@ def test_client_cannot_forge_trusted_evidence_types(client: TestClient) -> None:
     )
     assert allowed.status_code == 201
     evidence_id = allowed.json()["data"]["id"]
-    fetched = client.get(f"/api/v1/evidence/{evidence_id}?project_id={project_id}")
+    fetched = client.get(f"/api/v1/projects/{project_id}/evidence/{evidence_id}")
     assert fetched.status_code == 200
     assert fetched.json()["data"]["project_id"] == str(project_id)
 
     for evidence_type in (EvidenceType.HARDWARE_TEST, EvidenceType.RULE, EvidenceType.TOOL):
         rejected = client.post(
-            "/api/v1/evidence",
+            f"/api/v1/projects/{project_id}/evidence",
             json={
-                "project_id": str(project_id),
                 "evidence_type": evidence_type.value,
             },
         )

@@ -1,7 +1,7 @@
 """Framework-free ports for sandbox materialization and command execution."""
 
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 
 class ArchiveMaterializer(Protocol):
@@ -13,4 +13,10 @@ class ArchiveMaterializer(Protocol):
 class CommandExecutor(Protocol):
     name: str
 
-    def execute(self, spec: object, workspace: Path, policy: object) -> object: ...
+    def capabilities(self) -> Any: ...
+
+    def execute(self, spec: object, workspace: Path, policy: object) -> Any: ...
+
+
+class SandboxRuntime(CommandExecutor, Protocol):
+    """Runtime boundary for OS-specific sandbox enforcement adapters."""

@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -63,6 +64,27 @@ class SandboxPolicy(BaseModel):
         return tuple(value.strip() for value in values if value.strip())
 
 
+class SandboxExecutionTrust(StrEnum):
+    """Trust classification required by a command execution contract."""
+
+    TRUSTED_TOOL = "TRUSTED_TOOL"
+    UNTRUSTED_CODE = "UNTRUSTED_CODE"
+
+
+class SandboxCapabilities(BaseModel):
+    """Capabilities a runtime can prove it enforces for the current host."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    network_isolation: bool = False
+    memory_limit: bool = False
+    process_limit: bool = False
+    process_tree_kill: bool = False
+    streaming_output_limit: bool = False
+    filesystem_isolation: bool = False
+    strong_isolation: bool = False
+
+
 class CommandSpec(BaseModel):
     """Structured argv command; shell syntax is intentionally not represented."""
 
@@ -73,6 +95,7 @@ class CommandSpec(BaseModel):
     environment: dict[str, str] = Field(default_factory=dict)
     timeout_seconds: float | None = Field(default=None, gt=0)
     network_required: bool = False
+    trust_level: SandboxExecutionTrust = SandboxExecutionTrust.TRUSTED_TOOL
 
     @field_validator("argv")
     @classmethod

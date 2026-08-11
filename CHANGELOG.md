@@ -37,6 +37,9 @@ the frozen documentation changelogs under `docs/`.
 - M13 Firmware static analysis: deterministic FirmwareStaticAnalysis contracts, sandboxed
   Cppcheck provider, four firmware RELEASE_GATE rules, normalized SQL persistence, migration
   `0016_m13_firmware_static_analysis`, and project analysis APIs.
+- M5R/M13R/Project Scope Hardening: runtime-enforced sandbox boundaries with fail-closed
+  capability checks, Tree-sitter C/C++ analysis with strict Cppcheck XML validation, scoped
+  Document/DocumentIR/Evidence reads, per-project document metadata, and migration `0017`.
 - Alembic `0006_m5` migration extends the API error catalog for sandbox violations and resource
   limits.
 - M6 Requirement DSL: versioned generic requirement profiles, evidence contracts, structured

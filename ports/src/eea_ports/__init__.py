@@ -8,6 +8,7 @@ from eea_ports.ai import (
     ProviderUsage,
 )
 from eea_ports.components import ComponentProvider
+from eea_ports.cpp_syntax import CppSourceAnalyzer
 from eea_ports.secrets import SecretReference, SecretService, SecretValue
 from eea_ports.static_analysis import StaticAnalysisProvider
 
@@ -17,6 +18,7 @@ __all__ = [
     "AIProviderRequest",
     "AIProviderResponse",
     "ComponentProvider",
+    "CppSourceAnalyzer",
     "ProviderUsage",
     "SecretReference",
     "SecretService",

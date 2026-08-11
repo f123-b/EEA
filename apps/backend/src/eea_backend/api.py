@@ -1622,20 +1622,21 @@ def get_firmware_static_analysis(
 
 
 @router.post(
-    "/evidence",
+    "/projects/{project_id}/evidence",
     response_model=ApiEnvelope[EvidenceData],
     status_code=status.HTTP_201_CREATED,
     tags=["evidence"],
 )
 def register_evidence(
+    project_id: UUID,
     payload: EvidenceCreateRequest,
     request: Request,
     session: SessionDependency,
 ) -> ApiEnvelope[EvidenceData]:
-    _service(session).get(payload.project_id)
+    _service(session).get(project_id)
     evidence = SqlAlchemyEvidenceRepository(session).add(
         Evidence(
-            project_id=payload.project_id,
+            project_id=project_id,
             evidence_type=payload.evidence_type,
             locator=payload.locator,
             source_uri=payload.source_uri,
@@ -1646,25 +1647,31 @@ def register_evidence(
     return ApiEnvelope(data=_evidence_data(evidence), request_id=_request_id(request))
 
 
-@router.get("/evidence/{evidence_id}", response_model=ApiEnvelope[EvidenceData], tags=["evidence"])
+@router.get(
+    "/projects/{project_id}/evidence/{evidence_id}",
+    response_model=ApiEnvelope[EvidenceData],
+    tags=["evidence"],
+)
 def get_evidence(
+    project_id: UUID,
     evidence_id: UUID,
     request: Request,
     session: SessionDependency,
-    project_id: UUID | None = None,
 ) -> ApiEnvelope[EvidenceData]:
-    evidence = SqlAlchemyEvidenceRepository(session).get(evidence_id)
+    _service(session).get(project_id)
+    repository = SqlAlchemyEvidenceRepository(session)
+    evidence = repository.get(evidence_id, project_id=project_id)
     if evidence is None:
+        if repository.exists(evidence_id):
+            raise EngineeringError(
+                EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+                "Evidence belongs to a different project",
+                details={"evidence_id": str(evidence_id), "project_id": str(project_id)},
+            )
         raise EngineeringError(
             EngineeringErrorCode.INVALID_REQUIREMENT,
             "Evidence was not found",
             details={"evidence_id": str(evidence_id)},
-        )
-    if project_id is not None and evidence.project_id != project_id:
-        raise EngineeringError(
-            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
-            "Evidence belongs to a different project",
-            details={"evidence_id": str(evidence_id), "project_id": str(project_id)},
         )
     return ApiEnvelope(data=_evidence_data(evidence), request_id=_request_id(request))
 
@@ -1739,16 +1746,18 @@ async def analyze_natural_language_requirements(
 
 
 @router.post(
-    "/documents",
+    "/projects/{project_id}/documents",
     response_model=ApiEnvelope[DocumentData],
     status_code=status.HTTP_201_CREATED,
     tags=["documents"],
 )
 def upload_document(
+    project_id: UUID,
     payload: DocumentUploadRequest,
     request: Request,
     session: SessionDependency,
 ) -> ApiEnvelope[DocumentData]:
+    _service(session).get(project_id)
     try:
         content = b64decode(payload.content_base64, validate=True)
     except (Base64Error, ValueError):
@@ -1761,7 +1770,7 @@ def upload_document(
     ).upload(
         content,
         filename=payload.filename,
-        project_id=payload.project_id,
+        project_id=project_id,
         document_type=payload.document_type,
         vendor=payload.vendor,
         product=payload.product,
@@ -1771,16 +1780,17 @@ def upload_document(
 
 
 @router.get(
-    "/documents/{document_id}",
+    "/projects/{project_id}/documents/{document_id}",
     response_model=ApiEnvelope[DocumentData],
     tags=["documents"],
 )
 def get_document(
-    document_id: UUID, request: Request, session: SessionDependency
+    project_id: UUID, document_id: UUID, request: Request, session: SessionDependency
 ) -> ApiEnvelope[DocumentData]:
+    _service(session).get(project_id)
     document = DocumentService(
         SqlAlchemyDocumentRepository(session), request.app.state.settings.data_dir
-    ).get(document_id)
+    ).get(document_id, project_id=project_id)
     return ApiEnvelope(data=_document_data(document), request_id=_request_id(request))
 
 

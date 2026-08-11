@@ -1,23 +1,34 @@
 """M5 Sandbox Foundation security and resource-limit acceptance tests."""
 
+import os
 import stat
 import sys
 import tarfile
+import time
 import zipfile
 from pathlib import Path
+from shutil import copy2
 
 import pytest
 from eea_adapters.sandbox import SafeArchiveMaterializer, StructuredCommandExecutor
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
-from eea_core.sandbox import CommandSpec, SafePath, SandboxPolicy, SandboxWorkspace
+from eea_core.sandbox import (
+    CommandSpec,
+    SafePath,
+    SandboxExecutionTrust,
+    SandboxPolicy,
+    SandboxWorkspace,
+)
 
 
 def _policy(**changes: object) -> SandboxPolicy:
-    return SandboxPolicy(
-        allowed_executables=(Path(sys.executable).name,),
-        **changes,
-    )
+    values: dict[str, object] = {
+        "allowed_executables": (str(Path(sys.executable).resolve()),),
+        "network_access": True,
+    }
+    values.update(changes)
+    return SandboxPolicy(**values)
 
 
 def test_safe_path_rejects_traversal_absolute_and_symlink_escape(tmp_path: Path) -> None:
@@ -111,9 +122,50 @@ def test_structured_command_is_allowlisted_and_shell_free(tmp_path: Path) -> Non
         executor.execute(
             CommandSpec(argv=(sys.executable, "-c", "print('x')"), network_required=True),
             workspace.root,
-            _policy(),
+            _policy(network_access=False),
         )
     assert error.value.code is EngineeringErrorCode.NETWORK_DENIED
+
+
+def test_structured_command_rejects_basename_spoof_and_untrusted_downgrade(
+    tmp_path: Path,
+) -> None:
+    workspace = SandboxWorkspace.from_root(tmp_path / "workspace")
+    fake = tmp_path / Path(sys.executable).name
+    copy2(sys.executable, fake)
+    executor = StructuredCommandExecutor()
+    with pytest.raises(EngineeringError) as error:
+        executor.execute(
+            CommandSpec(argv=(str(fake), "-c", "print('spoof')")),
+            workspace.root,
+            _policy(),
+        )
+    assert error.value.code is EngineeringErrorCode.COMMAND_NOT_ALLOWED
+
+    with pytest.raises(EngineeringError) as error:
+        executor.execute(
+            CommandSpec(
+                argv=(sys.executable, "-c", "print('untrusted')"),
+                trust_level=SandboxExecutionTrust.UNTRUSTED_CODE,
+            ),
+            workspace.root,
+            _policy(),
+        )
+    assert error.value.code is EngineeringErrorCode.CAPABILITY_UNAVAILABLE
+
+
+def test_network_denied_without_runtime_isolation_fails_before_spawn(tmp_path: Path) -> None:
+    workspace = SandboxWorkspace.from_root(tmp_path / "workspace")
+    executor = StructuredCommandExecutor()
+    policy = _policy(network_access=False)
+    command = CommandSpec(argv=(sys.executable, "-c", "raise SystemExit(99)"))
+    if executor.capabilities().network_isolation:
+        result = executor.execute(command, workspace.root, policy)
+        assert result.returncode != 0
+    else:
+        with pytest.raises(EngineeringError) as error:
+            executor.execute(command, workspace.root, policy)
+        assert error.value.code is EngineeringErrorCode.CAPABILITY_UNAVAILABLE
 
 
 def test_structured_command_enforces_timeout_output_and_secret_boundaries(tmp_path: Path) -> None:
@@ -145,3 +197,40 @@ def test_structured_command_enforces_timeout_output_and_secret_boundaries(tmp_pa
             _policy(),
         )
     assert error.value.code is EngineeringErrorCode.SANDBOX_VIOLATION
+
+
+def test_timeout_kills_process_tree_when_runtime_supports_it(tmp_path: Path) -> None:
+    workspace = SandboxWorkspace.from_root(tmp_path / "workspace")
+    executor = StructuredCommandExecutor()
+    if not executor.capabilities().process_tree_kill:
+        with pytest.raises(EngineeringError) as error:
+            executor.execute(
+                CommandSpec(argv=(sys.executable, "-c", "import time; time.sleep(2)")),
+                workspace.root,
+                _policy(max_runtime_seconds=0.05),
+            )
+        assert error.value.code is EngineeringErrorCode.CAPABILITY_UNAVAILABLE
+        return
+
+    child_pid_file = workspace.path("child.pid")
+    child_code = (
+        "import pathlib, subprocess, sys, time; "
+        "child=subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(10)']); "
+        f"pathlib.Path({str(child_pid_file)!r}).write_text(str(child.pid)); "
+        "time.sleep(10)"
+    )
+    with pytest.raises(EngineeringError) as error:
+        executor.execute(
+            CommandSpec(argv=(sys.executable, "-c", child_code)),
+            workspace.root,
+            _policy(max_runtime_seconds=0.1, max_processes=2),
+        )
+    assert error.value.code is EngineeringErrorCode.RESOURCE_LIMIT_EXCEEDED
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline and not child_pid_file.exists():
+        time.sleep(0.01)
+    if child_pid_file.exists():
+        child_pid = int(child_pid_file.read_text())
+        with pytest.raises(OSError):
+            # The child must have been terminated with the parent Job/process group.
+            os.kill(child_pid, 0)

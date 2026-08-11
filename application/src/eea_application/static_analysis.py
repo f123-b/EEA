@@ -14,19 +14,26 @@ from eea_core.firmware import FirmwareBundle
 from eea_core.mcu_config import MCUConfigIR
 from eea_core.pin_planner import RuleResult
 from eea_core.static_analysis import FirmwareStaticAnalysis, StaticAnalysisToolResult
+from eea_ports.cpp_syntax import CppSourceAnalyzer
 from eea_ports.static_analysis import StaticAnalysisProvider
 
-RULESET_VERSION = "m13.1"
+RULESET_VERSION = "m13.2"
 _RULE_NAMESPACE = UUID("2c6f9026-6951-5c36-8c53-76522cb60b6e")
 _SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp"}
-_HAL_CALL = re.compile(r"\b(?:HAL|LL)_[A-Za-z0-9_]+\s*\(")
-_IRQ_NAME = re.compile(r"\b[A-Za-z_]\w*IRQHandler\b")
-_FUNCTION_START = re.compile(r"\b(?P<name>[A-Za-z_]\w*)\s*\([^;{}]*\)\s*\{", re.MULTILINE)
-_BLOCKING_CALL = re.compile(
-    r"\b(?:HAL_Delay|osDelay|vTaskDelay|xQueueReceive|xQueueSend|"
-    r"xSemaphoreTake|xSemaphoreGive|taskENTER_CRITICAL|portENTER_CRITICAL|"
-    r"vTaskSuspend|sleep)\s*\("
-)
+_HAL_CALL_NAME = re.compile(r"^(?:HAL|LL)_[A-Za-z0-9_]+$")
+_BLOCKING_CALL_NAMES = {
+    "HAL_Delay",
+    "osDelay",
+    "vTaskDelay",
+    "xQueueReceive",
+    "xQueueSend",
+    "xSemaphoreTake",
+    "xSemaphoreGive",
+    "taskENTER_CRITICAL",
+    "portENTER_CRITICAL",
+    "vTaskSuspend",
+    "sleep",
+}
 _EXCLUDED_APP_SEGMENTS = {"components", "drivers", "bsp", "platform", "middleware"}
 
 
@@ -37,28 +44,20 @@ def _sha256_json(value: object) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _line_number(text: str, offset: int) -> int:
-    return text.count("\n", 0, offset) + 1
-
-
-def _function_body(text: str, opening_brace: int) -> str | None:
-    depth = 0
-    for index in range(opening_brace, len(text)):
-        character = text[index]
-        if character == "{":
-            depth += 1
-        elif character == "}":
-            depth -= 1
-            if depth == 0:
-                return text[opening_brace + 1 : index]
-    return None
-
-
 class FirmwareStaticAnalysisService:
     """Evaluate the M13 firmware gates and an optional external tool."""
 
-    def __init__(self, provider: StaticAnalysisProvider | None = None) -> None:
+    def __init__(
+        self,
+        provider: StaticAnalysisProvider | None = None,
+        syntax_analyzer: CppSourceAnalyzer | None = None,
+    ) -> None:
         self._provider = provider
+        if syntax_analyzer is None:
+            from eea_adapters.static_analysis import TreeSitterCppSourceAnalyzer
+
+            syntax_analyzer = TreeSitterCppSourceAnalyzer()
+        self._syntax_analyzer = syntax_analyzer
 
     def analyze(
         self,
@@ -221,11 +220,10 @@ class FirmwareStaticAnalysisService:
             },
         )
 
-    @classmethod
-    def _direct_hal_rule(cls, bundle: FirmwareBundle, input_hash: str) -> RuleResult:
-        files = [item for item in bundle.files if cls._is_source(item.path)]
+    def _direct_hal_rule(self, bundle: FirmwareBundle, input_hash: str) -> RuleResult:
+        files = [item for item in bundle.files if self._is_source(item.path)]
         if not files:
-            return cls._rule(
+            return self._rule(
                 bundle,
                 input_hash,
                 "APP_DIRECT_HAL_CALL",
@@ -233,14 +231,9 @@ class FirmwareStaticAnalysisService:
                 IssueSeverity.MEDIUM,
                 recommendation="Provide a traceable C/C++ source snapshot before release gating.",
             )
-        candidates = [item for item in files if cls._is_app_owned(item.path, item.generated_owned)]
-        findings = [
-            f"{item.path}:{_line_number(item.content, match.start())}"
-            for item in candidates
-            for match in _HAL_CALL.finditer(item.content)
-        ]
+        candidates = [item for item in files if self._is_app_owned(item.path, item.generated_owned)]
         if not candidates:
-            return cls._rule(
+            return self._rule(
                 bundle,
                 input_hash,
                 "APP_DIRECT_HAL_CALL",
@@ -248,8 +241,31 @@ class FirmwareStaticAnalysisService:
                 IssueSeverity.INFO,
                 recommendation="No application-owned C/C++ source was present in this snapshot.",
             )
+        analyses = [self._syntax_analyzer.analyze(item.path, item.content) for item in candidates]
+        uncertain = [
+            f"{analysis.path}:parser:{diagnostic}"
+            for analysis in analyses
+            if not analysis.parse_ok
+            for diagnostic in analysis.diagnostics
+        ]
+        if uncertain:
+            return self._rule(
+                bundle,
+                input_hash,
+                "APP_DIRECT_HAL_CALL",
+                "UNKNOWN",
+                IssueSeverity.MEDIUM,
+                affected_refs=sorted(uncertain),
+                recommendation="Resolve C/C++ syntax-parser uncertainty before release gating.",
+            )
+        findings = sorted(
+            f"{analysis.path}:{call.line}"
+            for analysis in analyses
+            for call in analysis.calls
+            if _HAL_CALL_NAME.fullmatch(call.name)
+        )
         if findings:
-            return cls._rule(
+            return self._rule(
                 bundle,
                 input_hash,
                 "APP_DIRECT_HAL_CALL",
@@ -262,7 +278,7 @@ class FirmwareStaticAnalysisService:
                     "Route HAL/LL access through the generated driver or platform adapter."
                 ),
             )
-        return cls._rule(
+        return self._rule(
             bundle,
             input_hash,
             "APP_DIRECT_HAL_CALL",
@@ -272,11 +288,10 @@ class FirmwareStaticAnalysisService:
             threshold=0,
         )
 
-    @classmethod
-    def _isr_blocking_rule(cls, bundle: FirmwareBundle, input_hash: str) -> RuleResult:
-        files = [item for item in bundle.files if cls._is_source(item.path)]
+    def _isr_blocking_rule(self, bundle: FirmwareBundle, input_hash: str) -> RuleResult:
+        files = [item for item in bundle.files if self._is_source(item.path)]
         if not files:
-            return cls._rule(
+            return self._rule(
                 bundle,
                 input_hash,
                 "ISR_BLOCKING_API",
@@ -284,12 +299,32 @@ class FirmwareStaticAnalysisService:
                 IssueSeverity.MEDIUM,
                 recommendation="Provide a traceable C/C++ source snapshot before ISR gating.",
             )
+        analyses = [self._syntax_analyzer.analyze(item.path, item.content) for item in files]
+        uncertain = [
+            f"{analysis.path}:parser:{diagnostic}"
+            for analysis in analyses
+            if not analysis.parse_ok
+            for diagnostic in analysis.diagnostics
+        ]
+        if uncertain:
+            return self._rule(
+                bundle,
+                input_hash,
+                "ISR_BLOCKING_API",
+                "UNKNOWN",
+                IssueSeverity.MEDIUM,
+                affected_refs=sorted(uncertain),
+                recommendation="Resolve C/C++ syntax-parser uncertainty before ISR gating.",
+            )
         configured = {item.handler for item in bundle.firmware.interrupts}
-        discovered = set(configured)
-        for item in files:
-            discovered.update(_IRQ_NAME.findall(item.content))
+        discovered = configured | {
+            function.name
+            for analysis in analyses
+            for function in analysis.functions
+            if function.name.endswith("IRQHandler")
+        }
         if not discovered:
-            return cls._rule(
+            return self._rule(
                 bundle,
                 input_hash,
                 "ISR_BLOCKING_API",
@@ -300,25 +335,21 @@ class FirmwareStaticAnalysisService:
         findings: list[str] = []
         missing: list[str] = []
         for handler in sorted(discovered):
-            found = False
-            for item in files:
-                for match in _FUNCTION_START.finditer(item.content):
-                    if match.group("name") != handler:
-                        continue
-                    found = True
-                    body = _function_body(item.content, match.end() - 1)
-                    if body is None:
-                        missing.append(f"{item.path}:{handler}")
-                        continue
-                    for call in _BLOCKING_CALL.finditer(body):
-                        offset = match.end() + call.start()
-                        findings.append(
-                            f"{item.path}:{_line_number(item.content, offset)}:{handler}"
-                        )
-            if not found:
+            definitions = [
+                (analysis.path, function)
+                for analysis in analyses
+                for function in analysis.functions
+                if function.name == handler
+            ]
+            if not definitions:
                 missing.append(handler)
+                continue
+            for path, function in definitions:
+                for call in function.calls:
+                    if call.name in _BLOCKING_CALL_NAMES:
+                        findings.append(f"{path}:{call.line}:{handler}")
         if missing:
-            return cls._rule(
+            return self._rule(
                 bundle,
                 input_hash,
                 "ISR_BLOCKING_API",
@@ -328,7 +359,7 @@ class FirmwareStaticAnalysisService:
                 recommendation="Resolve every declared ISR to a source definition before gating.",
             )
         if findings:
-            return cls._rule(
+            return self._rule(
                 bundle,
                 input_hash,
                 "ISR_BLOCKING_API",
@@ -339,7 +370,7 @@ class FirmwareStaticAnalysisService:
                 threshold=0,
                 recommendation="Keep ISR handlers bounded and defer blocking work to a task.",
             )
-        return cls._rule(
+        return self._rule(
             bundle,
             input_hash,
             "ISR_BLOCKING_API",

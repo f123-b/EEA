@@ -4,15 +4,19 @@ These adapters deliberately expose no shell-string API. Archive extraction is
 manual and validates every member before writing it through ``SafePath``.
 """
 
+import ctypes
 import os
 import re
+import shutil
+import signal
 import stat
 import subprocess
 import tarfile
+import threading
 import time
 import zipfile
 from pathlib import Path
-from typing import BinaryIO, cast
+from typing import Any, BinaryIO, cast
 
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
@@ -21,6 +25,8 @@ from eea_core.sandbox import (
     CommandResult,
     CommandSpec,
     SafePath,
+    SandboxCapabilities,
+    SandboxExecutionTrust,
     SandboxPolicy,
     SandboxWorkspace,
 )
@@ -223,13 +229,172 @@ class SafeArchiveMaterializer:
         )
 
 
-class StructuredCommandExecutor:
-    """Execute a policy-allowlisted argv without shell expansion or secret env."""
+class _OutputCapture:
+    """Bounded, thread-safe byte capture shared by stdout and stderr readers."""
 
-    name = "structured-command-executor/v1"
+    def __init__(self, limit: int) -> None:
+        self._limit = limit
+        self._lock = threading.Lock()
+        self._chunks: list[bytes] = []
+        self._total = 0
+        self.overflowed = False
+
+    def read_size(self) -> int:
+        with self._lock:
+            return max(1, min(8192, self._limit - self._total + 1))
+
+    def append(self, chunk: bytes) -> None:
+        with self._lock:
+            remaining = max(0, self._limit + 1 - self._total)
+            accepted = chunk[:remaining]
+            self._chunks.append(accepted)
+            self._total += len(accepted)
+            if len(chunk) > len(accepted) or self._total > self._limit:
+                self.overflowed = True
+
+    def value(self) -> bytes:
+        with self._lock:
+            return b"".join(self._chunks)
+
+
+if os.name == "nt":
+
+    class _LargeInteger(ctypes.Structure):
+        _fields_ = [("QuadPart", ctypes.c_longlong)]
+
+    class _IoCounters(ctypes.Structure):
+        _fields_ = [
+            ("ReadOperationCount", ctypes.c_ulonglong),
+            ("WriteOperationCount", ctypes.c_ulonglong),
+            ("OtherOperationCount", ctypes.c_ulonglong),
+            ("ReadTransferCount", ctypes.c_ulonglong),
+            ("WriteTransferCount", ctypes.c_ulonglong),
+            ("OtherTransferCount", ctypes.c_ulonglong),
+        ]
+
+    class _JobObjectBasicLimitInformation(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", _LargeInteger),
+            ("PerJobUserTimeLimit", _LargeInteger),
+            ("LimitFlags", ctypes.c_ulong),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", ctypes.c_ulong),
+            ("Affinity", ctypes.c_void_p),
+            ("PriorityClass", ctypes.c_ulong),
+            ("SchedulingClass", ctypes.c_ulong),
+        ]
+
+    class _JobObjectExtendedLimitInformation(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", _JobObjectBasicLimitInformation),
+            ("IoInfo", _IoCounters),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+
+class _WindowsJob:
+    """Windows Job Object adapter for process-tree and resource enforcement."""
+
+    _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+    _JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 0x00000008
+    _JOB_OBJECT_LIMIT_PROCESS_MEMORY = 0x00000100
+    _JOB_OBJECT_LIMIT_JOB_MEMORY = 0x00000200
+    _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+
+    @staticmethod
+    def supported() -> bool:
+        return os.name == "nt" and hasattr(ctypes, "WinDLL")
+
+    def __init__(self, policy: SandboxPolicy) -> None:
+        if not self.supported():
+            raise EngineeringError(
+                EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+                "Windows Job Object sandboxing is unavailable on this platform",
+            )
+        try:
+            self._kernel32: Any = ctypes.WinDLL("kernel32", use_last_error=True)
+            self._handle = self._kernel32.CreateJobObjectW(None, None)
+            if not self._handle:
+                raise OSError(ctypes.get_last_error())
+            self._configure(policy)
+        except (AttributeError, OSError, TypeError) as exc:
+            self.close()
+            raise EngineeringError(
+                EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+                "Windows Job Object limits could not be configured",
+                details={"reason": type(exc).__name__},
+            ) from None
+
+    def _configure(self, policy: SandboxPolicy) -> None:
+        info = _JobObjectExtendedLimitInformation()
+        info.BasicLimitInformation.LimitFlags = (
+            self._JOB_OBJECT_LIMIT_ACTIVE_PROCESS
+            | self._JOB_OBJECT_LIMIT_PROCESS_MEMORY
+            | self._JOB_OBJECT_LIMIT_JOB_MEMORY
+            | self._JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        )
+        info.BasicLimitInformation.ActiveProcessLimit = policy.max_processes
+        info.ProcessMemoryLimit = policy.max_memory_bytes
+        info.JobMemoryLimit = policy.max_memory_bytes
+        if not self._kernel32.SetInformationJobObject(
+            self._handle,
+            self._JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+            ctypes.byref(info),
+            ctypes.sizeof(info),
+        ):
+            raise OSError(ctypes.get_last_error())
+
+    def assign(self, process: subprocess.Popen[bytes]) -> None:
+        if not self._kernel32.AssignProcessToJobObject(self._handle, process._handle):  # type: ignore[attr-defined]
+            raise OSError(ctypes.get_last_error())
+
+    @staticmethod
+    def resume(process: subprocess.Popen[bytes]) -> None:
+        """Resume a process only after it has been attached to the Job Object."""
+        try:
+            ntdll = ctypes.WinDLL("ntdll", use_last_error=True)
+            resume_process = ntdll.NtResumeProcess
+            resume_process.argtypes = [ctypes.c_void_p]
+            resume_process.restype = ctypes.c_long
+            status = resume_process(process._handle)  # type: ignore[attr-defined]
+        except (AttributeError, OSError, TypeError) as exc:
+            raise OSError("NtResumeProcess is unavailable") from exc
+        if status != 0:
+            raise OSError(f"NtResumeProcess failed with NTSTATUS {status}")
+
+    def terminate(self) -> None:
+        self._kernel32.TerminateJobObject(self._handle, 1)
+
+    def close(self) -> None:
+        handle = getattr(self, "_handle", None)
+        if handle:
+            self._kernel32.CloseHandle(handle)
+            self._handle = None
+
+
+class StructuredCommandExecutor:
+    """Execute argv through a runtime that enforces, or rejects, its policy."""
+
+    name = "structured-command-executor/v2"
     _secret_pattern = re.compile(
         r"(?i)(api[_-]?key|token|password|secret|private[_-]?key)=([^\s]+)"
     )
+
+    def capabilities(self) -> SandboxCapabilities:
+        windows_job = _WindowsJob.supported()
+        return SandboxCapabilities(
+            network_isolation=False,
+            memory_limit=windows_job,
+            process_limit=windows_job,
+            process_tree_kill=windows_job or (os.name != "nt" and hasattr(os, "killpg")),
+            streaming_output_limit=True,
+            filesystem_isolation=False,
+            strong_isolation=False,
+        )
 
     def execute(self, spec: CommandSpec, workspace: Path, policy: SandboxPolicy) -> CommandResult:
         guard = SafePath(workspace)
@@ -241,12 +406,13 @@ class StructuredCommandExecutor:
                 "Command working directory escapes the workspace",
                 details={"cwd": spec.cwd},
             ) from exc
-        executable = Path(spec.argv[0]).name.lower()
-        allowed = {Path(value).name.lower() for value in policy.allowed_executables}
+        environment = self._environment(spec, policy)
+        executable = self._resolve_executable(spec.argv[0], environment)
+        allowed = self._canonical_allowed_executables(policy.allowed_executables)
         if executable not in allowed:
             raise EngineeringError(
                 EngineeringErrorCode.COMMAND_NOT_ALLOWED,
-                "Executable is not allowlisted by the sandbox policy",
+                "Executable is not allowlisted by its canonical path",
                 details={"executable": executable},
             )
         if spec.network_required and not policy.network_access:
@@ -259,47 +425,158 @@ class StructuredCommandExecutor:
                 EngineeringErrorCode.SANDBOX_VIOLATION,
                 "Secrets are not allowed in command arguments",
             )
-        environment = self._environment(spec, policy)
+        self._require_capabilities(spec, policy)
         timeout = min(
             policy.max_runtime_seconds, spec.timeout_seconds or policy.max_runtime_seconds
         )
         started = time.monotonic()
-        process = self._start_process(spec, cwd, environment, policy)
+        process, job = self._start_process((executable, *spec.argv[1:]), cwd, environment, policy)
+        stdout_capture = _OutputCapture(policy.max_output_bytes)
+        stderr_capture = _OutputCapture(policy.max_output_bytes)
+        overflow = threading.Event()
+        readers = [
+            threading.Thread(
+                target=self._read_stream,
+                args=(cast(BinaryIO, process.stdout), stdout_capture, overflow),
+                daemon=True,
+            ),
+            threading.Thread(
+                target=self._read_stream,
+                args=(cast(BinaryIO, process.stderr), stderr_capture, overflow),
+                daemon=True,
+            ),
+        ]
+        for reader in readers:
+            reader.start()
         timed_out = False
         try:
-            stdout, stderr = process.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired as exc:
-            timed_out = True
-            process.kill()
-            stdout, stderr = process.communicate()
-            raise EngineeringError(
-                EngineeringErrorCode.RESOURCE_LIMIT_EXCEEDED,
-                "Command exceeded the runtime limit",
-                details={
-                    "timeout_seconds": timeout,
-                    "stdout": self._redact(self._bounded(stdout)),
-                    "stderr": self._redact(self._bounded(stderr)),
-                },
-            ) from exc
+            deadline = started + timeout
+            while process.poll() is None:
+                if overflow.is_set():
+                    self._terminate(process, job)
+                    raise EngineeringError(
+                        EngineeringErrorCode.RESOURCE_LIMIT_EXCEEDED,
+                        "Command output exceeded the limit",
+                        details={"limit": policy.max_output_bytes},
+                    )
+                if time.monotonic() >= deadline:
+                    timed_out = True
+                    self._terminate(process, job)
+                    raise EngineeringError(
+                        EngineeringErrorCode.RESOURCE_LIMIT_EXCEEDED,
+                        "Command exceeded the runtime limit",
+                        details={
+                            "timeout_seconds": timeout,
+                            "stdout": self._redact(self._bounded(stdout_capture.value())),
+                            "stderr": self._redact(self._bounded(stderr_capture.value())),
+                        },
+                    )
+                time.sleep(0.005)
+            if overflow.is_set():
+                raise EngineeringError(
+                    EngineeringErrorCode.RESOURCE_LIMIT_EXCEEDED,
+                    "Command output exceeded the limit",
+                    details={"limit": policy.max_output_bytes},
+                )
+        finally:
+            if timed_out or overflow.is_set():
+                self._terminate(process, job)
+            for reader in readers:
+                reader.join(timeout=1)
+            if process.poll() is None:
+                self._terminate(process, job)
+                process.wait(timeout=1)
+            if job is not None:
+                job.close()
+        stdout = stdout_capture.value()
+        stderr = stderr_capture.value()
         duration_ms = int((time.monotonic() - started) * 1000)
-        output_truncated = (
-            len(stdout) > policy.max_output_bytes or len(stderr) > policy.max_output_bytes
-        )
-        if output_truncated:
-            raise EngineeringError(
-                EngineeringErrorCode.RESOURCE_LIMIT_EXCEEDED,
-                "Command output exceeded the limit",
-                details={"limit": policy.max_output_bytes},
-            )
         return CommandResult(
-            argv=spec.argv,
+            argv=(executable, *spec.argv[1:]),
             returncode=process.returncode,
             stdout=self._redact(stdout),
             stderr=self._redact(stderr),
             duration_ms=duration_ms,
             timed_out=timed_out,
-            output_truncated=output_truncated,
+            output_truncated=stdout_capture.overflowed or stderr_capture.overflowed,
         )
+
+    def _require_capabilities(self, spec: CommandSpec, policy: SandboxPolicy) -> None:
+        capabilities = self.capabilities()
+        missing: list[str] = []
+        if not policy.network_access and not capabilities.network_isolation:
+            missing.append("network_isolation")
+        if not capabilities.memory_limit:
+            missing.append("memory_limit")
+        if not capabilities.process_limit:
+            missing.append("process_limit")
+        if not capabilities.process_tree_kill:
+            missing.append("process_tree_kill")
+        if not capabilities.streaming_output_limit:
+            missing.append("streaming_output_limit")
+        if spec.trust_level is SandboxExecutionTrust.UNTRUSTED_CODE:
+            for capability in ("strong_isolation", "filesystem_isolation"):
+                if not getattr(capabilities, capability):
+                    missing.append(capability)
+        if missing:
+            raise EngineeringError(
+                EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+                "Sandbox runtime cannot prove the requested execution boundary",
+                details={"missing_capabilities": sorted(set(missing))},
+            )
+
+    @classmethod
+    def _resolve_executable(cls, requested: str, environment: dict[str, str]) -> str:
+        try:
+            if any(separator in requested for separator in ("/", "\\")):
+                resolved = Path(requested).resolve(strict=True)
+            else:
+                found = shutil.which(requested, path=environment.get("PATH"))
+                if found is None:
+                    raise FileNotFoundError(requested)
+                resolved = Path(found).resolve(strict=True)
+        except (FileNotFoundError, OSError, RuntimeError) as exc:
+            raise EngineeringError(
+                EngineeringErrorCode.COMMAND_NOT_ALLOWED,
+                "Requested executable could not be resolved to a canonical file",
+                details={"executable": requested},
+            ) from exc
+        if not resolved.is_file():
+            raise EngineeringError(
+                EngineeringErrorCode.COMMAND_NOT_ALLOWED,
+                "Requested executable is not a regular file",
+                details={"executable": requested},
+            )
+        return os.path.normcase(str(resolved))
+
+    @classmethod
+    def _canonical_allowed_executables(cls, values: tuple[str, ...]) -> set[str]:
+        allowed: set[str] = set()
+        for value in values:
+            candidate = Path(value)
+            if not candidate.is_absolute():
+                continue
+            try:
+                resolved = candidate.resolve(strict=True)
+            except (OSError, RuntimeError):
+                continue
+            if resolved.is_file():
+                allowed.add(os.path.normcase(str(resolved)))
+        return allowed
+
+    @staticmethod
+    def _read_stream(stream: BinaryIO, capture: _OutputCapture, overflow: threading.Event) -> None:
+        try:
+            while True:
+                chunk = stream.read(capture.read_size())
+                if not chunk:
+                    return
+                capture.append(chunk)
+                if capture.overflowed:
+                    overflow.set()
+                    return
+        except (OSError, ValueError):
+            return
 
     @staticmethod
     def _environment(spec: CommandSpec, policy: SandboxPolicy) -> dict[str, str]:
@@ -319,15 +596,19 @@ class StructuredCommandExecutor:
 
     @staticmethod
     def _start_process(
-        spec: CommandSpec,
+        argv: tuple[str, ...],
         cwd: Path,
         environment: dict[str, str],
         policy: SandboxPolicy,
-    ) -> subprocess.Popen[bytes]:
+    ) -> tuple[subprocess.Popen[bytes], _WindowsJob | None]:
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        job: _WindowsJob | None = None
+        if os.name == "nt":
+            job = _WindowsJob(policy)
+            creationflags |= getattr(subprocess, "CREATE_SUSPENDED", 0x00000004)
         try:
-            return subprocess.Popen(
-                list(spec.argv),
+            process = subprocess.Popen(
+                list(argv),
                 cwd=cwd,
                 env=environment,
                 stdin=subprocess.DEVNULL,
@@ -337,7 +618,23 @@ class StructuredCommandExecutor:
                 creationflags=creationflags,
                 start_new_session=os.name != "nt",
             )
+            if job is not None:
+                try:
+                    job.assign(process)
+                    job.resume(process)
+                except (OSError, AttributeError) as exc:
+                    job.terminate()
+                    process.kill()
+                    process.wait()
+                    raise EngineeringError(
+                        EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+                        "Sandbox process could not be attached to its Windows Job Object",
+                        details={"reason": type(exc).__name__},
+                    ) from None
+            return process, job
         except OSError as exc:
+            if job is not None:
+                job.close()
             raise EngineeringError(
                 EngineeringErrorCode.TOOL_UNAVAILABLE,
                 "Allowlisted command could not be started",
@@ -348,6 +645,21 @@ class StructuredCommandExecutor:
     def _redact(cls, value: bytes) -> str:
         text = value.decode("utf-8", errors="replace")
         return cls._secret_pattern.sub(r"\1=[REDACTED]", text)
+
+    @staticmethod
+    def _terminate(process: subprocess.Popen[bytes], job: _WindowsJob | None) -> None:
+        if job is not None:
+            job.terminate()
+            return
+        killpg = cast(Any, getattr(os, "killpg", None))
+        sigkill = getattr(signal, "SIGKILL", None)
+        if os.name != "nt" and killpg is not None and sigkill is not None:
+            try:
+                killpg(process.pid, sigkill)
+                return
+            except (OSError, AttributeError):
+                pass
+        process.kill()
 
     @staticmethod
     def _bounded(value: bytes, limit: int = 4096) -> bytes:

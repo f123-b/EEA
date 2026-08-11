@@ -3,11 +3,13 @@
 import hashlib
 from pathlib import Path
 
+from eea_adapters.static_analysis import TreeSitterCppSourceAnalyzer
 from eea_adapters.static_analysis.cppcheck import CppcheckAdapter
 from eea_application.firmware import FirmwareService
 from eea_application.static_analysis import FirmwareStaticAnalysisService
 from eea_core.enums import StaticAnalysisStatus
 from eea_core.firmware import FirmwareInterrupt, FirmwareModule, FirmwareSourceFile
+from eea_core.sandbox import CommandResult
 from eea_core.static_analysis import StaticAnalysisToolResult
 from fastapi.testclient import TestClient
 from test_m11_mcu_config import _create_sources_for_api
@@ -70,6 +72,55 @@ def test_m13_direct_hal_rule_has_positive_and_negative_paths() -> None:
     result = next(item for item in direct.rule_results if item.rule_id == "APP_DIRECT_HAL_CALL")
     assert result.status == "FAIL"
     assert result.affected_refs == ["Application/Src/control.c:1"]
+
+
+def test_m13_ast_rules_ignore_comments_strings_and_nested_braces() -> None:
+    clean = _bundle(
+        _source(
+            "Application/Src/control.c",
+            "// HAL_Delay(100);\n"
+            'const char *text = "HAL_GPIO_WritePin({ })";\n'
+            'int control(void) { if (1) { printf("{ }"); } return 0; }',
+        ),
+        _source("Drivers/hal.c", "void driver(void) { HAL_GPIO_WritePin(); }"),
+    )
+    service = FirmwareStaticAnalysisService(syntax_analyzer=TreeSitterCppSourceAnalyzer())
+    results = service.analyze(clean, mcu_config=_config(), run_cppcheck=False).rule_results
+    assert next(item for item in results if item.rule_id == "APP_DIRECT_HAL_CALL").status == "PASS"
+
+    interrupt = FirmwareInterrupt(source="TIM1", handler="TIM1_UP_IRQHandler", priority=1)
+    isr = _bundle(
+        _source(
+            "Application/Src/isr.cpp",
+            "namespace app { void TIM1_UP_IRQHandler(void) {"
+            'if (true) { printf("{ }"); } vTaskDelay(1); } }',
+        )
+    )
+    isr = isr.model_copy(
+        update={"firmware": isr.firmware.model_copy(update={"interrupts": [interrupt]})}
+    )
+    isr_result = next(
+        item
+        for item in service.analyze(isr, mcu_config=_config(), run_cppcheck=False).rule_results
+        if item.rule_id == "ISR_BLOCKING_API"
+    )
+    assert isr_result.status == "FAIL"
+
+
+def test_m13_ast_parse_uncertainty_is_unknown() -> None:
+    result = next(
+        item
+        for item in FirmwareStaticAnalysisService()
+        .analyze(
+            _bundle(_source("Application/Src/broken.c", "void broken( {")),
+            mcu_config=_config(),
+            run_cppcheck=False,
+        )
+        .rule_results
+        if item.rule_id == "APP_DIRECT_HAL_CALL"
+    )
+    assert result.status == "UNKNOWN"
+    assert result.affected_refs
 
 
 def test_m13_isr_rule_detects_blocking_and_missing_handlers() -> None:
@@ -168,6 +219,62 @@ def test_m13_cppcheck_missing_executable_is_unknown(monkeypatch) -> None:
     result = CppcheckAdapter().analyze((("main.c", "int main(void) { return 0; }"),), Path("."))
     assert result.status is StaticAnalysisStatus.UNKNOWN
     assert result.version == "UNAVAILABLE"
+
+
+class _CppcheckFixtureExecutor:
+    def __init__(self, xml: str, *, returncode: int = 0, truncated: bool = False) -> None:
+        self.xml = xml
+        self.returncode = returncode
+        self.truncated = truncated
+
+    def execute(self, spec, _workspace, _policy):
+        if spec.argv[-1] == "--version":
+            return CommandResult(
+                argv=spec.argv,
+                returncode=0,
+                stdout="Cppcheck 2.19.0\n",
+                stderr="",
+                duration_ms=1,
+            )
+        return CommandResult(
+            argv=spec.argv,
+            returncode=self.returncode,
+            stdout="",
+            stderr=self.xml,
+            duration_ms=1,
+            output_truncated=self.truncated,
+        )
+
+
+def test_m13_cppcheck_xml_is_structurally_gated(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "eea_adapters.static_analysis.cppcheck.shutil.which", lambda _: "C:/tools/cppcheck.exe"
+    )
+    clean = '<?xml version="1.0"?><results version="2"><errors /></results>'
+    diagnostics = (
+        '<?xml version="1.0"?><results version="2"><errors>'
+        '<error id="unusedFunction" file="main.c" line="2" msg="unused" />'
+        "</errors></results>"
+    )
+    for xml, status in (
+        (clean, StaticAnalysisStatus.PASS),
+        (diagnostics, StaticAnalysisStatus.FAIL),
+    ):
+        result = CppcheckAdapter(_CppcheckFixtureExecutor(xml)).analyze(
+            (("main.c", "int main(void) { return 0; }"),), Path(".")
+        )
+        assert result.status is status
+
+    for xml in ("<results version='2'><errors>", clean[:-10]):
+        result = CppcheckAdapter(_CppcheckFixtureExecutor(xml)).analyze(
+            (("main.c", "int main(void) { return 0; }"),), Path(".")
+        )
+        assert result.status is StaticAnalysisStatus.UNKNOWN
+
+    truncated = CppcheckAdapter(_CppcheckFixtureExecutor(clean, truncated=True)).analyze(
+        (("main.c", "int main(void) { return 0; }"),), Path(".")
+    )
+    assert truncated.status is StaticAnalysisStatus.UNKNOWN
 
 
 def test_m13_static_analysis_api_persists_normalized_results(client: TestClient) -> None:

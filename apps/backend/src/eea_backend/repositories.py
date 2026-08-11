@@ -7,7 +7,7 @@ from uuid import UUID
 from eea_core.ai import AIUsage, AIUsageRecord, PromptDefinition
 from eea_core.entities import Evidence, Project
 from eea_core.enums import EngineeringErrorCode, ProjectStatus
-from sqlalchemy import desc, select, update
+from sqlalchemy import desc, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -68,9 +68,26 @@ class SqlAlchemyEvidenceRepository:
             self._session.flush()
         return _to_evidence(record)
 
-    def get(self, evidence_id: UUID) -> Evidence | None:
-        record = self._session.get(EvidenceRecord, str(evidence_id))
+    def get(self, evidence_id: UUID, *, project_id: UUID | None) -> Evidence | None:
+        scope = (
+            EvidenceRecord.project_id.is_(None)
+            if project_id is None
+            else or_(
+                EvidenceRecord.project_id == str(project_id), EvidenceRecord.project_id.is_(None)
+            )
+        )
+        record = self._session.scalar(
+            select(EvidenceRecord).where(EvidenceRecord.id == str(evidence_id), scope)
+        )
         return _to_evidence(record) if record else None
+
+    def exists(self, evidence_id: UUID) -> bool:
+        return (
+            self._session.scalar(
+                select(EvidenceRecord.id).where(EvidenceRecord.id == str(evidence_id)).limit(1)
+            )
+            is not None
+        )
 
 
 def _to_project(record: ProjectRecord) -> Project:

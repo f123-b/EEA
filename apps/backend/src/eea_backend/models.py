@@ -1074,7 +1074,6 @@ class DocumentRecord(CoreRecordMixin, Base):
         CheckConstraint(
             f"parse_status IN ({_enum_values(DocumentParseStatus)})", name="parse_status"
         ),
-        UniqueConstraint("content_hash", name="uq_documents_content_hash"),
     )
 
     project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
@@ -1083,7 +1082,7 @@ class DocumentRecord(CoreRecordMixin, Base):
     vendor: Mapped[str | None] = mapped_column(String(200))
     product: Mapped[str | None] = mapped_column(String(200))
     version_label: Mapped[str | None] = mapped_column(String(100))
-    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     storage_uri: Mapped[str] = mapped_column(String(2000), nullable=False)
     parse_status: Mapped[str] = mapped_column(String(30), nullable=False)
     parse_error: Mapped[str | None] = mapped_column(Text)
