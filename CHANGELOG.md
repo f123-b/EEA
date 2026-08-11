@@ -23,6 +23,10 @@ the frozen documentation changelogs under `docs/`.
   claim, and conflict records.
 - Alembic `0004_m3_claim_core` migration and synchronized claim enum metadata in OpenAPI and
   generated TypeScript.
+- M4 Document + Device Intelligence: content-addressed document upload, DocumentIR, Docling and
+  claim-extraction ports, STM32G431 provider fixture, and auditable multi-source device merge.
+- Document/device API routes, M4 enum catalogs, durable `0005_m4` persistence migration, and
+  synchronized OpenAPI/TypeScript contracts.
 
 ### Changed
 
@@ -32,3 +36,4 @@ the frozen documentation changelogs under `docs/`.
 - Extended architecture checks so provider SDKs remain confined to Adapters and Ports remain
   independent of Core and frameworks.
 - Updated product and desktop version metadata to `1.3.1.dev3` / `1.3.1-dev.3` for M3.
+- Updated product and desktop version metadata to `1.3.1.dev4` / `1.3.1-dev.4` for M4.

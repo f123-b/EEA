@@ -1,6 +1,6 @@
 # V1.3.1 Incremental Fix Status
 
-Assessment point: after M3 acceptance.
+Assessment point: after M4 acceptance.
 
 | Fix | Status | Current evidence / insertion point |
 |---|---|---|
@@ -13,6 +13,6 @@ Assessment point: after M3 acceptance.
 | FIX-07 FOC gate / adapter order | NOT_STARTED | Required at M19A/M19B; no FOC or hardware adapter exists yet |
 | FIX-08 Job / Permission / API Error sync | DONE | Canonical values are synchronized across Core/Pydantic, SQL constraints, OpenAPI, generated TypeScript, and exhaustive frontend JobStatus handling; three named cross-surface invariants pass |
 | FIX-09 CapabilityBroker / safe ports | NOT_STARTED | Required before raw hardware adapters; none exist yet |
-| FIX-10 Consistency / invariants | PARTIAL | Architecture state is CANDIDATE; FIX-01, canonical-unit/claim invariants, AI Provider SDK confinement, and framework-free Port invariants exist; later invariants remain gated by their implementations |
+| FIX-10 Consistency / invariants | PARTIAL | Architecture state is CANDIDATE; FIX-01, canonical-unit/claim, DocumentIR location, STM32 pin-function, multi-source merge, AI Provider SDK confinement, and framework-free Port invariants exist; later invariants remain gated by their implementations |
 
 No later fix is marked passing based on documentation, mocks, placeholders, or skipped integration.

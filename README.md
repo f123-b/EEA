@@ -9,8 +9,8 @@ Implementation advances one milestone at a time using the required sequence:
 
 ## Current milestone
 
-M3 EngineeringValue + Claim Core is implemented on the accepted M2 AI Provider Foundation
-(implementation version `1.3.1.dev3`):
+M4 Document + Device Intelligence is implemented on the accepted M3 Claim Core
+(implementation version `1.3.1.dev4`):
 
 - FastAPI backend with health and version endpoints;
 - SQLAlchemy 2.x and Alembic migration foundation;
@@ -35,6 +35,12 @@ M3 EngineeringValue + Claim Core is implemented on the accepted M2 AI Provider F
 - evidence-gated `DOCUMENT_VERIFIED` claims and source-priority / source-version conflict
   resolution;
 - Alembic `0004_m3_claim_core` migration plus synchronized Core/OpenAPI/TypeScript claim enums.
+- content-addressed document upload with durable DocumentIR pages, sections, tables, and figures;
+- Docling and claim-extraction adapter boundaries with evidence-preserving claim validation;
+- STM32G431 device provider fixture covering PA8/TIM1_CH1 complementary PWM, FDCAN, ADC/DMA, and
+  package-aware pin queries;
+- multi-source device merge that unions compatible facts and retains scalar/pin-function conflicts;
+- Alembic `0005_m4` migration and versioned document/device API contracts.
 
 ## Development
 
