@@ -40,6 +40,9 @@ the frozen documentation changelogs under `docs/`.
 - M14 Domain Extension Infrastructure: Core-neutral Domain descriptors and opaque IR envelopes,
   deterministic composition/capability/generator routing, project activation APIs and storage,
   metadata-only UI hooks, bundled-only trust enforcement, and migrations `0018`/`0019`.
+- M14R Repository Acceptance Hardening: Windows-only Sandbox Job Object isolation, deterministic
+  Domain configuration lifecycle and Schema validation, configuration compatibility snapshots,
+  synchronized error contracts, migration `0020`/`0021`, and implementation version `1.3.1.dev14`.
 - M5R/M13R/Project Scope Hardening: runtime-enforced sandbox boundaries with fail-closed
   capability checks, Tree-sitter C/C++ analysis with strict Cppcheck XML validation, scoped
   Document/DocumentIR/Evidence reads, per-project document metadata, and migration `0017`.
@@ -61,3 +64,4 @@ the frozen documentation changelogs under `docs/`.
 - Updated product and desktop version metadata to `1.3.1.dev4` / `1.3.1-dev.4` for M4.
 - Updated product and desktop version metadata to `1.3.1.dev5` / `1.3.1-dev.5` for M5.
 - Updated product and desktop version metadata to `1.3.1.dev6` / `1.3.1-dev.6` for M6.
+- Updated product and desktop version metadata to `1.3.1.dev14` / `1.3.1-dev.14` for M14R.

@@ -46,7 +46,7 @@ class FakeDomainPlugin:
         self._rules = tuple(rules)
         self._generators = tuple(generators)
         self._ui_extensions = tuple(ui_extensions)
-        self._schema = schema or {"type": "object"}
+        self._schema = schema if schema is not None else {"type": "object"}
 
     def rules(self) -> Sequence[object]:
         return self._rules
@@ -300,6 +300,111 @@ def test_empty_domain_composition_and_project_activation_are_safe() -> None:
     )
 
 
+def test_reactivate_preserves_configuration_when_omitted() -> None:
+    projects = MemoryProjectRepository()
+    activations = MemoryDomainActivationRepository()
+    project = projects.add(Project(name="configuration lifecycle"))
+    service = DomainExtensionService(DomainExtensionRegistry(_plugin_set()), activations, projects)
+
+    first = service.activate(
+        project.id, "org.test.dependent", configuration={"enabled": True}, activated_by="test"
+    )
+    disabled = service.deactivate(project.id, "org.test.dependent")
+    assert disabled.configuration == {"enabled": True}
+    assert disabled.revision == first.revision + 1
+    reactivated = service.activate(project.id, "org.test.dependent", activated_by="test")
+
+    assert reactivated.configuration == {"enabled": True}
+    assert reactivated.revision == first.revision + 2
+    assert reactivated.configuration_schema_version == "1.0"
+    assert reactivated.configuration_schema_hash is not None
+    assert len(reactivated.configuration_schema_hash) == 64
+
+
+def test_active_reactivation_applies_new_configuration_and_increments_revision() -> None:
+    projects = MemoryProjectRepository()
+    activations = MemoryDomainActivationRepository()
+    project = projects.add(Project(name="active reactivation"))
+    service = DomainExtensionService(DomainExtensionRegistry(_plugin_set()), activations, projects)
+
+    first = service.activate(
+        project.id, "org.test.dependent", configuration={"enabled": True}, activated_by="test"
+    )
+    updated = service.activate(
+        project.id, "org.test.dependent", configuration={"enabled": False}, activated_by="test"
+    )
+    omitted = service.activate(project.id, "org.test.dependent", activated_by="test")
+
+    assert updated.configuration == {"enabled": False}
+    assert updated.revision == first.revision + 1
+    assert omitted.configuration == updated.configuration
+    assert omitted.revision == updated.revision
+
+
+def test_explicit_empty_configuration_is_validated_and_rejected_without_writes() -> None:
+    projects = MemoryProjectRepository()
+    activations = MemoryDomainActivationRepository()
+    project = projects.add(Project(name="required configuration"))
+    plugin = FakeDomainPlugin(
+        DomainDescriptor(
+            id="org.test.required-config",
+            plugin_id="org.test.required-config.plugin",
+            name="Required configuration",
+            version="1.0.0",
+            api_version="1",
+        ),
+        schema={
+            "type": "object",
+            "properties": {"enabled": {"type": "boolean"}},
+            "required": ["enabled"],
+            "additionalProperties": False,
+        },
+    )
+    service = DomainExtensionService(DomainExtensionRegistry((plugin,)), activations, projects)
+
+    with pytest.raises(EngineeringError) as error:
+        service.activate(project.id, plugin.descriptor.domain_id, configuration={})
+    assert error.value.code is EngineeringErrorCode.DOMAIN_CONFIGURATION_INVALID
+    assert activations.items == {}
+
+
+def test_configuration_validation_rejects_invalid_values_and_preserves_existing_state() -> None:
+    projects = MemoryProjectRepository()
+    activations = MemoryDomainActivationRepository()
+    project = projects.add(Project(name="invalid configuration"))
+    service = DomainExtensionService(DomainExtensionRegistry(_plugin_set()), activations, projects)
+    existing = service.activate(
+        project.id, "org.test.dependent", configuration={"enabled": True}, activated_by="test"
+    )
+
+    with pytest.raises(EngineeringError) as error:
+        service.activate(
+            project.id,
+            "org.test.dependent",
+            configuration={"enabled": "yes"},  # type: ignore[dict-item]
+        )
+    assert error.value.code is EngineeringErrorCode.DOMAIN_CONFIGURATION_INVALID
+    current = service.state(project.id, "org.test.dependent")
+    assert current.configuration == existing.configuration
+    assert current.revision == existing.revision
+
+
+def test_invalid_plugin_schema_fails_closed() -> None:
+    plugin = FakeDomainPlugin(
+        DomainDescriptor(
+            id="org.test.invalid-schema",
+            plugin_id="org.test.invalid-schema.plugin",
+            name="Invalid schema",
+            version="1.0.0",
+            api_version="1",
+        ),
+        schema={"type": "object", "x-unsupported-validation": True},
+    )
+    with pytest.raises(EngineeringError) as error:
+        DomainExtensionRegistry((plugin,))
+    assert error.value.code is EngineeringErrorCode.DOMAIN_CONFIGURATION_INVALID
+
+
 def test_empty_domain_list_api_and_domain_contract_routes(tmp_path: Path) -> None:
     settings = Settings(data_dir=tmp_path)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -320,6 +425,17 @@ def test_empty_domain_list_api_and_domain_contract_routes(tmp_path: Path) -> Non
         )
         assert activated.status_code == 201
         assert activated.json()["data"]["domain_id"] == "org.test.dependent"
+        assert len(activated.json()["data"]["configuration_schema_hash"]) == 64
+
+        invalid_configuration = client.post(
+            f"/api/v1/projects/{project_id}/domains/org.test.dependent/activate",
+            json={"configuration": {"enabled": "yes"}},
+        )
+        assert invalid_configuration.status_code == 422
+        assert (
+            invalid_configuration.json()["error"]["code"]
+            == EngineeringErrorCode.DOMAIN_CONFIGURATION_INVALID.value
+        )
 
         states = client.get(f"/api/v1/projects/{project_id}/domains")
         assert [item["domain_id"] for item in states.json()["data"]["items"]] == [

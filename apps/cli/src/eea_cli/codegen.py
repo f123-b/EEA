@@ -180,6 +180,8 @@ def render_typescript_contract() -> str:
             "  plugin_id: string;\n"
             "  plugin_version: string;\n"
             "  domain_schema_version: string;\n"
+            "  configuration_schema_version: string;\n"
+            "  configuration_schema_hash: string | null;\n"
             "  status: DomainActivationStatus;\n"
             "  configuration: Record<string, unknown>;\n"
             "  activated_at: string;\n"
@@ -203,7 +205,7 @@ def render_typescript_contract() -> str:
             "  json_schema: Record<string, unknown>;\n"
             "}\n",
             "export interface DomainActivationRequest {\n"
-            "  configuration: Record<string, unknown>;\n"
+            "  configuration: Record<string, unknown> | null;\n"
             "  activated_by: string;\n"
             "}\n",
             "export interface DomainValidationRequest {\n"

@@ -23,6 +23,8 @@ def _to_activation(record: DomainActivationRecord) -> DomainActivation:
         plugin_id=record.plugin_id,
         plugin_version=record.plugin_version,
         domain_schema_version=record.domain_schema_version,
+        configuration_schema_version=record.configuration_schema_version,
+        configuration_schema_hash=record.configuration_schema_hash,
         status=DomainActivationStatus(record.status),
         configuration=record.configuration,
         activated_at=record.activated_at,
@@ -49,6 +51,8 @@ class SqlAlchemyDomainActivationRepository:
             plugin_id=activation.plugin_id,
             plugin_version=activation.plugin_version,
             domain_schema_version=activation.domain_schema_version,
+            configuration_schema_version=activation.configuration_schema_version,
+            configuration_schema_hash=activation.configuration_schema_hash,
             status=activation.status.value,
             configuration=activation.configuration,
             activated_at=activation.activated_at,
@@ -94,6 +98,8 @@ class SqlAlchemyDomainActivationRepository:
         record.plugin_id = activation.plugin_id
         record.plugin_version = activation.plugin_version
         record.domain_schema_version = activation.domain_schema_version
+        record.configuration_schema_version = activation.configuration_schema_version
+        record.configuration_schema_hash = activation.configuration_schema_hash
         record.status = activation.status.value
         record.configuration = activation.configuration
         record.activated_at = activation.activated_at

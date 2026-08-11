@@ -232,6 +232,8 @@ class DomainActivationData(BaseModel):
     plugin_id: str
     plugin_version: str
     domain_schema_version: str
+    configuration_schema_version: str
+    configuration_schema_hash: str | None
     status: DomainActivationStatus
     configuration: dict[str, object]
     activated_at: datetime
@@ -272,7 +274,7 @@ class DomainUIExtensionsData(BaseModel):
 class DomainActivationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    configuration: dict[str, object] = Field(default_factory=dict)
+    configuration: dict[str, object] | None = None
     activated_by: str = Field(default="system", min_length=1, max_length=200)
 
 

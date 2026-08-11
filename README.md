@@ -9,8 +9,8 @@ Implementation advances one milestone at a time using the required sequence:
 
 ## Current milestone
 
-M6 Requirement DSL is implemented on the accepted M5 Sandbox Foundation
-(implementation version `1.3.1.dev6`):
+M14 Domain Extension Infrastructure and M14R Repository Acceptance Hardening are implemented
+(development version `1.3.1.dev14`):
 
 - FastAPI backend with health and version endpoints;
 - SQLAlchemy 2.x and Alembic migration foundation;
@@ -51,6 +51,10 @@ M6 Requirement DSL is implemented on the accepted M5 Sandbox Foundation
 - deterministic completeness, ambiguity, claims, issues, and follow-up question outputs;
 - deterministic FOC benchmark profile input support without MotorControl types in Core;
 - Alembic `0007_m6` requirement profile, requirement, and analysis persistence tables.
+- Core-neutral Domain Extension descriptors, opaque IR envelopes, deterministic composition,
+  project-scoped activation, and bundled-only trust enforcement;
+- M14R fail-closed configuration Schema validation, configuration lifecycle reconciliation,
+  schema compatibility snapshots, and Windows-only Sandbox Job Object platform isolation.
 
 ## Development
 

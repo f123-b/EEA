@@ -159,6 +159,7 @@ export const engineeringErrorCodeValues = [
   "DOMAIN_DEPENDENCY_MISSING",
   "DOMAIN_INCOMPATIBLE",
   "DOMAIN_NOT_FOUND",
+  "DOMAIN_CONFIGURATION_INVALID",
   "COMMISSIONING_REQUIRED",
   "COMMISSIONING_BLOCKED",
   "SAFETY_LIMIT_VIOLATION",
@@ -430,6 +431,8 @@ export interface DomainActivationData {
   plugin_id: string;
   plugin_version: string;
   domain_schema_version: string;
+  configuration_schema_version: string;
+  configuration_schema_hash: string | null;
   status: DomainActivationStatus;
   configuration: Record<string, unknown>;
   activated_at: string;
@@ -456,7 +459,7 @@ export interface DomainSchemaData {
 }
 
 export interface DomainActivationRequest {
-  configuration: Record<string, unknown>;
+  configuration: Record<string, unknown> | null;
   activated_by: string;
 }
 

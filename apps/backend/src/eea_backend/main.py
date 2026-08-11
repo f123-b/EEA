@@ -183,7 +183,7 @@ def create_app(
             product="Embedded Engineering Agent",
             version=__version__,
             api_version="v1",
-            milestone="M6",
+            milestone="M14R",
         )
         return ApiEnvelope(data=data, request_id=request.state.request_id)
 

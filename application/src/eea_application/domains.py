@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import heapq
+import json
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 from uuid import UUID, uuid4
 
 from eea_core.domain_extensions import (
@@ -17,7 +20,12 @@ from eea_core.domain_extensions import (
     DomainRuleContribution,
     DomainUIContribution,
 )
-from eea_core.enums import DomainActivationStatus, DomainRulePhase, DomainTrustTier
+from eea_core.enums import (
+    DomainActivationStatus,
+    DomainRulePhase,
+    DomainTrustTier,
+    EngineeringErrorCode,
+)
 from eea_core.errors import EngineeringError, ProjectNotFoundError
 from eea_core.repositories import DomainActivationRepository, ProjectRepository
 from eea_ports.domain_extensions import DomainPlugin
@@ -25,6 +33,308 @@ from pydantic import BaseModel, ValidationError
 
 SUPPORTED_DOMAIN_API_VERSION = "1"
 _PHASE_ORDER = {phase: index for index, phase in enumerate(DomainRulePhase)}
+
+_SCHEMA_VALIDATION_KEYWORDS = {
+    "type",
+    "properties",
+    "required",
+    "additionalProperties",
+    "items",
+    "enum",
+    "const",
+    "allOf",
+    "anyOf",
+    "oneOf",
+    "not",
+    "minLength",
+    "maxLength",
+    "pattern",
+    "minimum",
+    "maximum",
+    "exclusiveMinimum",
+    "exclusiveMaximum",
+    "minItems",
+    "maxItems",
+    "uniqueItems",
+    "minProperties",
+    "maxProperties",
+}
+_SCHEMA_ANNOTATION_KEYWORDS = {
+    "$id",
+    "$schema",
+    "$comment",
+    "title",
+    "description",
+    "default",
+    "examples",
+    "deprecated",
+    "readOnly",
+    "writeOnly",
+}
+_SCHEMA_KEYWORDS = _SCHEMA_VALIDATION_KEYWORDS | _SCHEMA_ANNOTATION_KEYWORDS
+_SCHEMA_TYPES = {"null", "boolean", "object", "array", "number", "integer", "string"}
+
+
+def _configuration_error(
+    domain_id: str,
+    message: str,
+    *,
+    schema_version: str | None = None,
+    details: Mapping[str, object] | None = None,
+) -> EngineeringError:
+    error_details: dict[str, object] = {"domain_id": domain_id}
+    if schema_version is not None:
+        error_details["schema_version"] = schema_version
+    if details:
+        error_details.update(details)
+    return EngineeringError(
+        EngineeringErrorCode.DOMAIN_CONFIGURATION_INVALID,
+        message,
+        details=error_details,
+    )
+
+
+def _schema_failure(domain_id: str, schema_version: str, errors: list[str]) -> NoReturn:
+    raise _configuration_error(
+        domain_id,
+        "Domain configuration schema is invalid or unsupported",
+        schema_version=schema_version,
+        details={"schema_errors": errors[:20]},
+    )
+
+
+def _validate_schema_node(node: object, *, domain_id: str, schema_version: str, path: str) -> None:
+    if not isinstance(node, dict):
+        _schema_failure(domain_id, schema_version, [f"{path} must be an object"])
+    if any(not isinstance(key, str) for key in node):
+        _schema_failure(domain_id, schema_version, [f"{path} has a non-string keyword"])
+    unknown = sorted(key for key in node if key not in _SCHEMA_KEYWORDS)
+    if unknown:
+        _schema_failure(domain_id, schema_version, [f"{path} has unsupported keywords: {unknown}"])
+    if "$ref" in node or "$defs" in node:
+        _schema_failure(domain_id, schema_version, [f"{path} references are not supported"])
+
+    schema_type = node.get("type")
+    if schema_type is not None:
+        types = [schema_type] if isinstance(schema_type, str) else schema_type
+        if (
+            not isinstance(types, list)
+            or not types
+            or any(not isinstance(item, str) or item not in _SCHEMA_TYPES for item in types)
+        ):
+            _schema_failure(domain_id, schema_version, [f"{path}.type is invalid"])
+
+    properties = node.get("properties")
+    if properties is not None:
+        if not isinstance(properties, dict) or any(not isinstance(key, str) for key in properties):
+            _schema_failure(domain_id, schema_version, [f"{path}.properties is invalid"])
+        for key, child in properties.items():
+            _validate_schema_node(
+                child,
+                domain_id=domain_id,
+                schema_version=schema_version,
+                path=f"{path}.properties[{key!r}]",
+            )
+
+    required = node.get("required")
+    if required is not None and (
+        not isinstance(required, list)
+        or any(not isinstance(item, str) for item in required)
+        or len(required) != len(set(required))
+    ):
+        _schema_failure(domain_id, schema_version, [f"{path}.required is invalid"])
+
+    additional = node.get("additionalProperties")
+    if additional is not None and not isinstance(additional, (bool, dict)):
+        _schema_failure(domain_id, schema_version, [f"{path}.additionalProperties is invalid"])
+    if isinstance(additional, dict):
+        _validate_schema_node(
+            additional,
+            domain_id=domain_id,
+            schema_version=schema_version,
+            path=f"{path}.additionalProperties",
+        )
+
+    items = node.get("items")
+    if items is not None:
+        if isinstance(items, list):
+            _schema_failure(
+                domain_id, schema_version, [f"{path}.items tuple schemas are unsupported"]
+            )
+        _validate_schema_node(
+            items,
+            domain_id=domain_id,
+            schema_version=schema_version,
+            path=f"{path}.items",
+        )
+
+    for keyword in ("allOf", "anyOf", "oneOf"):
+        branches = node.get(keyword)
+        if branches is not None:
+            if not isinstance(branches, list) or not branches:
+                _schema_failure(domain_id, schema_version, [f"{path}.{keyword} is invalid"])
+            for index, child in enumerate(branches):
+                _validate_schema_node(
+                    child,
+                    domain_id=domain_id,
+                    schema_version=schema_version,
+                    path=f"{path}.{keyword}[{index}]",
+                )
+    if "not" in node:
+        _validate_schema_node(
+            node["not"],
+            domain_id=domain_id,
+            schema_version=schema_version,
+            path=f"{path}.not",
+        )
+
+    enum = node.get("enum")
+    if enum is not None and (not isinstance(enum, list) or not enum):
+        _schema_failure(domain_id, schema_version, [f"{path}.enum is invalid"])
+    for keyword in (
+        "minLength",
+        "maxLength",
+        "minItems",
+        "maxItems",
+        "minProperties",
+        "maxProperties",
+    ):
+        value = node.get(keyword)
+        if value is not None and (
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+        ):
+            _schema_failure(domain_id, schema_version, [f"{path}.{keyword} is invalid"])
+    for keyword in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"):
+        value = node.get(keyword)
+        if value is not None and (not isinstance(value, (int, float)) or isinstance(value, bool)):
+            _schema_failure(domain_id, schema_version, [f"{path}.{keyword} is invalid"])
+    pattern = node.get("pattern")
+    if pattern is not None:
+        if not isinstance(pattern, str):
+            _schema_failure(domain_id, schema_version, [f"{path}.pattern is invalid"])
+        try:
+            re.compile(pattern)
+        except re.error:
+            _schema_failure(domain_id, schema_version, [f"{path}.pattern is invalid"])
+
+
+def _matches_type(value: object, expected: str) -> bool:
+    return {
+        "null": value is None,
+        "boolean": isinstance(value, bool),
+        "object": isinstance(value, dict),
+        "array": isinstance(value, list),
+        "number": isinstance(value, (int, float)) and not isinstance(value, bool),
+        "integer": isinstance(value, int) and not isinstance(value, bool),
+        "string": isinstance(value, str),
+    }[expected]
+
+
+def _validate_configuration_value(schema: dict[str, object], value: object, path: str) -> list[str]:
+    errors: list[str] = []
+    schema_type = schema.get("type")
+    if schema_type is not None:
+        types = [schema_type] if isinstance(schema_type, str) else schema_type
+        if not isinstance(types, list) or not any(
+            isinstance(item, str) and _matches_type(value, item) for item in types
+        ):
+            errors.append(f"{path} has an invalid type")
+            return errors
+
+    if "enum" in schema and value not in cast(list[object], schema["enum"]):
+        errors.append(f"{path} is not an allowed value")
+    if "const" in schema and value != schema["const"]:
+        errors.append(f"{path} does not match the constant value")
+
+    if isinstance(value, dict):
+        properties = cast(dict[str, object], schema.get("properties", {}))
+        required = cast(list[object], schema.get("required", []))
+        for key in required:
+            if isinstance(key, str) and key not in value:
+                errors.append(f"{path}.{key} is required")
+        additional = schema.get("additionalProperties", True)
+        for key, child_value in value.items():
+            if key in properties:
+                child_schema = properties[key]
+                errors.extend(
+                    _validate_configuration_value(
+                        cast(dict[str, object], child_schema), child_value, f"{path}.{key}"
+                    )
+                )
+            elif additional is False:
+                errors.append(f"{path}.{key} is not allowed")
+            elif isinstance(additional, dict):
+                errors.extend(
+                    _validate_configuration_value(additional, child_value, f"{path}.{key}")
+                )
+        _check_length(schema, len(value), "minProperties", "maxProperties", path, errors)
+
+    if isinstance(value, list):
+        items = schema.get("items")
+        if isinstance(items, dict):
+            for index, child_value in enumerate(value):
+                errors.extend(_validate_configuration_value(items, child_value, f"{path}[{index}]"))
+        _check_length(schema, len(value), "minItems", "maxItems", path, errors)
+        if schema.get("uniqueItems") is True:
+            serialized = [json.dumps(item, sort_keys=True, default=str) for item in value]
+            if len(serialized) != len(set(serialized)):
+                errors.append(f"{path} must contain unique items")
+
+    if isinstance(value, str):
+        _check_length(schema, len(value), "minLength", "maxLength", path, errors)
+        pattern = schema.get("pattern")
+        if isinstance(pattern, str) and re.search(pattern, value) is None:
+            errors.append(f"{path} does not match the required pattern")
+
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        for keyword in ("minimum", "exclusiveMinimum", "maximum", "exclusiveMaximum"):
+            expected = schema.get(keyword)
+            if (
+                isinstance(expected, (int, float))
+                and not isinstance(expected, bool)
+                and (
+                    (keyword == "minimum" and value < expected)
+                    or (keyword == "exclusiveMinimum" and value <= expected)
+                    or (keyword == "maximum" and value > expected)
+                    or (keyword == "exclusiveMaximum" and value >= expected)
+                )
+            ):
+                errors.append(f"{path} violates {keyword}")
+
+    for keyword in ("allOf", "anyOf", "oneOf"):
+        branches = schema.get(keyword)
+        if isinstance(branches, list):
+            matches = [
+                not _validate_configuration_value(cast(dict[str, object], branch), value, path)
+                for branch in branches
+            ]
+            if keyword == "allOf" and not all(matches):
+                errors.append(f"{path} does not satisfy allOf")
+            if keyword == "anyOf" and not any(matches):
+                errors.append(f"{path} does not satisfy anyOf")
+            if keyword == "oneOf" and sum(matches) != 1:
+                errors.append(f"{path} does not satisfy oneOf")
+    if isinstance(schema.get("not"), dict) and not _validate_configuration_value(
+        cast(dict[str, object], schema["not"]), value, path
+    ):
+        errors.append(f"{path} matches a forbidden schema")
+    return errors
+
+
+def _check_length(
+    schema: dict[str, object],
+    actual: int,
+    minimum_key: str,
+    maximum_key: str,
+    path: str,
+    errors: list[str],
+) -> None:
+    minimum = schema.get(minimum_key)
+    maximum = schema.get(maximum_key)
+    if isinstance(minimum, int) and actual < minimum:
+        errors.append(f"{path} is shorter than {minimum_key}")
+    if isinstance(maximum, int) and actual > maximum:
+        errors.append(f"{path} is longer than {maximum_key}")
 
 
 def _plugin_value(plugin: DomainPlugin, name: str, default: object) -> object:
@@ -55,6 +365,7 @@ class DomainExtensionRegistry:
     def __init__(self, plugins: Iterable[DomainPlugin] = ()) -> None:
         self._plugins: dict[str, DomainPlugin] = {}
         self._descriptors: dict[str, DomainDescriptor] = {}
+        self._schemas: dict[str, dict[str, object]] = {}
         self._rules: dict[str, tuple[DomainRuleContribution, ...]] = {}
         self._generators: dict[str, tuple[DomainGeneratorContribution, ...]] = {}
         self._contexts: dict[str, tuple[DomainContextContribution, ...]] = {}
@@ -82,6 +393,19 @@ class DomainExtensionRegistry:
                 "Non-bundled Domain plugins require unavailable trust verification or isolation",
                 details={"domain_id": descriptor.domain_id, "trust_tier": descriptor.trust_tier},
             )
+        raw_schema = _plugin_value(plugin, "schema", {})
+        if not isinstance(raw_schema, dict):
+            raise _configuration_error(
+                descriptor.domain_id,
+                "Domain configuration schema must be an object",
+                schema_version=descriptor.schema_version,
+            )
+        _validate_schema_node(
+            raw_schema,
+            domain_id=descriptor.domain_id,
+            schema_version=descriptor.schema_version,
+            path="$",
+        )
         if descriptor.domain_id in self._plugins:
             raise EngineeringError(
                 "DOMAIN_COMPOSITION_CONFLICT",  # type: ignore[arg-type]
@@ -116,6 +440,7 @@ class DomainExtensionRegistry:
         )
         self._plugins[descriptor.domain_id] = plugin
         self._descriptors[descriptor.domain_id] = descriptor
+        self._schemas[descriptor.domain_id] = dict(raw_schema)
         self._rules[descriptor.domain_id] = rules
         self._generators[descriptor.domain_id] = generators
         self._contexts[descriptor.domain_id] = contexts
@@ -147,14 +472,31 @@ class DomainExtensionRegistry:
 
     def schema(self, domain_id: str) -> dict[str, object]:
         self.get_descriptor(domain_id)
-        value = _plugin_value(self._plugins[domain_id], "schema", {})
-        if not isinstance(value, dict):
-            raise EngineeringError(
-                "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
-                "Domain schema contribution must be an object",
-                details={"domain_id": domain_id},
+        return dict(self._schemas[domain_id])
+
+    def configuration_schema_hash(self, domain_id: str) -> str:
+        payload = json.dumps(
+            self.schema(domain_id), sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    def validate_configuration(self, domain_id: str, configuration: object) -> None:
+        descriptor = self.get_descriptor(domain_id)
+        if not isinstance(configuration, dict):
+            raise _configuration_error(
+                domain_id,
+                "Domain configuration must be an object",
+                schema_version=descriptor.schema_version,
+                details={"validation_errors": ["$ must be an object"]},
             )
-        return cast(dict[str, object], value)
+        errors = _validate_configuration_value(self._schemas[domain_id], configuration, "$")
+        if errors:
+            raise _configuration_error(
+                domain_id,
+                "Domain configuration does not satisfy the plugin schema",
+                schema_version=descriptor.schema_version,
+                details={"validation_errors": errors[:20]},
+            )
 
     def artifacts(self, domain_id: str) -> list[dict[str, Any]]:
         self.get_descriptor(domain_id)
@@ -446,22 +788,65 @@ class DomainExtensionService:
         self._ensure_project(project_id)
         plan = self.resolve(project_id, [domain_id])
         requested_activation: DomainActivation | None = None
+        pending: list[tuple[DomainActivation, DomainActivation | None]] = []
         for resolved_domain_id in plan.ordered_domain_ids:
             existing = self._activations.get(project_id, resolved_domain_id)
             if existing is not None and existing.status is DomainActivationStatus.ACTIVE:
-                if resolved_domain_id == domain_id:
+                if resolved_domain_id != domain_id:
+                    continue
+                chosen_configuration = (
+                    existing.configuration if configuration is None else configuration
+                )
+                self.registry.validate_configuration(resolved_domain_id, chosen_configuration)
+                if (
+                    chosen_configuration == existing.configuration
+                    and existing.configuration_schema_version
+                    == self.registry.get_descriptor(resolved_domain_id).schema_version
+                    and existing.configuration_schema_hash
+                    == self.registry.configuration_schema_hash(resolved_domain_id)
+                ):
                     requested_activation = existing
+                    continue
+                activation = self._build_activation(
+                    project_id,
+                    resolved_domain_id,
+                    self.registry.get_descriptor(resolved_domain_id),
+                    plan,
+                    existing=existing,
+                    configuration=chosen_configuration,
+                    configuration_schema_hash=self.registry.configuration_schema_hash(
+                        resolved_domain_id
+                    ),
+                    activated_by=activated_by,
+                )
+                pending.append((activation, existing))
+                requested_activation = activation
                 continue
             descriptor = self.registry.get_descriptor(resolved_domain_id)
+            chosen_configuration = (
+                configuration
+                if resolved_domain_id == domain_id and configuration is not None
+                else existing.configuration
+                if existing is not None
+                else {}
+            )
+            self.registry.validate_configuration(resolved_domain_id, chosen_configuration)
             activation = self._build_activation(
                 project_id,
                 resolved_domain_id,
                 descriptor,
                 plan,
                 existing=existing,
-                configuration=configuration if resolved_domain_id == domain_id else {},
+                configuration=chosen_configuration,
+                configuration_schema_hash=self.registry.configuration_schema_hash(
+                    resolved_domain_id
+                ),
                 activated_by=activated_by,
             )
+            pending.append((activation, existing))
+            if resolved_domain_id == domain_id:
+                requested_activation = activation
+        for activation, existing in pending:
             if existing is None:
                 stored: DomainActivation = self._activations.add(activation)
             else:
@@ -470,10 +855,10 @@ class DomainExtensionService:
                     raise EngineeringError(
                         "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
                         "Domain activation could not be updated",
-                        details={"project_id": str(project_id), "domain_id": resolved_domain_id},
+                        details={"project_id": str(project_id), "domain_id": activation.domain_id},
                     )
                 stored = saved
-            if resolved_domain_id == domain_id:
+            if activation.domain_id == domain_id:
                 requested_activation = stored
         if requested_activation is None:
             raise EngineeringError(
@@ -491,7 +876,8 @@ class DomainExtensionService:
         plan: DomainCompositionPlan,
         *,
         existing: DomainActivation | None,
-        configuration: dict[str, object] | None,
+        configuration: dict[str, object],
+        configuration_schema_hash: str,
         activated_by: str,
     ) -> DomainActivation:
         now = datetime.now(UTC)
@@ -507,8 +893,10 @@ class DomainExtensionService:
             plugin_id=descriptor.plugin_id,
             plugin_version=descriptor.version,
             domain_schema_version=descriptor.schema_version,
+            configuration_schema_version=descriptor.schema_version,
+            configuration_schema_hash=configuration_schema_hash,
             status=DomainActivationStatus.ACTIVE,
-            configuration=configuration or {},
+            configuration=configuration,
             activated_at=now,
             activated_by=activated_by,
             capability_snapshot=dict(plan.capability_routes),

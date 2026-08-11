@@ -281,6 +281,8 @@ class DomainActivationRecord(CoreRecordMixin, Base):
     plugin_id: Mapped[str] = mapped_column(String(200), nullable=False)
     plugin_version: Mapped[str] = mapped_column(String(100), nullable=False)
     domain_schema_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    configuration_schema_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    configuration_schema_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False)
     configuration: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     activated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

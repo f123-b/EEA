@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 from shutil import copy2
 
+import eea_adapters.sandbox as sandbox_module
 import pytest
 from eea_adapters.sandbox import SafeArchiveMaterializer, StructuredCommandExecutor
 from eea_core.enums import EngineeringErrorCode
@@ -166,6 +167,14 @@ def test_network_denied_without_runtime_isolation_fails_before_spawn(tmp_path: P
         with pytest.raises(EngineeringError) as error:
             executor.execute(command, workspace.root, policy)
         assert error.value.code is EngineeringErrorCode.CAPABILITY_UNAVAILABLE
+
+
+def test_windows_ctypes_binding_stays_in_lazy_platform_adapter() -> None:
+    source = Path(sandbox_module.__file__).read_text(encoding="utf-8")
+
+    assert "WinDLL" not in source
+    assert "get_last_error" not in source
+    assert "eea_adapters.windows_job" in source
 
 
 def test_structured_command_enforces_timeout_output_and_secret_boundaries(tmp_path: Path) -> None:

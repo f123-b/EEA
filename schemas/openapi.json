@@ -3297,6 +3297,21 @@
             "title": "Configuration",
             "type": "object"
           },
+          "configuration_schema_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configuration Schema Hash"
+          },
+          "configuration_schema_version": {
+            "title": "Configuration Schema Version",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -3367,6 +3382,8 @@
           "plugin_id",
           "plugin_version",
           "domain_schema_version",
+          "configuration_schema_version",
+          "configuration_schema_hash",
           "status",
           "configuration",
           "activated_at",
@@ -3404,9 +3421,16 @@
             "type": "string"
           },
           "configuration": {
-            "additionalProperties": true,
-            "title": "Configuration",
-            "type": "object"
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Configuration"
           }
         },
         "title": "DomainActivationRequest",
@@ -4034,6 +4058,7 @@
           "DOMAIN_DEPENDENCY_MISSING",
           "DOMAIN_INCOMPATIBLE",
           "DOMAIN_NOT_FOUND",
+          "DOMAIN_CONFIGURATION_INVALID",
           "COMMISSIONING_REQUIRED",
           "COMMISSIONING_BLOCKED",
           "SAFETY_LIMIT_VIOLATION",
@@ -9040,7 +9065,7 @@
   "info": {
     "description": "Versioned API for the Embedded Engineering Agent platform.",
     "title": "Embedded Engineering Agent API",
-    "version": "1.3.1.dev6"
+    "version": "1.3.1.dev14"
   },
   "openapi": "3.1.0",
   "paths": {

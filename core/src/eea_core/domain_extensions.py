@@ -156,6 +156,8 @@ class DomainActivation(EntityBase):
     plugin_id: str = Field(min_length=1, max_length=200)
     plugin_version: str = Field(min_length=1, max_length=100)
     domain_schema_version: str = Field(min_length=1, max_length=30)
+    configuration_schema_version: str = Field(min_length=1, max_length=30)
+    configuration_schema_hash: Sha256 | None = None
     status: DomainActivationStatus = DomainActivationStatus.ACTIVE
     configuration: dict[str, object] = Field(default_factory=dict)
     activated_at: datetime = Field(default_factory=utc_now)
