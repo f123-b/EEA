@@ -14,4 +14,3 @@
   (`llm_cost` type and legacy CHECK-constraint names). A fresh database created by the acceptance
   sequence upgrades to migration `0021` and passes `alembic check`; the persistent local database
   drift was not rewritten as part of this scoped M14R correction.
-
