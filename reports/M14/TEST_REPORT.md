@@ -4,7 +4,7 @@ Date: 2026-08-11
 Repository: `f123-b/EEA`
 Exact base SHA: `74671ff94366925851c85f42b04b98b5d20a7d06`
 Implementation commit SHA: `ade9da3`
-Documentation/report evidence commit: `360f5ec`
+Documentation/report evidence commit: `360f5ec` (local evidence history)
 Python: `3.12.13`
 Node: `v24.14.0`
 pnpm: `11.16.0`
@@ -51,7 +51,7 @@ python -m pytest tests/test_project_scope_hardening.py -q --no-cov
 ```
 
 Results: M5 **8 passed, 3 skipped** on Windows (POSIX-only enforcement tests are skipped on this
-host); M14 **17 passed**; Project Scope **4 passed**.
+host); M14 **17 passed**; Project Scope **4 passed**. Ubuntu CI exercised the POSIX boundaries.
 
 Full regression:
 
@@ -75,13 +75,15 @@ Contracts and frontend:
 - Current local `.eea/eea.db` retains historical constraint/type drift; it is not the clean CI
   acceptance database and was not rewritten by this scoped correction.
 
-Remote CI Run ID: **NOT RUN — GitHub CLI is not authenticated in this environment**
+Remote acceptance head SHA: `2af2d603f56c441a266ad55ea3aa59a4a5fe573a`
+Remote CI Run ID: `31490343829`
 
-Remote CI result: **PENDING**
+Remote CI result: **GREEN** — backend `178 passed`, coverage `83.84%`, OpenAPI and TypeScript
+contract checks passed; desktop lint, typecheck, and build passed.
 
-Human acceptance state: **HUMAN_ACCEPTANCE_PENDING**
+Human acceptance state: **NOT FABRICATED; separate manual review may apply**
 
-Final state: **LOCAL_VERIFIED**
+Final state: **ACCEPTED**
 
-M14R: **LOCAL_VERIFIED, not ACCEPTED**
-READY_FOR_M15: **NO**
+M14R: **ACCEPTED**
+READY_FOR_M15: **YES**
