@@ -9,9 +9,17 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 from eea_core.claims import EngineeringValue
+from eea_core.enums import EngineeringDimension
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 MOTOR_CONTROL_SCHEMA_VERSION = "1.0.0"
+
+
+def _require_dimension(
+    value: EngineeringValue | None, expected: EngineeringDimension, field_name: str
+) -> None:
+    if value is not None and value.dimension is not expected:
+        raise ValueError(f"{field_name} must use engineering dimension {expected.value}")
 
 
 class MotorControlConfiguration(BaseModel):
@@ -41,6 +49,9 @@ class MotorParameters(BaseModel):
             and self.poles != 2 * self.pole_pairs
         ):
             raise ValueError("poles must equal two times pole_pairs when both are supplied")
+        _require_dimension(self.rated_voltage, EngineeringDimension.VOLTAGE, "rated_voltage")
+        _require_dimension(self.rated_current, EngineeringDimension.CURRENT, "rated_current")
+        _require_dimension(self.rated_speed, EngineeringDimension.ANGULAR_VELOCITY, "rated_speed")
         return self
 
 
@@ -55,6 +66,16 @@ class PWMRequirement(BaseModel):
     polarity: Literal["ACTIVE_HIGH", "ACTIVE_LOW"] | None = None
     break_input_required: bool = True
 
+    @model_validator(mode="after")
+    def validate_dimensions(self) -> "PWMRequirement":
+        _require_dimension(
+            self.target_frequency,
+            EngineeringDimension.FREQUENCY,
+            "pwm_requirement.target_frequency",
+        )
+        _require_dimension(self.deadtime, EngineeringDimension.TIME, "pwm_requirement.deadtime")
+        return self
+
 
 class ADCSamplingRequirement(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -65,6 +86,20 @@ class ADCSamplingRequirement(BaseModel):
     synchronized_to_pwm: bool = True
     dma_required: bool = True
     sample_to_actuation_latency: EngineeringValue | None = None
+
+    @model_validator(mode="after")
+    def validate_dimensions(self) -> "ADCSamplingRequirement":
+        _require_dimension(
+            self.sampling_window,
+            EngineeringDimension.TIME,
+            "adc_sampling_requirement.sampling_window",
+        )
+        _require_dimension(
+            self.sample_to_actuation_latency,
+            EngineeringDimension.TIME,
+            "adc_sampling_requirement.sample_to_actuation_latency",
+        )
+        return self
 
 
 class MCUConfigReferences(BaseModel):
@@ -84,6 +119,13 @@ class ElectricalAngle(BaseModel):
     phase_sequence: str | None = Field(default=None, max_length=100)
     zero_offset: EngineeringValue | None = None
 
+    @model_validator(mode="after")
+    def validate_dimensions(self) -> "ElectricalAngle":
+        _require_dimension(
+            self.zero_offset, EngineeringDimension.ANGLE, "electrical_angle.zero_offset"
+        )
+        return self
+
 
 class SignConvention(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -99,6 +141,7 @@ class LoopRequirement(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     frequency: EngineeringValue | None = None
+    period: EngineeringValue | None = None
     kp: float | None = None
     ki: float | None = None
     output_limit: float | None = Field(default=None, ge=0)
@@ -106,6 +149,76 @@ class LoopRequirement(BaseModel):
     decoupling: bool = False
     sample_to_actuation_latency: EngineeringValue | None = None
     cpu_budget: EngineeringValue | None = None
+
+    @model_validator(mode="after")
+    def validate_dimensions(self) -> "LoopRequirement":
+        _require_dimension(self.frequency, EngineeringDimension.FREQUENCY, "loop.frequency")
+        _require_dimension(self.period, EngineeringDimension.TIME, "loop.period")
+        _require_dimension(
+            self.sample_to_actuation_latency,
+            EngineeringDimension.TIME,
+            "loop.sample_to_actuation_latency",
+        )
+        _require_dimension(self.cpu_budget, EngineeringDimension.TIME, "loop.cpu_budget")
+        return self
+
+
+class CurrentLoopRequirement(LoopRequirement):
+    """Current-loop semantics frozen by the MotorControl Domain specification."""
+
+    id_target: EngineeringValue | None = None
+    iq_target: EngineeringValue | None = None
+
+    @model_validator(mode="after")
+    def validate_current_dimensions(self) -> "CurrentLoopRequirement":
+        _require_dimension(self.id_target, EngineeringDimension.CURRENT, "current_loop.id_target")
+        _require_dimension(self.iq_target, EngineeringDimension.CURRENT, "current_loop.iq_target")
+        return self
+
+
+class VelocityLoopRequirement(LoopRequirement):
+    """Velocity-loop limits and feedback semantics frozen by the Domain specification."""
+
+    speed_limit: EngineeringValue | None = None
+    acceleration_limit: EngineeringValue | None = None
+    current_limit: EngineeringValue | None = None
+    feedback_source: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_velocity_dimensions(self) -> "VelocityLoopRequirement":
+        _require_dimension(
+            self.speed_limit, EngineeringDimension.ANGULAR_VELOCITY, "velocity_loop.speed_limit"
+        )
+        _require_dimension(
+            self.acceleration_limit,
+            EngineeringDimension.ANGULAR_ACCELERATION,
+            "velocity_loop.acceleration_limit",
+        )
+        _require_dimension(
+            self.current_limit, EngineeringDimension.CURRENT, "velocity_loop.current_limit"
+        )
+        return self
+
+
+class PositionLoopRequirement(LoopRequirement):
+    """Position-loop controller and wrap/limit semantics frozen by the Domain specification."""
+
+    controller: str | None = Field(default=None, max_length=100)
+    wrap_handling: Literal["NONE", "MODULO", "CONTINUOUS"] = "NONE"
+    position_limit: EngineeringValue | None = None
+    velocity_limit: EngineeringValue | None = None
+
+    @model_validator(mode="after")
+    def validate_position_dimensions(self) -> "PositionLoopRequirement":
+        _require_dimension(
+            self.position_limit, EngineeringDimension.ANGLE, "position_loop.position_limit"
+        )
+        _require_dimension(
+            self.velocity_limit,
+            EngineeringDimension.ANGULAR_VELOCITY,
+            "position_loop.velocity_limit",
+        )
+        return self
 
 
 class StartupStep(BaseModel):
@@ -118,6 +231,17 @@ class StartupStep(BaseModel):
     timeout: EngineeringValue | None = None
     failure_behavior: Literal["BLOCK", "SAFE_STATE", "RETRY", "LATCH"] = "BLOCK"
 
+    @model_validator(mode="after")
+    def validate_dimensions(self) -> "StartupStep":
+        _require_dimension(
+            self.current_limit, EngineeringDimension.CURRENT, "startup.current_limit"
+        )
+        _require_dimension(
+            self.voltage_limit, EngineeringDimension.VOLTAGE, "startup.voltage_limit"
+        )
+        _require_dimension(self.timeout, EngineeringDimension.TIME, "startup.timeout")
+        return self
+
 
 class StartupCalibration(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -126,6 +250,7 @@ class StartupCalibration(BaseModel):
     steps: list[StartupStep] = Field(default_factory=list, max_length=32)
     current_sensor_offset_required: bool = True
     encoder_zero_required: bool = True
+    test_result: Literal["PASS", "FAIL", "UNKNOWN", "BLOCKED"] | None = None
 
 
 class FaultResponse(BaseModel):
@@ -170,16 +295,41 @@ class MotorControlIR(BaseModel):
     electrical_angle: ElectricalAngle = Field(default_factory=ElectricalAngle)
     sign_convention: SignConvention = Field(default_factory=SignConvention)
     startup: StartupCalibration = Field(default_factory=StartupCalibration)
-    current_loop: LoopRequirement | None = None
-    velocity_loop: LoopRequirement | None = None
-    position_loop: LoopRequirement | None = None
+    current_loop: CurrentLoopRequirement | None = None
+    velocity_loop: VelocityLoopRequirement | None = None
+    position_loop: PositionLoopRequirement | None = None
     limits: dict[str, EngineeringValue] = Field(default_factory=dict, max_length=32)
     fault_policy: FaultPolicy = Field(default_factory=FaultPolicy)
+
+    @model_validator(mode="after")
+    def validate_limit_dimensions(self) -> "MotorControlIR":
+        expected = {
+            "rated_voltage": EngineeringDimension.VOLTAGE,
+            "bus_voltage": EngineeringDimension.VOLTAGE,
+            "rated_current": EngineeringDimension.CURRENT,
+            "current_limit": EngineeringDimension.CURRENT,
+            "rated_speed": EngineeringDimension.ANGULAR_VELOCITY,
+            "speed_limit": EngineeringDimension.ANGULAR_VELOCITY,
+            "acceleration_limit": EngineeringDimension.ANGULAR_ACCELERATION,
+            "position_limit": EngineeringDimension.ANGLE,
+            "pwm_frequency": EngineeringDimension.FREQUENCY,
+            "deadtime": EngineeringDimension.TIME,
+            "sampling_window": EngineeringDimension.TIME,
+            "latency": EngineeringDimension.TIME,
+            "zero_offset": EngineeringDimension.ANGLE,
+        }
+        for name, value in self.limits.items():
+            required = expected.get(name)
+            if required is None:
+                raise ValueError(f"limits.{name} has no declared engineering dimension")
+            _require_dimension(value, required, f"limits.{name}")
+        return self
 
 
 __all__ = [
     "MOTOR_CONTROL_SCHEMA_VERSION",
     "ADCSamplingRequirement",
+    "CurrentLoopRequirement",
     "ElectricalAngle",
     "FaultPolicy",
     "FaultResponse",
@@ -189,7 +339,9 @@ __all__ = [
     "MotorControlIR",
     "MotorParameters",
     "PWMRequirement",
+    "PositionLoopRequirement",
     "SignConvention",
     "StartupCalibration",
     "StartupStep",
+    "VelocityLoopRequirement",
 ]

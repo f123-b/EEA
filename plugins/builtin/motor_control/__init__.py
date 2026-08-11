@@ -8,6 +8,7 @@ from plugins.builtin.motor_control.plugin import (
 from plugins.builtin.motor_control.rules.validation import (
     MotorControlDiagnostic,
     validate_against_mcu_config,
+    validate_domain_context,
 )
 from plugins.builtin.motor_control.schemas.ir import (
     MotorControlConfiguration,
@@ -22,4 +23,5 @@ __all__ = [
     "Plugin",
     "build_motor_control_plugin",
     "validate_against_mcu_config",
+    "validate_domain_context",
 ]

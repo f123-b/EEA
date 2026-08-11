@@ -134,6 +134,16 @@ def render_typescript_contract() -> str:
             "  keys: string[];\n"
             "  description: string;\n"
             "}\n",
+            "export interface DomainValidationDiagnostic {\n"
+            "  rule_id: string;\n"
+            '  status: "PASS" | "FAIL" | "UNKNOWN" | "BLOCKED";\n'
+            "  message: string;\n"
+            "  details: Record<string, unknown>;\n"
+            "}\n",
+            "export interface DomainValidationResult {\n"
+            "  domain_id: string;\n"
+            "  diagnostics: DomainValidationDiagnostic[];\n"
+            "}\n",
             "export interface DomainUIContribution {\n"
             "  extension_id: string;\n"
             '  kind: "navigation" | "action" | "form";\n'
@@ -198,6 +208,7 @@ def render_typescript_contract() -> str:
             "  generators: DomainGeneratorContribution[];\n"
             "  context_contributions: DomainContextContribution[];\n"
             "  ui_contributions: DomainUIContribution[];\n"
+            "  validation_results: DomainValidationResult[];\n"
             "}\n",
             "export interface DomainSchemaData {\n"
             "  domain_id: string;\n"
@@ -211,6 +222,8 @@ def render_typescript_contract() -> str:
             "export interface DomainValidationRequest {\n"
             "  domain_ids: string[];\n"
             "  selected_capabilities: Record<string, string>;\n"
+            "  domain_ir?: Record<string, unknown> | null;\n"
+            "  mcu_config_id?: string | null;\n"
             "}\n",
             "export interface DocumentUploadRequest {\n"
             "  filename: string;\n"

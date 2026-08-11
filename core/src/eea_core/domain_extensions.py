@@ -23,7 +23,7 @@ from eea_core.enums import (
 class DomainUIContribution(BaseModel):
     """Metadata-only UI contribution; arbitrary remote JavaScript is not representable."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
     extension_id: str = Field(min_length=1, max_length=200)
     kind: Literal["navigation", "action", "form"]
@@ -179,6 +179,27 @@ class DomainCompositionPlan(BaseModel):
     generators: list[DomainGeneratorContribution] = Field(default_factory=list)
     context_contributions: list[DomainContextContribution] = Field(default_factory=list)
     ui_contributions: list[DomainUIContribution] = Field(default_factory=list)
+    validation_results: list["DomainValidationResult"] = Field(default_factory=list)
+
+
+class DomainValidationDiagnostic(BaseModel):
+    """Core-neutral result from one executable Domain rule."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    rule_id: str = Field(min_length=1, max_length=200)
+    status: Literal["PASS", "FAIL", "UNKNOWN", "BLOCKED"]
+    message: str = Field(min_length=1, max_length=2000)
+    details: dict[str, object] = Field(default_factory=dict)
+
+
+class DomainValidationResult(BaseModel):
+    """Validation output for one Domain plugin, without importing its IR type."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    domain_id: str = Field(min_length=1, max_length=200)
+    diagnostics: list[DomainValidationDiagnostic] = Field(default_factory=list)
 
 
 __all__ = [
@@ -191,4 +212,6 @@ __all__ = [
     "DomainIRRef",
     "DomainRuleContribution",
     "DomainUIContribution",
+    "DomainValidationDiagnostic",
+    "DomainValidationResult",
 ]

@@ -11,12 +11,12 @@ from eea_core.domain_extensions import (
     DomainUIContribution,
 )
 from eea_core.enums import DomainRulePhase, DomainTrustTier, Permission
-from eea_ports.domain_extensions import DomainPlugin
+from eea_ports.domain_extensions import DomainExecutableValidator, DomainPlugin
 
 from plugins.builtin.motor_control.agents import MotorControlAgent
 from plugins.builtin.motor_control.context import MOTOR_CONTROL_CONTEXTS
 from plugins.builtin.motor_control.generators import MOTOR_CONTROL_GENERATORS
-from plugins.builtin.motor_control.rules import MOTOR_CONTROL_RULES
+from plugins.builtin.motor_control.rules import MOTOR_CONTROL_RULES, validate_domain_context
 from plugins.builtin.motor_control.schemas.ir import (
     MOTOR_CONTROL_SCHEMA_VERSION,
     MotorControlIR,
@@ -86,6 +86,9 @@ class MotorControlPlugin(DomainPlugin):
                 "ownership": "plugin",
             },
         )
+
+    def executable_validator(self) -> DomainExecutableValidator:
+        return validate_domain_context
 
 
 Plugin = MotorControlPlugin

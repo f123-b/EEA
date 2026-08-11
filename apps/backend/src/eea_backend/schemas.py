@@ -17,6 +17,7 @@ from eea_core.domain_extensions import (
     DomainGeneratorContribution,
     DomainRuleContribution,
     DomainUIContribution,
+    DomainValidationResult,
 )
 from eea_core.enums import (
     ArtifactStatus,
@@ -255,6 +256,7 @@ class DomainCompositionData(BaseModel):
     generators: list[DomainGeneratorContribution]
     context_contributions: list[DomainContextContribution]
     ui_contributions: list[DomainUIContribution]
+    validation_results: list[DomainValidationResult]
 
 
 class DomainSchemaData(BaseModel):
@@ -283,6 +285,8 @@ class DomainValidationRequest(BaseModel):
 
     domain_ids: list[str] = Field(default_factory=list, max_length=100)
     selected_capabilities: dict[str, str] = Field(default_factory=dict)
+    domain_ir: dict[str, object] | None = None
+    mcu_config_id: UUID | None = None
 
 
 class EnumValues(BaseModel):

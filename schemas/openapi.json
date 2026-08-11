@@ -3556,6 +3556,13 @@
             },
             "title": "Ui Contributions",
             "type": "array"
+          },
+          "validation_results": {
+            "items": {
+              "$ref": "#/components/schemas/DomainValidationResult"
+            },
+            "title": "Validation Results",
+            "type": "array"
           }
         },
         "required": [
@@ -3566,7 +3573,8 @@
           "rules",
           "generators",
           "context_contributions",
-          "ui_contributions"
+          "ui_contributions",
+          "validation_results"
         ],
         "title": "DomainCompositionData",
         "type": "object"
@@ -3984,6 +3992,46 @@
         "title": "DomainUIExtensionsData",
         "type": "object"
       },
+      "DomainValidationDiagnostic": {
+        "additionalProperties": false,
+        "description": "Core-neutral result from one executable Domain rule.",
+        "properties": {
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "message": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "rule_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "UNKNOWN",
+              "BLOCKED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule_id",
+          "status",
+          "message"
+        ],
+        "title": "DomainValidationDiagnostic",
+        "type": "object"
+      },
       "DomainValidationRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3995,6 +4043,30 @@
             "title": "Domain Ids",
             "type": "array"
           },
+          "domain_ir": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Ir"
+          },
+          "mcu_config_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mcu Config Id"
+          },
           "selected_capabilities": {
             "additionalProperties": {
               "type": "string"
@@ -4004,6 +4076,30 @@
           }
         },
         "title": "DomainValidationRequest",
+        "type": "object"
+      },
+      "DomainValidationResult": {
+        "additionalProperties": false,
+        "description": "Validation output for one Domain plugin, without importing its IR type.",
+        "properties": {
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/DomainValidationDiagnostic"
+            },
+            "title": "Diagnostics",
+            "type": "array"
+          },
+          "domain_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Domain Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "domain_id"
+        ],
+        "title": "DomainValidationResult",
         "type": "object"
       },
       "EngineeringDimension": {
@@ -4019,6 +4115,7 @@
           "TEMPERATURE",
           "ANGLE",
           "ANGULAR_VELOCITY",
+          "ANGULAR_ACCELERATION",
           "LENGTH",
           "POWER",
           "ENERGY",

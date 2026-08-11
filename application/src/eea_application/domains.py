@@ -19,6 +19,8 @@ from eea_core.domain_extensions import (
     DomainGeneratorContribution,
     DomainRuleContribution,
     DomainUIContribution,
+    DomainValidationDiagnostic,
+    DomainValidationResult,
 )
 from eea_core.enums import (
     DomainActivationStatus,
@@ -28,7 +30,7 @@ from eea_core.enums import (
 )
 from eea_core.errors import EngineeringError, ProjectNotFoundError
 from eea_core.repositories import DomainActivationRepository, ProjectRepository
-from eea_ports.domain_extensions import DomainPlugin
+from eea_ports.domain_extensions import DomainPlugin, DomainValidationContext
 from pydantic import BaseModel, ValidationError
 
 SUPPORTED_DOMAIN_API_VERSION = "1"
@@ -518,6 +520,33 @@ class DomainExtensionRegistry:
             artifacts.append(dict(item))
         return artifacts
 
+    def execute_validation(
+        self, domain_id: str, context: DomainValidationContext
+    ) -> DomainValidationResult:
+        """Execute only the validator owned by the selected Domain plugin."""
+
+        self.get_descriptor(domain_id)
+        validator = _plugin_value(self._plugins[domain_id], "executable_validator", None)
+        if validator is None:
+            return DomainValidationResult(domain_id=domain_id, diagnostics=[])
+        if not callable(validator):
+            raise EngineeringError(
+                "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
+                "Domain executable validator is not callable",
+                details={"domain_id": domain_id},
+            )
+        raw_diagnostics = validator(context)
+        if not isinstance(raw_diagnostics, Sequence) or isinstance(raw_diagnostics, (str, bytes)):
+            raise EngineeringError(
+                "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
+                "Domain executable validator must return a sequence",
+                details={"domain_id": domain_id},
+            )
+        diagnostics: list[DomainValidationDiagnostic] = []
+        for item in raw_diagnostics:
+            diagnostics.append(_parse_model(item, DomainValidationDiagnostic, domain_id=domain_id))
+        return DomainValidationResult(domain_id=domain_id, diagnostics=diagnostics)
+
     def resolve_composition(
         self,
         domain_ids: Iterable[str],
@@ -996,5 +1025,19 @@ class DomainExtensionService:
         domain_ids: Iterable[str],
         *,
         selected_capabilities: Mapping[str, str] | None = None,
+        validation_inputs: Mapping[str, object] | None = None,
     ) -> DomainCompositionPlan:
-        return self.resolve(project_id, domain_ids, selected_capabilities=selected_capabilities)
+        plan = self.resolve(project_id, domain_ids, selected_capabilities=selected_capabilities)
+        inputs = dict(validation_inputs or {})
+        results = [
+            self.registry.execute_validation(
+                resolved_domain_id,
+                DomainValidationContext(
+                    project_id=project_id,
+                    domain_id=resolved_domain_id,
+                    inputs=inputs,
+                ),
+            )
+            for resolved_domain_id in plan.ordered_domain_ids
+        ]
+        return plan.model_copy(update={"validation_results": results})

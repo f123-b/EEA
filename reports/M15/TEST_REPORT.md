@@ -1,98 +1,132 @@
-# M15 MotorControl Built-in Domain Plugin Test Report
+# M15R MotorControl Integration & Contract Closure Test Report
 
 Date: 2026-08-11
 Repository: `f123-b/EEA`
-Implementation commit: `e247a12`
-Python: `3.12.13`
-Node: `v24.14.0`
-pnpm: `11.16.0`
+Branch: `codex/eea`
+Pull Request: `#2` (`codex/eea -> main`)
 Migration head: `0021_m14_domain_configuration_error_catalog`
 Database migration added: **NO**
 
 ## Scope
 
-M15 implements the first frozen built-in Domain Plugin under
-`plugins/builtin/motor_control/`. The plugin uses the M14 DomainPlugin contract and contributes
-MotorControlIR requirements/references, configuration schema, deterministic additive rules,
-generator declarations, context metadata, UI metadata, agent metadata, artifacts, and default
-bundled-registry integration.
+M15R closes the integration and contract gaps in the M15 bundled MotorControl Domain Plugin. It does
+not implement M16 ProtocolIR, M17, M19 FOC E2E, or M21 Desktop UI Vertical Slice.
 
-The implementation preserves the Architecture Freeze invariants:
+The accepted M15 scope is **MotorControl Plugin Contract Acceptance** only:
 
-- Core remains domain-neutral and contains no MotorControl/FOC schema or import.
-- MotorControlIR stores requirements and references; realized Timer/PWM/ADC/DMA/IRQ data remains
-  in Core-owned MCUConfigIR.
-- Inverter, encoder, and current-sense facts are references to HardwareIR-owned facts rather than
-  duplicated plugin facts.
-- Plugin rules are additive and cannot lower Core safety rules.
-- Plugin disable/activation remains project-scoped through the existing M14 persistence contract.
-- No commissioning runtime, E-stop runtime, flash orchestration, EdgeAI, EngineeringScope,
-  Component DB, Outbox, or new database table was added.
+- Core-neutral Domain executable-validation contract using opaque inputs;
+- project-scoped `MotorControlIR` and current `MCUConfigIR` validation inputs;
+- actual `POST /projects/{project_id}/domains/{domain_id}/validate` execution;
+- deterministic evaluation of all 11 frozen MotorControl rules;
+- explicit `PASS`, `FAIL`, `UNKNOWN`, and `BLOCKED` statuses;
+- MotorControlIR 1.0.0 loop, startup/calibration, and engineering-dimension closure;
+- manifest, descriptor, configuration schema, UI schema, and artifact parity.
 
-## Implementation evidence
+## Architecture and safety evidence
 
-- `plugins/builtin/motor_control/manifest.yaml` matches the frozen bundled manifest identity
-  `org.eea.motor_control`, API version `1`, bundled trust tier, capabilities, permissions, and
-  entrypoint.
-- `MotorControlIR` covers motor/inverter/encoder/current-sense references, PWM and ADC sampling
-  requirements, MCUConfig references, electrical angle, sign convention, startup/calibration,
-  current/velocity/position loops, limits, and fault policy.
-- The rule catalog contains all 11 frozen MotorControl rule IDs with stable versions, phases,
-  inputs, severities, and `ADDITIVE` safety mode.
-- Declarative generators are deterministic and side-effect free. The validation generator is
-  ordered after the IR contract generator by the M14 composition DAG.
-- Default application composition discovers the bundled plugin, while a caller-provided empty
-  registry remains respected for Core-neutral projects and tests.
-- Plugin-owned cross-validation detects PWM reference/frequency, complementary channel, deadtime,
-  and ADC trigger mismatches against MCUConfigIR. Missing MCUConfigIR is reported as `UNKNOWN`,
-  never as `PASS`.
+- `eea_core` contains only generic `DomainValidationDiagnostic` and `DomainValidationResult` models.
+- `eea_ports` defines `DomainValidationContext` and the executable validator protocol.
+- `eea_application` invokes the plugin-provided callable without importing MotorControl or FOC types.
+- The backend loads `MCUConfigIR` by `project_id` and `mcu_config_id`, verifies current source snapshots,
+  and passes the realized Core IR to the plugin validator.
+- Missing `MotorControlIR` is `BLOCKED`; missing `MCUConfigIR` is `UNKNOWN`; neither is converted to
+  `PASS`.
+- No new database table, migration, runtime commissioning path, actuator-enable path, or hardware
+  execution path was added.
+
+## MotorControlIR 1.0.0 closure
+
+- CurrentLoop now carries `frequency`, `period`, `Id/Iq target`, PI parameters, output limit,
+  anti-windup, decoupling, sample-to-actuation latency, and CPU budget.
+- VelocityLoop now carries speed, angular-acceleration, and current limits plus feedback source.
+- PositionLoop now carries controller, wrap handling, position limit, and velocity limit.
+- Startup steps carry current/voltage/timeout limits and explicit `test_result`.
+- Rated voltage/current/speed, PWM frequency, deadtime, sampling window/latency, loop values,
+  zero offset, startup limits, and named MotorControl limits enforce their required dimensions.
+- Angular acceleration is a generic Core engineering dimension with canonical `rad/s²` units.
+- Realized timer/PWM/ADC/DMA/IRQ facts remain owned by Core `MCUConfigIR`; MotorControlIR retains
+  requirements and references only.
+
+## Rule evaluation policy
+
+All 11 frozen rules have deterministic evaluators for the M15 input surface:
+
+| Rule | M15R result policy |
+|---|---|
+| `COMPLEMENTARY_PWM` | PASS/FAIL from realized complementary channel |
+| `DEADTIME_REQUIRED` | PASS/FAIL/BLOCKED from required and realized deadtime |
+| `CURRENT_SENSE_ADC_RANGE` | PASS/FAIL/BLOCKED from current channels and ADC expected range |
+| `ADC_TRIGGER_ALIGNMENT` | PASS/FAIL/BLOCKED from ADC/PWM trigger references |
+| `CURRENT_LOOP_TIMING_BUDGET` | FAIL for arithmetic violations; UNKNOWN without runtime budget evidence |
+| `SIGN_CONVENTION_COMPLETE` | PASS/FAIL/BLOCKED from explicit sign fields |
+| `SPEED_FEEDBACK_SIGN_CONSISTENT` | PASS/FAIL from explicit encoder/mechanical sign semantics |
+| `ELECTRICAL_ANGLE_DIRECTION_CONSISTENT` | UNKNOWN until canonical phase-map evidence exists |
+| `PI_OUTPUT_SATURATION_LIMIT` | PASS/FAIL/BLOCKED from loop limits |
+| `STARTUP_ALIGNMENT_REQUIRED` | PASS/FAIL/BLOCKED/UNKNOWN from contract and test result |
+| `MOTOR_REQUIREMENT_MCUCONFIG_MISMATCH` | PASS/FAIL/BLOCKED from requirement/reference comparison |
+
+Runtime execution, canonical phase-map evidence, and hardware calibration remain fail-closed
+`UNKNOWN`/`BLOCKED`; no future milestone capability is represented as PASS.
 
 ## Focused verification
 
 ```text
-python -m pytest tests/test_m15_motor_control.py -q --no-cov
+uv run --extra dev pytest --no-cov -q tests/test_m14_domain_extensions.py tests/test_m15_motor_control.py
 ```
 
-Result: **5 passed**.
+Result: **37 passed**, one pre-existing Starlette/httpx deprecation warning.
 
-Compatibility verification:
+Coverage is intentionally disabled for focused runs; the full repository gate is the acceptance gate.
+
+## Repository gate
+
+The complete repository gate is required before this report may declare `M15R = ACCEPTED` or
+`READY_FOR_M16 = YES`:
 
 ```text
-python -m pytest tests/test_m15_motor_control.py tests/test_m14_domain_extensions.py -q --no-cov
+pytest
+ruff check
+ruff format --check
+mypy
+database upgrade
+alembic check
+OpenAPI export --check
+OpenAPI TypeScript --check
+pnpm lint
+pnpm typecheck
+pnpm build
 ```
 
-Result: **22 passed**.
-
-## Full regression and repository gates
+Final gate result:
 
 ```text
-python -m pytest
+pytest                                  PASS (195 passed, 3 skipped)
+coverage                                PASS (84.32%)
+ruff check                              PASS
+ruff format --check                     PASS (224 files)
+mypy                                    PASS (106 source files)
+database upgrade                        PASS
+clean database + alembic check          PASS (no new upgrade operations)
+OpenAPI export --check                  PASS
+OpenAPI TypeScript --check              PASS
+pnpm lint                               PASS
+pnpm typecheck                          PASS
+pnpm build                              PASS
 ```
 
-Result: **180 passed, 3 skipped**, coverage **84.31%**; the 80% repository gate passed. The only
-warning is the pre-existing Starlette/httpx deprecation warning.
+The pre-existing workspace `.eea/eea.db` reports historical constraint/type drift under a direct
+`alembic check`; a clean database reports no operations. M15R does not add an unrelated migration or
+rewrite that historical local artifact.
 
-```text
-ruff check .                         PASS
-ruff format --check .                PASS (221 files)
-python -m mypy                       PASS (106 source files)
-eea openapi export --check           PASS
-eea openapi typescript --check       PASS
-pnpm lint                            PASS
-pnpm typecheck                       PASS
-pnpm build                           PASS
-clean db upgrade + alembic check     PASS
-```
-
-No OpenAPI shape or TypeScript type changed; the committed OpenAPI `info.version` was synchronized
-to `1.3.1.dev15` after the milestone version update.
+On this Windows host, the `uv run --extra dev pytest` wrapper passes the venv redirector path into
+two existing M5 child-process tests, which is incompatible with the Windows Job Object boundary.
+The same full suite was rerun with the actual base Python executable for child processes and passed
+195 tests; no M5 source or safety policy was changed.
 
 ## Acceptance state
 
-M15 plugin-scope acceptance: **ACCEPTED**
-M14 compatibility: **PASS**
-Core neutrality: **PASS**
-Migration/API schema change: **NONE**
-M19 real FOC E2E: **NOT STARTED / RESERVED FOR M19**
-M19 hardware commissioning and production loop enable: **NOT STARTED / RESERVED**
+M15 Plugin Contract Acceptance: **ACCEPTED**
+M15R executable validation closure: **IMPLEMENTED**
+M19 FOC Minimal E2E: **NOT STARTED / RESERVED FOR M19**
+M21 Desktop UI Vertical Slice: **NOT STARTED / RESERVED FOR M21**
 READY_FOR_M16: **YES**

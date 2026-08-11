@@ -297,6 +297,30 @@ def _domain_composition_data(composition: object) -> DomainCompositionData:
     return DomainCompositionData.model_validate(cast(Any, composition).model_dump(mode="json"))
 
 
+def _domain_validation_inputs(
+    project_id: UUID, payload: DomainValidationRequest, session: Session
+) -> dict[str, object]:
+    inputs: dict[str, object] = {}
+    if payload.domain_ir is not None:
+        inputs["domain_ir"] = payload.domain_ir
+    if payload.mcu_config_id is not None:
+        bundle = SqlAlchemyMCUConfigRepository(session).get(
+            payload.mcu_config_id, project_id=project_id
+        )
+        if bundle is None:
+            raise EngineeringError(
+                EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+                "MCUConfigIR is not available for this project",
+                details={
+                    "mcu_config_id": str(payload.mcu_config_id),
+                    "project_id": str(project_id),
+                },
+            )
+        _ensure_current_mcu_config_sources(session, project_id, bundle)
+        inputs["mcu_config"] = bundle.config
+    return inputs
+
+
 def _ensure_latest_hardware(session: Session, project_id: UUID, hardware_id: UUID) -> None:
     latest = SqlAlchemyArchitectureRepository(session).latest_for_project(project_id)
     if latest is None:
@@ -1988,6 +2012,7 @@ def resolve_domain_composition(
         project_id,
         payload.domain_ids,
         selected_capabilities=payload.selected_capabilities,
+        validation_inputs=_domain_validation_inputs(project_id, payload, session),
     )
     return ApiEnvelope(data=_domain_composition_data(composition), request_id=_request_id(request))
 
@@ -2085,6 +2110,7 @@ def validate_domain_composition(
         project_id,
         [domain_id, *payload.domain_ids],
         selected_capabilities=payload.selected_capabilities,
+        validation_inputs=_domain_validation_inputs(project_id, payload, session),
     )
     return ApiEnvelope(data=_domain_composition_data(composition), request_id=_request_id(request))
 

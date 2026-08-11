@@ -1,5 +1,21 @@
 """Plugin-owned MotorControl configuration and IR schemas."""
 
-from plugins.builtin.motor_control.schemas.ir import MotorControlConfiguration, MotorControlIR
+from plugins.builtin.motor_control.schemas.ir import (
+    ADCSamplingRequirement,
+    CurrentLoopRequirement,
+    ElectricalAngle,
+    MotorControlConfiguration,
+    MotorControlIR,
+    PositionLoopRequirement,
+    VelocityLoopRequirement,
+)
 
-__all__ = ["MotorControlConfiguration", "MotorControlIR"]
+__all__ = [
+    "ADCSamplingRequirement",
+    "CurrentLoopRequirement",
+    "ElectricalAngle",
+    "MotorControlConfiguration",
+    "MotorControlIR",
+    "PositionLoopRequirement",
+    "VelocityLoopRequirement",
+]

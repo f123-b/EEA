@@ -23,6 +23,10 @@ plugins/builtin/motor_control/
 
 # 3. MotorControlIR
 
+M15R 冻结的 `MotorControlIR` schema version 是 `1.0.0`。Schema 中的控制需求不替代
+`MCUConfigIR` 的已实现硬件事实；所有 `EngineeringValue` 必须携带与字段语义一致的
+dimension，量纲不一致时必须 fail closed。
+
 ```text
 MotorControlIR
 ├── motor_ref / motor_parameters
@@ -81,13 +85,24 @@ Inverter、Encoder、CurrentSense 尽量通过 HardwareIR DeviceInstance/Module 
 
 # 7. Loops
 
-CurrentLoop：frequency/period、Id/Iq target、Kp/Ki、output limit、anti-windup、decoupling、sample-to-actuation latency、CPU budget。  
-VelocityLoop：frequency、Kp/Ki、speed/acceleration/current limit、feedback source。  
-PositionLoop：frequency、controller type、position/velocity limit、wrap handling。
+`LoopRequirement` 的 `frequency` 是 `FREQUENCY`，`period` 是 `TIME`；二者是互补的
+控制语义，不允许用错误量纲互相替代。`latency` 与 `cpu_budget` 也是 `TIME`。
+
+- `CurrentLoopRequirement`：`id_target`、`iq_target` 必须是 `CURRENT`；`frequency`、
+  `period`、`latency`、`cpu_budget` 继承上述 loop 语义；`kp`、`ki`、`output_limit`、
+  `anti_windup` 和 `decoupling` 是可选控制器需求字段。
+- `VelocityLoopRequirement`：`speed_limit` 是 `ANGULAR_VELOCITY`，
+  `acceleration_limit` 是 `ANGULAR_ACCELERATION`，`current_limit` 是 `CURRENT`，
+  `feedback_source` 必须显式声明来源。
+- `PositionLoopRequirement`：`controller` 与 `wrap_handling` 必须显式声明；
+  `position_limit` 是 `ANGLE`，`velocity_limit` 是 `ANGULAR_VELOCITY`。
+
+缺少运行时执行预算、反馈极性或规范化 phase-map 证据时，相关规则返回 `UNKNOWN` 或
+`BLOCKED`，不能降级为 `PASS`。
 
 # 8. Startup / Calibration
 
-encoder alignment、electrical zero、current sensor offset、cogging calibration(optional)、open-loop ramp(optional)。每步保存 prerequisites、current/voltage limit、timeout、failure behavior、test result。
+encoder alignment、electrical zero、current sensor offset、cogging calibration(optional)、open-loop ramp(optional)。每步保存 prerequisites、current/voltage limit、timeout、failure behavior、test result。`StartupCalibration.test_result` 只允许 `PASS`、`FAIL`、`UNKNOWN`、`BLOCKED`；M15R 不执行硬件校准，声明的 `PASS` 不等于真实硬件测试通过。
 
 # 9. Fault Policy
 
@@ -111,11 +126,19 @@ MotorControlAgent 查询：
 
 # 12. Acceptance
 
+M15/M15R 只验收 MotorControl Plugin Contract：
+
 1. Plugin disable 后 Core Neutrality benchmark 仍 PASS。
-2. Plugin enable 后 FOC E2E PASS。
-3. 修改 MCUConfig PWM/ADC 时 MotorControl cross-validation 能检测 mismatch。
-4. Core repo 不出现 motor-only schema import。
-5. API/Frontend 通过 Domain Registry 动态出现 Motor Control 页面。
+2. Plugin enable 后 Domain Validate action 实际执行 executable validator。
+3. 修改 MCUConfig PWM/ADC 时 MotorControl cross-validation 能检测 mismatch；未知或
+   阻断状态不得转成 PASS。
+4. 11 条冻结规则均有 deterministic evaluator，或明确返回 `UNKNOWN`/`BLOCKED`。
+5. Core/Application 不出现 motor-only schema import；API/OpenAPI/TypeScript contract
+   保持同步。
+6. API 可通过 Domain Registry 暴露 Motor Control metadata contribution。
+
+Plugin-enabled FOC Minimal E2E 属于 M19；完整 Desktop UI Vertical Slice 属于 M21。
+二者不是 M15/M15R 的验收项，不能在 M15 报告中标记为已完成。
 
 # 13. V1.3 Commissioning Safety
 
