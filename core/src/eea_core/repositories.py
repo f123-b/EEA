@@ -6,6 +6,7 @@ from uuid import UUID
 from eea_core.ai import AIUsageRecord, PromptDefinition
 from eea_core.claims import ClaimConflict, ClaimPredicateDefinition, EngineeringClaim
 from eea_core.entities import Project
+from eea_core.intelligence import Document, DocumentIR
 
 
 class ProjectRepository(Protocol):
@@ -52,3 +53,15 @@ class ClaimConflictRepository(Protocol):
     def add(self, conflict: ClaimConflict) -> ClaimConflict: ...
 
     def list_for_claim(self, claim_id: UUID) -> list[ClaimConflict]: ...
+
+
+class DocumentRepository(Protocol):
+    def add(self, document: Document) -> Document: ...
+
+    def get(self, document_id: UUID) -> Document | None: ...
+
+
+class DocumentIRRepository(Protocol):
+    def add(self, document_ir: DocumentIR) -> DocumentIR: ...
+
+    def get_for_document(self, document_id: UUID) -> DocumentIR | None: ...

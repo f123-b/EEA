@@ -148,6 +148,36 @@ class ClaimConflictStrategy(StrEnum):
     MANUAL_REVIEW = "MANUAL_REVIEW"
 
 
+class DocumentType(StrEnum):
+    DATASHEET = "DATASHEET"
+    REFERENCE_MANUAL = "REFERENCE_MANUAL"
+    ERRATA = "ERRATA"
+    APPLICATION_NOTE = "APPLICATION_NOTE"
+    USER_DOCUMENT = "USER_DOCUMENT"
+    UNKNOWN = "UNKNOWN"
+
+
+class DocumentParseStatus(StrEnum):
+    UPLOADED = "UPLOADED"
+    PARSING = "PARSING"
+    PARSED = "PARSED"
+    FAILED = "FAILED"
+
+
+class DeviceCategory(StrEnum):
+    MCU = "MCU"
+    SENSOR = "SENSOR"
+    POWER_DEVICE = "POWER_DEVICE"
+    BOARD = "BOARD"
+    PERIPHERAL = "PERIPHERAL"
+    UNKNOWN = "UNKNOWN"
+
+
+class DeviceMergeConflictType(StrEnum):
+    SCALAR_MISMATCH = "SCALAR_MISMATCH"
+    PIN_FUNCTION_MISMATCH = "PIN_FUNCTION_MISMATCH"
+
+
 class EngineeringErrorCode(StrEnum):
     """Stable API error catalog, including the FIX-08 additions."""
 

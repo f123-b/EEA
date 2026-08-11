@@ -25,9 +25,9 @@ def test_version_uses_v1_envelope(client: TestClient) -> None:
         "success": True,
         "data": {
             "product": "Embedded Engineering Agent",
-            "version": "1.3.1.dev3",
+            "version": "1.3.1.dev4",
             "api_version": "v1",
-            "milestone": "M3",
+            "milestone": "M4",
         },
         "request_id": "req_test",
     }

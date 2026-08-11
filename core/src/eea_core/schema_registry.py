@@ -21,6 +21,19 @@ from eea_core.entities import (
     Project,
     TraceabilityEdge,
 )
+from eea_core.intelligence import (
+    Device,
+    DeviceMergeConflict,
+    DeviceMergeResult,
+    DevicePin,
+    Document,
+    DocumentFigure,
+    DocumentIR,
+    DocumentPage,
+    DocumentSection,
+    DocumentTable,
+    PinFunction,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,9 +74,19 @@ def create_core_schema_registry() -> SchemaRegistry:
         Artifact,
         ClaimConflict,
         ClaimPredicateDefinition,
+        Device,
+        DeviceMergeConflict,
+        DeviceMergeResult,
+        DevicePin,
         EngineeringDecision,
         EngineeringClaim,
         EngineeringValue,
+        Document,
+        DocumentFigure,
+        DocumentIR,
+        DocumentPage,
+        DocumentSection,
+        DocumentTable,
         Evidence,
         Issue,
         Job,
@@ -71,6 +94,7 @@ def create_core_schema_registry() -> SchemaRegistry:
         PromptDefinition,
         Project,
         TraceabilityEdge,
+        PinFunction,
     ):
         registry.register(SchemaRegistration(model.__name__, "1.0", model))
     return registry

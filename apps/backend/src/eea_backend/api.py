@@ -1,10 +1,14 @@
 """M1 versioned API routes."""
 
 import re
+from base64 import b64decode
+from binascii import Error as Base64Error
 from collections.abc import Iterator
 from typing import Annotated
 from uuid import UUID
 
+from eea_adapters.devices import Stm32G431FixtureProvider
+from eea_application.intelligence import DocumentService, MultiSourceDeviceProvider
 from eea_application.projects import ProjectService
 from eea_core.entities import Project
 from eea_core.enums import (
@@ -14,6 +18,10 @@ from eea_core.enums import (
     ClaimConflictType,
     ClaimLifecycle,
     DecisionStatus,
+    DeviceCategory,
+    DeviceMergeConflictType,
+    DocumentParseStatus,
+    DocumentType,
     EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
@@ -26,13 +34,20 @@ from eea_core.enums import (
     VerificationLevel,
 )
 from eea_core.errors import EngineeringError
+from eea_core.intelligence import Device, DevicePin, Document
 from eea_core.schema_registry import create_core_schema_registry
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.orm import Session
 
+from eea_backend.document_repositories import SqlAlchemyDocumentRepository
 from eea_backend.repositories import SqlAlchemyProjectRepository
 from eea_backend.schemas import (
     ApiEnvelope,
+    DeviceData,
+    DevicePinData,
+    DevicePinQueryData,
+    DocumentData,
+    DocumentUploadRequest,
     EnumCatalogData,
     EnumValues,
     ProjectCreate,
@@ -46,6 +61,7 @@ from eea_backend.schemas import (
 
 router = APIRouter()
 schema_registry = create_core_schema_registry()
+device_provider = MultiSourceDeviceProvider([Stm32G431FixtureProvider()])
 ETAG_PATTERN = re.compile(r'^(?:W/)?"(?P<revision>[1-9][0-9]*)"$')
 
 
@@ -63,6 +79,18 @@ def _service(session: Session) -> ProjectService:
 
 def _project_data(project: Project) -> ProjectData:
     return ProjectData.model_validate(project, from_attributes=True)
+
+
+def _document_data(document: Document) -> DocumentData:
+    return DocumentData.model_validate(document.model_dump(mode="json"))
+
+
+def _pin_data(pin: DevicePin) -> DevicePinData:
+    return DevicePinData.model_validate(pin.model_dump(mode="json"))
+
+
+def _device_data(device: Device) -> DeviceData:
+    return DeviceData.model_validate(device.model_dump(mode="json"))
 
 
 def _request_id(request: Request) -> str:
@@ -113,6 +141,10 @@ def enums(request: Request) -> ApiEnvelope[EnumCatalogData]:
             ClaimConflictType,
             ClaimLifecycle,
             DecisionStatus,
+            DeviceCategory,
+            DeviceMergeConflictType,
+            DocumentParseStatus,
+            DocumentType,
             EngineeringDimension,
             EngineeringErrorCode,
             EvidenceType,
@@ -156,6 +188,91 @@ def schema(schema_name: str, request: Request) -> ApiEnvelope[SchemaData]:
         json_schema=json_schema,
     )
     return ApiEnvelope(data=data, request_id=_request_id(request))
+
+
+@router.post(
+    "/documents",
+    response_model=ApiEnvelope[DocumentData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["documents"],
+)
+def upload_document(
+    payload: DocumentUploadRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DocumentData]:
+    try:
+        content = b64decode(payload.content_base64, validate=True)
+    except (Base64Error, ValueError):
+        raise EngineeringError(
+            EngineeringErrorCode.VALIDATION_ERROR,
+            "content_base64 is not valid base64",
+        ) from None
+    document = DocumentService(
+        SqlAlchemyDocumentRepository(session), request.app.state.settings.data_dir
+    ).upload(
+        content,
+        filename=payload.filename,
+        project_id=payload.project_id,
+        document_type=payload.document_type,
+        vendor=payload.vendor,
+        product=payload.product,
+        version_label=payload.version_label,
+    )
+    return ApiEnvelope(data=_document_data(document), request_id=_request_id(request))
+
+
+@router.get(
+    "/documents/{document_id}",
+    response_model=ApiEnvelope[DocumentData],
+    tags=["documents"],
+)
+def get_document(
+    document_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[DocumentData]:
+    document = DocumentService(
+        SqlAlchemyDocumentRepository(session), request.app.state.settings.data_dir
+    ).get(document_id)
+    return ApiEnvelope(data=_document_data(document), request_id=_request_id(request))
+
+
+@router.get("/devices/{device_ref}", response_model=ApiEnvelope[DeviceData], tags=["devices"])
+def get_device(
+    device_ref: str,
+    request: Request,
+    package: str | None = None,
+) -> ApiEnvelope[DeviceData]:
+    device = device_provider.get_device(device_ref, package=package)
+    if device is None:
+        raise EngineeringError(
+            EngineeringErrorCode.DEVICE_NOT_FOUND,
+            "Device or package was not found",
+            details={"device_ref": device_ref, "package": package},
+        )
+    return ApiEnvelope(data=_device_data(device), request_id=_request_id(request))
+
+
+@router.get(
+    "/devices/{device_ref}/pins/{pin_name}",
+    response_model=ApiEnvelope[DevicePinQueryData],
+    tags=["devices"],
+)
+def query_device_pin(
+    device_ref: str,
+    pin_name: str,
+    request: Request,
+    package: str | None = None,
+    peripheral: str | None = None,
+    signal: str | None = None,
+) -> ApiEnvelope[DevicePinQueryData]:
+    pin = device_provider.query_pin(
+        device_ref,
+        pin_name,
+        package=package,
+        peripheral=peripheral,
+        signal=signal,
+    )
+    return ApiEnvelope(data=DevicePinQueryData(pin=_pin_data(pin)), request_id=_request_id(request))
 
 
 @router.post(

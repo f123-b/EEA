@@ -1,6 +1,75 @@
 {
   "components": {
     "schemas": {
+      "ApiEnvelope_DeviceData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeviceData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DeviceData]",
+        "type": "object"
+      },
+      "ApiEnvelope_DevicePinQueryData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DevicePinQueryData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DevicePinQueryData]",
+        "type": "object"
+      },
+      "ApiEnvelope_DocumentData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DocumentData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DocumentData]",
+        "type": "object"
+      },
       "ApiEnvelope_EnumCatalogData_": {
         "properties": {
           "data": {
@@ -197,6 +266,488 @@
         "title": "DecisionStatus",
         "type": "string"
       },
+      "DeviceCategory": {
+        "enum": [
+          "MCU",
+          "SENSOR",
+          "POWER_DEVICE",
+          "BOARD",
+          "PERIPHERAL",
+          "UNKNOWN"
+        ],
+        "title": "DeviceCategory",
+        "type": "string"
+      },
+      "DeviceData": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/DeviceCategory"
+          },
+          "clocks": {
+            "additionalProperties": true,
+            "title": "Clocks",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dma": {
+            "additionalProperties": true,
+            "title": "Dma",
+            "type": "object"
+          },
+          "electrical": {
+            "additionalProperties": true,
+            "title": "Electrical",
+            "type": "object"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "interrupts": {
+            "additionalProperties": true,
+            "title": "Interrupts",
+            "type": "object"
+          },
+          "manufacturer": {
+            "title": "Manufacturer",
+            "type": "string"
+          },
+          "memory": {
+            "additionalProperties": true,
+            "title": "Memory",
+            "type": "object"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "packages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Packages",
+            "type": "array"
+          },
+          "peripherals": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Peripherals",
+            "type": "array"
+          },
+          "pins": {
+            "items": {
+              "$ref": "#/components/schemas/DevicePinData"
+            },
+            "title": "Pins",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "revision_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Label"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Refs",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "manufacturer",
+          "family",
+          "model",
+          "revision_label",
+          "category",
+          "packages",
+          "memory",
+          "peripherals",
+          "pins",
+          "clocks",
+          "dma",
+          "interrupts",
+          "electrical",
+          "source_refs"
+        ],
+        "title": "DeviceData",
+        "type": "object"
+      },
+      "DeviceMergeConflictType": {
+        "enum": [
+          "SCALAR_MISMATCH",
+          "PIN_FUNCTION_MISMATCH"
+        ],
+        "title": "DeviceMergeConflictType",
+        "type": "string"
+      },
+      "DevicePinData": {
+        "properties": {
+          "five_v_tolerant": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Five V Tolerant"
+          },
+          "functions": {
+            "items": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "title": "Functions",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "package": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package"
+          },
+          "package_pin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Pin"
+          },
+          "source_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Refs",
+            "type": "array"
+          },
+          "voltage_domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voltage Domain"
+          }
+        },
+        "required": [
+          "name",
+          "package",
+          "package_pin",
+          "voltage_domain",
+          "five_v_tolerant",
+          "functions",
+          "source_refs"
+        ],
+        "title": "DevicePinData",
+        "type": "object"
+      },
+      "DevicePinQueryData": {
+        "properties": {
+          "pin": {
+            "$ref": "#/components/schemas/DevicePinData"
+          },
+          "supported": {
+            "default": true,
+            "title": "Supported",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pin"
+        ],
+        "title": "DevicePinQueryData",
+        "type": "object"
+      },
+      "DocumentData": {
+        "properties": {
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "document_type": {
+            "$ref": "#/components/schemas/DocumentType"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "parse_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parse Error"
+          },
+          "parse_status": {
+            "$ref": "#/components/schemas/DocumentParseStatus"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "storage_uri": {
+            "title": "Storage Uri",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor"
+          },
+          "version_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Label"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "filename",
+          "document_type",
+          "vendor",
+          "product",
+          "version_label",
+          "content_hash",
+          "storage_uri",
+          "parse_status",
+          "parse_error"
+        ],
+        "title": "DocumentData",
+        "type": "object"
+      },
+      "DocumentParseStatus": {
+        "enum": [
+          "UPLOADED",
+          "PARSING",
+          "PARSED",
+          "FAILED"
+        ],
+        "title": "DocumentParseStatus",
+        "type": "string"
+      },
+      "DocumentType": {
+        "enum": [
+          "DATASHEET",
+          "REFERENCE_MANUAL",
+          "ERRATA",
+          "APPLICATION_NOTE",
+          "USER_DOCUMENT",
+          "UNKNOWN"
+        ],
+        "title": "DocumentType",
+        "type": "string"
+      },
+      "DocumentUploadRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "content_base64": {
+            "maxLength": 20000000,
+            "minLength": 1,
+            "title": "Content Base64",
+            "type": "string"
+          },
+          "document_type": {
+            "$ref": "#/components/schemas/DocumentType",
+            "default": "UNKNOWN"
+          },
+          "filename": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor"
+          },
+          "version_label": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Label"
+          }
+        },
+        "required": [
+          "filename",
+          "content_base64"
+        ],
+        "title": "DocumentUploadRequest",
+        "type": "object"
+      },
       "EngineeringDimension": {
         "description": "FIX-02 frozen dimensions used by every normalized engineering value.",
         "enum": [
@@ -318,6 +869,34 @@
             "title": "Decisionstatus",
             "type": "array"
           },
+          "DeviceCategory": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceCategory"
+            },
+            "title": "Devicecategory",
+            "type": "array"
+          },
+          "DeviceMergeConflictType": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceMergeConflictType"
+            },
+            "title": "Devicemergeconflicttype",
+            "type": "array"
+          },
+          "DocumentParseStatus": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentParseStatus"
+            },
+            "title": "Documentparsestatus",
+            "type": "array"
+          },
+          "DocumentType": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentType"
+            },
+            "title": "Documenttype",
+            "type": "array"
+          },
           "EngineeringDimension": {
             "items": {
               "$ref": "#/components/schemas/EngineeringDimension"
@@ -396,6 +975,10 @@
           "ClaimConflictType",
           "ClaimLifecycle",
           "DecisionStatus",
+          "DeviceCategory",
+          "DeviceMergeConflictType",
+          "DocumentParseStatus",
+          "DocumentType",
           "EngineeringDimension",
           "EngineeringErrorCode",
           "EvidenceType",
@@ -871,10 +1454,271 @@
   "info": {
     "description": "Versioned API for the Embedded Engineering Agent platform.",
     "title": "Embedded Engineering Agent API",
-    "version": "1.3.1.dev3"
+    "version": "1.3.1.dev4"
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/devices/{device_ref}": {
+      "get": {
+        "operationId": "get_device_api_v1_devices__device_ref__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_ref",
+            "required": true,
+            "schema": {
+              "title": "Device Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "package",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Package"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DeviceData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Device",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/api/v1/devices/{device_ref}/pins/{pin_name}": {
+      "get": {
+        "operationId": "query_device_pin_api_v1_devices__device_ref__pins__pin_name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_ref",
+            "required": true,
+            "schema": {
+              "title": "Device Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "pin_name",
+            "required": true,
+            "schema": {
+              "title": "Pin Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "package",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Package"
+            }
+          },
+          {
+            "in": "query",
+            "name": "peripheral",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Peripheral"
+            }
+          },
+          {
+            "in": "query",
+            "name": "signal",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Signal"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DevicePinQueryData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Query Device Pin",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/api/v1/documents": {
+      "post": {
+        "operationId": "upload_document_api_v1_documents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DocumentData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/api/v1/documents/{document_id}": {
+      "get": {
+        "operationId": "get_document_api_v1_documents__document_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DocumentData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
     "/api/v1/meta/enums": {
       "get": {
         "operationId": "enums_api_v1_meta_enums_get",

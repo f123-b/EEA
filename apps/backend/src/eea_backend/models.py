@@ -12,6 +12,8 @@ from eea_core.enums import (
     ClaimConflictType,
     ClaimLifecycle,
     DecisionStatus,
+    DocumentParseStatus,
+    DocumentType,
     EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
@@ -380,3 +382,43 @@ class ClaimConflictRecord(CoreRecordMixin, Base):
     selected_claim_id: Mapped[str | None] = mapped_column(ForeignKey("engineering_claims.id"))
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class DocumentRecord(CoreRecordMixin, Base):
+    __tablename__ = "documents"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(f"document_type IN ({_enum_values(DocumentType)})", name="document_type"),
+        CheckConstraint(
+            f"parse_status IN ({_enum_values(DocumentParseStatus)})", name="parse_status"
+        ),
+        UniqueConstraint("content_hash", name="uq_documents_content_hash"),
+    )
+
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    document_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    vendor: Mapped[str | None] = mapped_column(String(200))
+    product: Mapped[str | None] = mapped_column(String(200))
+    version_label: Mapped[str | None] = mapped_column(String(100))
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    storage_uri: Mapped[str] = mapped_column(String(2000), nullable=False)
+    parse_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    parse_error: Mapped[str | None] = mapped_column(Text)
+
+
+class DocumentIRRecord(CoreRecordMixin, Base):
+    __tablename__ = "document_irs"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        UniqueConstraint("document_id", name="uq_document_irs_document_id"),
+    )
+
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), nullable=False, index=True)
+    parser: Mapped[str] = mapped_column(String(200), nullable=False)
+    parser_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    pages: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    sections: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    tables: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    figures: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    extracted_claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)

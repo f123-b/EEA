@@ -60,7 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             product="Embedded Engineering Agent",
             version=__version__,
             api_version="v1",
-            milestone="M3",
+            milestone="M4",
         )
         return ApiEnvelope(data=data, request_id=request.state.request_id)
 

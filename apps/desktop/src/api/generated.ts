@@ -52,6 +52,40 @@ export const decisionStatusValues = [
 ] as const;
 export type DecisionStatus = (typeof decisionStatusValues)[number];
 
+export const deviceCategoryValues = [
+  "MCU",
+  "SENSOR",
+  "POWER_DEVICE",
+  "BOARD",
+  "PERIPHERAL",
+  "UNKNOWN"
+] as const;
+export type DeviceCategory = (typeof deviceCategoryValues)[number];
+
+export const deviceMergeConflictTypeValues = [
+  "SCALAR_MISMATCH",
+  "PIN_FUNCTION_MISMATCH"
+] as const;
+export type DeviceMergeConflictType = (typeof deviceMergeConflictTypeValues)[number];
+
+export const documentParseStatusValues = [
+  "UPLOADED",
+  "PARSING",
+  "PARSED",
+  "FAILED"
+] as const;
+export type DocumentParseStatus = (typeof documentParseStatusValues)[number];
+
+export const documentTypeValues = [
+  "DATASHEET",
+  "REFERENCE_MANUAL",
+  "ERRATA",
+  "APPLICATION_NOTE",
+  "USER_DOCUMENT",
+  "UNKNOWN"
+] as const;
+export type DocumentType = (typeof documentTypeValues)[number];
+
 export const engineeringDimensionValues = [
   "VOLTAGE",
   "CURRENT",

@@ -22,6 +22,8 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
         "artifacts",
         "claim_conflicts",
         "claim_predicate_definitions",
+        "document_irs",
+        "documents",
         "engineering_decisions",
         "engineering_claims",
         "evidence",
