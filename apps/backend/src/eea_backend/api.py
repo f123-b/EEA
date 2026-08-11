@@ -4,13 +4,14 @@ import re
 from base64 import b64decode
 from binascii import Error as Base64Error
 from collections.abc import Iterator
-from typing import Annotated
+from typing import Annotated, Any, cast
 from uuid import UUID
 
 from eea_adapters.devices import Stm32G431FixtureProvider
 from eea_application.ai import PromptRegistry, StructuredGenerationService
 from eea_application.architecture import ArchitectureService
 from eea_application.circuit import CircuitService
+from eea_application.components import ComponentMaterializer, ComponentRegistryService
 from eea_application.firmware import FirmwareBuildService, FirmwareService
 from eea_application.intelligence import DocumentService, MultiSourceDeviceProvider
 from eea_application.mcu_config import MCUConfigService
@@ -24,6 +25,11 @@ from eea_application.schematic import SchematicService
 from eea_core.architecture import ArchitectureBundle
 from eea_core.build import BuildRun
 from eea_core.circuit import CircuitBundle
+from eea_core.components import (
+    ComponentMaterialization,
+    DependencyLock,
+    SoftwareComponentDescriptor,
+)
 from eea_core.entities import Evidence, Project
 from eea_core.enums import (
     ArtifactStatus,
@@ -67,6 +73,11 @@ from eea_backend.architecture_repositories import SqlAlchemyArchitectureReposito
 from eea_backend.build_repositories import SqlAlchemyBuildRunRepository
 from eea_backend.circuit_repositories import SqlAlchemyCircuitRepository
 from eea_backend.claim_repositories import SqlAlchemyEngineeringClaimRepository
+from eea_backend.component_repositories import (
+    SqlAlchemyComponentMaterializationRepository,
+    SqlAlchemyComponentRepository,
+    SqlAlchemyDependencyLockRepository,
+)
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
 from eea_backend.firmware_repositories import SqlAlchemyFirmwareRepository
 from eea_backend.mcu_config_repositories import SqlAlchemyMCUConfigRepository
@@ -94,6 +105,13 @@ from eea_backend.schemas import (
     CircuitGenerateRequest,
     CircuitValidateRequest,
     CircuitValidationData,
+    ComponentCatalogData,
+    ComponentDetailData,
+    ComponentMaterializationData,
+    ComponentMaterializeRequest,
+    ComponentReleaseData,
+    ComponentResolveRequest,
+    DependencyLockData,
     DeviceData,
     DevicePinData,
     DevicePinQueryData,
@@ -132,6 +150,7 @@ from eea_backend.schemas import (
     SchematicBundleData,
     SchematicGenerateRequest,
     SchematicValidateRequest,
+    SoftwareComponentData,
 )
 from eea_backend.schematic_repositories import SqlAlchemySchematicRepository
 
@@ -209,6 +228,26 @@ def _firmware_bundle_data(bundle: FirmwareBundle) -> FirmwareBundleData:
 
 def _build_run_data(build: BuildRun) -> BuildRunData:
     return BuildRunData.model_validate(build.model_dump(mode="json"))
+
+
+def _component_data(
+    descriptor: SoftwareComponentDescriptor,
+    releases: list[object],
+) -> dict[str, object]:
+    return {
+        "descriptor": descriptor.model_dump(mode="json"),
+        "releases": [cast(Any, release).model_dump(mode="json") for release in releases],
+    }
+
+
+def _dependency_lock_data(lock: DependencyLock) -> DependencyLockData:
+    return DependencyLockData.model_validate(lock.model_dump(mode="json"))
+
+
+def _materialization_data(
+    materialization: ComponentMaterialization,
+) -> ComponentMaterializationData:
+    return ComponentMaterializationData.model_validate(materialization.model_dump(mode="json"))
 
 
 def _ensure_latest_hardware(session: Session, project_id: UUID, hardware_id: UUID) -> None:
@@ -294,6 +333,187 @@ def _requirement_profile_data(profile: RequirementProfile) -> RequirementProfile
 
 def _request_id(request: Request) -> str:
     return str(request.state.request_id)
+
+
+def _component_providers(request: Request) -> list[object]:
+    return list(getattr(request.app.state, "component_providers", []))
+
+
+def _component_descriptor_data(descriptor: SoftwareComponentDescriptor) -> SoftwareComponentData:
+    return SoftwareComponentData.model_validate(descriptor.model_dump(mode="json"))
+
+
+@router.get("/components", response_model=ApiEnvelope[ComponentCatalogData], tags=["components"])
+def list_components(
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[ComponentCatalogData]:
+    providers = _component_providers(request)
+    descriptors = SqlAlchemyComponentRepository(session).list_descriptors()
+    for provider in providers:
+        descriptors.extend(cast(Any, provider).descriptors())
+    by_key = {descriptor.component_key: descriptor for descriptor in descriptors}
+    data = ComponentCatalogData(
+        components=[_component_descriptor_data(by_key[key]) for key in sorted(by_key)]
+    )
+    return ApiEnvelope(data=data, request_id=_request_id(request))
+
+
+@router.get(
+    "/components/{component_key}",
+    response_model=ApiEnvelope[ComponentDetailData],
+    tags=["components"],
+)
+def get_component(
+    component_key: str,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[ComponentDetailData]:
+    descriptor = SqlAlchemyComponentRepository(session).get(component_key)
+    releases: list[object] = []
+    for provider in _component_providers(request):
+        for candidate in cast(Any, provider).descriptors():
+            if candidate.component_key == component_key:
+                descriptor = candidate
+                releases.extend(cast(Any, provider).releases(candidate.id))
+    if descriptor is None:
+        raise EngineeringError(
+            EngineeringErrorCode.COMPONENT_UNAVAILABLE,
+            "Software component is not registered.",
+            details={"component_key": component_key},
+        )
+    data = ComponentDetailData(
+        descriptor=_component_descriptor_data(descriptor),
+        releases=[
+            ComponentReleaseData.model_validate(cast(Any, release).model_dump(mode="json"))
+            for release in releases
+        ],
+    )
+    return ApiEnvelope(data=data, request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/dependencies/resolve",
+    response_model=ApiEnvelope[DependencyLockData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["components"],
+)
+def resolve_dependencies(
+    project_id: UUID,
+    payload: ComponentResolveRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DependencyLockData]:
+    _service(session).get(project_id)
+    config = SqlAlchemyMCUConfigRepository(session).get(
+        payload.mcu_config_id, project_id=project_id
+    )
+    if config is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "MCUConfigIR is not available for dependency resolution.",
+            details={"mcu_config_id": str(payload.mcu_config_id)},
+        )
+    providers = _component_providers(request)
+    if not providers:
+        raise EngineeringError(
+            EngineeringErrorCode.COMPONENT_UNAVAILABLE,
+            "No ESCR component provider is installed.",
+        )
+    lock = ComponentRegistryService(cast(list[Any], providers)).resolve(
+        project_id=project_id,
+        mcu_config_id=config.config.id,
+        mcu_config_revision=config.config.revision,
+        requirements=payload.requirements,
+        architecture=payload.architecture,
+        device=payload.device,
+        toolchain_id=payload.toolchain_id,
+        build_system=payload.build_system,
+        capabilities=payload.capabilities,
+        rtos=payload.rtos,
+    )
+    saved = SqlAlchemyDependencyLockRepository(session).add(lock)
+    return ApiEnvelope(data=_dependency_lock_data(saved), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/dependencies",
+    response_model=ApiEnvelope[DependencyLockData],
+    tags=["components"],
+)
+def get_latest_dependencies(
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DependencyLockData]:
+    _service(session).get(project_id)
+    lock = SqlAlchemyDependencyLockRepository(session).latest_for_project(project_id)
+    if lock is None:
+        raise EngineeringError(
+            EngineeringErrorCode.DEPENDENCY_LOCK_REQUIRED,
+            "No dependency lock exists for this project.",
+        )
+    return ApiEnvelope(data=_dependency_lock_data(lock), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/dependency-locks/{lock_id}",
+    response_model=ApiEnvelope[DependencyLockData],
+    tags=["components"],
+)
+def get_dependency_lock(
+    project_id: UUID,
+    lock_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DependencyLockData]:
+    _service(session).get(project_id)
+    lock = SqlAlchemyDependencyLockRepository(session).get(lock_id, project_id=project_id)
+    if lock is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "DependencyLock is not available for this project.",
+            details={"lock_id": str(lock_id)},
+        )
+    return ApiEnvelope(data=_dependency_lock_data(lock), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/dependencies/materialize",
+    response_model=ApiEnvelope[list[ComponentMaterializationData]],
+    status_code=status.HTTP_201_CREATED,
+    tags=["components"],
+)
+def materialize_dependencies(
+    project_id: UUID,
+    payload: ComponentMaterializeRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[list[ComponentMaterializationData]]:
+    _service(session).get(project_id)
+    lock = SqlAlchemyDependencyLockRepository(session).get(payload.lock_id, project_id=project_id)
+    if lock is None:
+        raise EngineeringError(
+            EngineeringErrorCode.DEPENDENCY_LOCK_REQUIRED,
+            "DependencyLock is not available for materialization.",
+        )
+    providers = cast(list[Any], _component_providers(request))
+    if not providers:
+        raise EngineeringError(
+            EngineeringErrorCode.COMPONENT_UNAVAILABLE, "No ESCR provider is installed."
+        )
+    records = ComponentMaterializer(
+        request.app.state.settings.data_dir / "component-cache"
+    ).materialize(lock, providers, project_id=project_id)
+    repository = SqlAlchemyComponentMaterializationRepository(session)
+    saved = [
+        repository.add(record.model_copy(update={"project_id": project_id}), commit=False)
+        for record in records
+    ]
+    session.commit()
+    return ApiEnvelope(
+        data=[_materialization_data(record) for record in saved], request_id=_request_id(request)
+    )
 
 
 def _set_etag(response: Response, revision: int) -> None:
@@ -1173,10 +1393,22 @@ def generate_firmware(
             },
         )
     _ensure_current_mcu_config_sources(session, project_id, selected)
+    dependency_lock = None
+    if payload.dependency_lock_id is not None:
+        dependency_lock = SqlAlchemyDependencyLockRepository(session).get(
+            payload.dependency_lock_id, project_id=project_id
+        )
+        if dependency_lock is None:
+            raise EngineeringError(
+                EngineeringErrorCode.DEPENDENCY_LOCK_REQUIRED,
+                "Requested DependencyLock is not available for this project.",
+                details={"lock_id": str(payload.dependency_lock_id)},
+            )
     bundle = FirmwareService().generate(
         selected.config,
         build_target=payload.build_target,
         board_name=payload.board_name,
+        dependency_lock=dependency_lock,
     )
     saved = SqlAlchemyFirmwareRepository(session).add(bundle)
     return ApiEnvelope(data=_firmware_bundle_data(saved), request_id=_request_id(request))
@@ -1240,6 +1472,7 @@ def build_firmware(
     snapshot, build = FirmwareBuildService().build(
         bundle,
         request.app.state.settings.data_dir / "m12-builds" / str(project_id),
+        component_cache_root=request.app.state.settings.data_dir / "component-cache",
     )
     saved = SqlAlchemyBuildRunRepository(session).add(snapshot, build)
     return ApiEnvelope(data=_build_run_data(saved), request_id=_request_id(request))

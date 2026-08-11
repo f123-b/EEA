@@ -1,35 +1,31 @@
-# M12 FirmwareIR 与真实构建验证报告
+# M12R / M12A FirmwareIR 与 ESCR 集成验证报告
 
 ## 结论
 
-M12 已完成并通过验证。FirmwareIR、确定性源码候选、SourceRevision、BuildInputSnapshot、CMake/PlatformIO 构建适配器以及构建 API 已接入；构建结果不会在工具链缺失、MCUConfigIR 未知或产物缺失时被错误标记为 PASS。
+本地实现与验证已完成，但 M12 仍保持 **NOT ACCEPTED**：基线远程 CI run `31467030846` 曾报告 backend 3 failed / 130 passed，desktop PASS；本次按用户要求未推送，因此没有新的远程绿灯证据。M13 继续 **NO-GO**，不得据此宣称 M12 最终通过。
 
 ## 交付范围
 
-- Core 新增 FirmwareIR、FirmwareBundle、SourceRevision、BuildInputSnapshot、BuildRun 与构建诊断模型。
-- Application 从当前 MCUConfigIR 生成确定性的 host STM32 skeleton 源码，并保留 MCUConfigIR 的 ID、revision、时钟和结构化追溯关系。
-- Backend 新增 firmware/build 持久化、迁移 `0014_m12_firmware_build` 和 API：
-  - `POST/GET /projects/{project_id}/firmware`
-  - `POST /projects/{project_id}/build`
-  - `GET /projects/{project_id}/builds`
-  - `GET /projects/{project_id}/builds/{build_id}`
-- BuildRun 强制绑定 `build_input_snapshot_id`；快照 hash 覆盖 generated input、source manifest、build config、toolchain 和环境 profile。
-- 构建命令通过 SafePath 与 allowlisted structured argv 执行，编译器临时目录保持在隔离 workspace 内。
+- M12R 修复：`BuildRun` 使用同一 `now` 初始化时间戳；100 次、全部终态回归；构建时长聚合；`HOST_SMOKE`/`DEVICE` 分型；CMake 标识/flags/defines 注入防护；PlatformIO native fallback 禁用；FirmwareIR hash 覆盖 MCUConfigIR、target、board、DependencyLock 与 adapter。
+- M12A ESCR：Core-neutral `SoftwareComponent`、immutable `ComponentRelease`、`DependencyLock`、license/compatibility/reference-only policy、确定性解析、依赖环/冲突检测、离线 content-addressed materialization/cache。
+- Provider：官方 STM32CubeG4 `v1.6.3`，固定 commit `d11b194a9f05d1b143d154771f3dbc282c8052a`，包含 CMSIS Core/Device、HAL、GCC G431 startup 与 linker script；FreeRTOS 与 CMSIS-DSP 使用 deterministic resolution fixtures。
+- Backend：组件 catalog/detail、resolve、lock、materialize API；`0015_m12a_software_components` migration；FirmwareIR/BuildInputSnapshot/BuildRun 的 dependency lock 追溯字段。
 
 ## 验证结果
 
 | 检查 | 结果 |
 |---|---|
 | Ruff format/check | PASS |
-| mypy strict | PASS，56 个源文件 |
-| 全量 pytest（无覆盖率） | 132 passed，1 skipped |
-| 全量 pytest + coverage | 132 passed，1 skipped，89.29% |
-| M11/M12、迁移、OpenAPI 聚焦测试 | 9 passed |
-| 真实 CMake host skeleton build | PASS，artifact hash 已生成 |
+| mypy | PASS，77 个源文件 |
+| 全量 pytest + coverage | 139 passed，1 skipped，85.58% |
+| M12/M12A/M11/迁移聚焦测试 | 15 passed |
+| OpenAPI 与后端生成结果 | PASS |
+| 真实 STM32G431 DEVICE CMake build | PASS，ARM ELF；GCC 14.2.1；2154 ms；artifact `0ce741db36933c70a27f880f4a28a8c9542936f16279eac7aebe8d6199ee905c` |
 | Desktop lint/typecheck/build | PASS |
 
-## 追溯与门禁
+## 门禁与残余状态
 
-- M11 `FAIL` rule result 会阻止 FirmwareIR 生成。
-- M11 `UNKNOWN` rule result 会生成源码候选，但阻止实际构建并返回 `MCU_CONFIG_UNKNOWN`。
-- 生成源码不写入用户工作树；当前 SourceRevision 明确标记 `dirty=true`、`commit_sha=null`，表示待应用的 generated candidate。
+- `FAIL` MCUConfigIR rule 阻止 FirmwareIR 生成；`UNKNOWN` 阻止实际构建和 PASS 结论。
+- DEVICE 构建必须绑定 LOCKED DependencyLock，并从离线缓存 materialize；禁止构建阶段联网或隐式下载。
+- SourceRevision 仍是 generated candidate 的确定性 manifest，不是完整 Git 工作区扫描；FIX-03 继续 PARTIAL。
+- 远程 CI 需要在下一次提交后重新执行并取得绿色结果，随后再进行人工 M12 acceptance；在此之前停止于 M12，不实现 M13。

@@ -121,6 +121,12 @@ REST `/api/v1`，WS `/ws/v1`。Backend OpenAPI 是唯一事实源，生成 TypeS
 
 ToolInfo：id、version、capabilities、permissions、health、available、degraded_reason、platform、path。工具不可用时能力降级，禁止假成功。
 
+# 15A. Firmware Build Profiles 与 ESCR
+
+Firmware build target 必须声明 `HOST_SMOKE` 或 `DEVICE` profile。HOST_SMOKE 只验证生成候选的 host 构建；DEVICE 必须绑定已锁定的 `DependencyLock`，并通过 Provider 从离线 content-addressed cache 取得 immutable release。
+
+ESCR（Embedded Software Component Registry）位于 Core/Application/Ports/Adapters 边界：Core 只保存组件描述、兼容性、license、revision/hash 与锁定闭包；Provider 负责官方来源 materialization；Resolver 以稳定排序生成 lock hash。PlatformIO native fallback 不得伪造 DEVICE 构建成功。
+
 # 16. Permission / Lock / Budget
 
 Permission：READ、WRITE、BUILD、NETWORK、SECRET_USE、FLASH、DEBUG、HARDWARE_CONTROL、DELETE、PLUGIN_INSTALL、KNOWLEDGE_PROMOTE、EXPORT_PRIVATE。

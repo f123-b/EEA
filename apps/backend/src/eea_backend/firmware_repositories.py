@@ -8,6 +8,7 @@ from eea_core.source import SourceRevision
 from sqlalchemy import desc, select, update
 from sqlalchemy.orm import Session
 
+from eea_backend.component_repositories import SqlAlchemyDependencyLockRepository
 from eea_backend.models import (
     FirmwareRecord,
     FirmwareSourceFileRecord,
@@ -62,6 +63,10 @@ class SqlAlchemyFirmwareRepository:
             .values(status="STALE")
         )
         source = bundle.source_revision
+        if bundle.dependency_lock is not None:
+            SqlAlchemyDependencyLockRepository(self._session).add(
+                bundle.dependency_lock, commit=False
+            )
         source_record = SourceRevisionRecord(
             id=str(source.id),
             schema_version=source.schema_version,
@@ -98,6 +103,13 @@ class SqlAlchemyFirmwareRepository:
             schematic_id=str(firmware.schematic_id),
             schematic_revision=firmware.schematic_revision,
             source_revision_id=str(firmware.source_revision_id),
+            dependency_lock_id=(
+                str(firmware.dependency_lock_id) if firmware.dependency_lock_id else None
+            ),
+            dependency_lock_hash=firmware.dependency_lock_hash,
+            component_refs=firmware.component_refs,
+            platform_adapter_id=firmware.platform_adapter_id,
+            platform_adapter_version=firmware.platform_adapter_version,
             layers=firmware.layers,
             modules=cast(list[dict[str, Any]], serialized["modules"]),
             tasks=cast(list[dict[str, Any]], serialized["tasks"]),
@@ -190,6 +202,13 @@ class SqlAlchemyFirmwareRepository:
                 "schematic_id": UUID(record.schematic_id),
                 "schematic_revision": record.schematic_revision,
                 "source_revision_id": UUID(record.source_revision_id),
+                "dependency_lock_id": (
+                    UUID(record.dependency_lock_id) if record.dependency_lock_id else None
+                ),
+                "dependency_lock_hash": record.dependency_lock_hash,
+                "component_refs": record.component_refs or [],
+                "platform_adapter_id": record.platform_adapter_id or "legacy-m12",
+                "platform_adapter_version": record.platform_adapter_version or "m12.1",
                 "layers": record.layers,
                 "modules": record.modules,
                 "tasks": record.tasks,
@@ -209,6 +228,11 @@ class SqlAlchemyFirmwareRepository:
             }
         )
         source = _to_source_revision(source_record)
+        dependency_lock = None
+        if record.dependency_lock_id:
+            dependency_lock = SqlAlchemyDependencyLockRepository(self._session).get(
+                UUID(record.dependency_lock_id), project_id=UUID(record.project_id)
+            )
         return FirmwareBundle(
             firmware=firmware,
             source_revision=source,
@@ -226,6 +250,7 @@ class SqlAlchemyFirmwareRepository:
                 )
                 for item in files
             ],
+            dependency_lock=dependency_lock,
         )
 
 

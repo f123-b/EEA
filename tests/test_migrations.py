@@ -52,6 +52,11 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
         "firmware_source_files",
         "build_input_snapshots",
         "build_runs",
+        "software_components",
+        "software_component_releases",
+        "dependency_locks",
+        "dependency_lock_components",
+        "component_materializations",
     } <= table_names
     with engine.connect() as connection:
         assert (
@@ -122,6 +127,19 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
         "build_runs",
     } <= set(inspect(engine).get_table_names())
     engine.dispose()
+
+    command.downgrade(config, "0014_m12_firmware_build")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    assert not {
+        "software_components",
+        "software_component_releases",
+        "dependency_locks",
+        "dependency_lock_components",
+        "component_materializations",
+    } & set(inspect(engine).get_table_names())
+    engine.dispose()
+
+    command.upgrade(config, "head")
 
     command.downgrade(config, "0008_m6_review_fixes")
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")

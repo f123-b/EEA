@@ -32,6 +32,16 @@ from eea_core.claims import (
     EngineeringClaim,
     EngineeringValue,
 )
+from eea_core.components import (
+    ComponentCompatibility,
+    ComponentDependencySpec,
+    ComponentMaterialization,
+    ComponentRelease,
+    ComponentRequirement,
+    DependencyLock,
+    ResolvedComponent,
+    SoftwareComponentDescriptor,
+)
 from eea_core.entities import (
     Artifact,
     EngineeringDecision,
@@ -157,6 +167,11 @@ def create_core_schema_registry() -> SchemaRegistry:
         BuildDiagnostic,
         BuildInputSnapshot,
         BuildRun,
+        ComponentCompatibility,
+        ComponentDependencySpec,
+        ComponentMaterialization,
+        ComponentRelease,
+        ComponentRequirement,
         ADCConfig,
         ClockIR,
         CircuitBundle,
@@ -187,6 +202,7 @@ def create_core_schema_registry() -> SchemaRegistry:
         DocumentPage,
         DocumentSection,
         DocumentTable,
+        DependencyLock,
         Evidence,
         HardwareDeviceInstance,
         HardwareIR,
@@ -241,7 +257,9 @@ def create_core_schema_registry() -> SchemaRegistry:
         RequirementFieldSpec,
         RequirementIssueDraft,
         RequirementProfile,
+        ResolvedComponent,
         SystemArchitectureIR,
+        SoftwareComponentDescriptor,
     ):
         registry.register(SchemaRegistration(model.__name__, "1.0", model))
     return registry

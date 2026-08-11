@@ -317,7 +317,17 @@ POST /learning/candidates/{candidate_id}/reject
 # 15. Engineering Dependency API
 
 ```http
-GET /projects/{project_id}/dependencies
+GET  /projects/{project_id}/components
+GET  /projects/{project_id}/components/{component_key}
+POST /projects/{project_id}/dependencies/resolve
+GET  /projects/{project_id}/dependencies
+GET  /projects/{project_id}/dependency-locks/{lock_id}
+POST /projects/{project_id}/dependencies/materialize
+```
+
+Resolve 只返回 production-eligible、license-compatible、verified immutable releases；materialize 只允许当前项目的 LOCKED `DependencyLock`，并返回 content-addressed cache 记录。
+
+```http
 GET /entities/{entity_type}/{entity_id}/dependencies
 GET /entities/{entity_type}/{entity_id}/dependents
 POST /entities/{entity_type}/{entity_id}/impact-analysis

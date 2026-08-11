@@ -157,3 +157,9 @@ Git Working Tree 是源码字节 SSOT；SQL 保存 SourceRevision/状态，不�
 # 25. Backup / Restore
 
 Project export manifest 包含 schema/plugin/domain versions、SourceRevision、Artifact hashes、Knowledge/Device/Rule snapshots 与 Object refs；Restore 必须 hash verify + compatibility check + migration dry-run。
+
+# 26. ESCR / Dependency Lock Storage
+
+M12A 新增 `software_components`、`software_component_releases`、`dependency_locks`、`dependency_lock_components`、`component_materializations`。Release 的 source revision、manifest hash、content hash、files、submodule commits 与 verified/yanked 状态不可被浮动版本替代；lock join 保存解析后的组件 revision 与 hashes。
+
+DEVICE 构建只读取 `component-cache/<content_hash>/<manifest_hash>`，构建阶段不联网、不解析浮动版本。缓存命中前必须验证 manifest/content hash；缺失或不匹配返回 blocked/unavailable 并保留 BuildRun 诊断。

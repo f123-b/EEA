@@ -5,8 +5,16 @@ from typing import Literal
 from uuid import UUID
 
 from eea_core.circuit import CircuitComponent, CircuitConstraint, CircuitNet, PowerNet
+from eea_core.components import (
+    ComponentCompatibility,
+    ComponentDependencySpec,
+    ComponentRelease,
+    ComponentRequirement,
+    ResolvedComponent,
+)
 from eea_core.enums import (
     ArtifactStatus,
+    BuildProfile,
     BuildStatus,
     ClaimConflictStatus,
     ClaimConflictStrategy,
@@ -131,6 +139,7 @@ class EvidenceData(BaseModel):
     locator: dict[str, object]
     source_uri: str | None
     content_hash: str | None
+    files: list[str] = Field(default_factory=list)
     summary: str
 
 
@@ -639,6 +648,112 @@ class FirmwareGenerateRequest(BaseModel):
     mcu_config_id: UUID
     build_target: FirmwareBuildTarget = Field(default_factory=FirmwareBuildTarget)
     board_name: str = Field(default="generic-stm32", min_length=1, max_length=100)
+    dependency_lock_id: UUID | None = None
+    build_profile: BuildProfile | None = None
+
+    @model_validator(mode="after")
+    def synchronize_build_profile(self) -> "FirmwareGenerateRequest":
+        if self.build_profile is not None and self.build_profile is not self.build_target.profile:
+            raise ValueError("build_profile must match build_target.profile")
+        return self
+
+
+class ComponentData(BaseModel):
+    descriptor: object
+    releases: list[ComponentRelease]
+
+
+class ComponentResolveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mcu_config_id: UUID
+    requirements: list[ComponentRequirement] = Field(min_length=1)
+    architecture: str = Field(min_length=1, max_length=100)
+    device: str = Field(min_length=1, max_length=100)
+    toolchain_id: str = Field(min_length=1, max_length=200)
+    build_system: str = Field(default="CMAKE", min_length=1, max_length=50)
+    capabilities: set[str] = Field(default_factory=set)
+    rtos: str | None = Field(default=None, max_length=100)
+
+
+class ComponentMaterializeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lock_id: UUID
+
+
+class SoftwareComponentData(BaseModel):
+    id: UUID
+    component_key: str
+    name: str
+    vendor: str
+    role: str
+    authority: str
+    provider_id: str
+    source_type: str
+    source_uri: str | None
+    capabilities: list[str]
+    compatibility: ComponentCompatibility
+    license_expression: str | None
+    license_text_hash: str | None
+    dependencies: list[ComponentDependencySpec]
+    production_eligible: bool
+    reference_only: bool
+
+
+class ComponentReleaseData(BaseModel):
+    id: UUID
+    component_id: UUID
+    version: str
+    revision_kind: str
+    source_revision: str
+    manifest_hash: str
+    content_hash: str | None
+    submodule_commit_map: dict[str, str]
+    source_uri: str | None
+    yanked: bool
+    verified: bool
+
+
+class ComponentCatalogData(BaseModel):
+    components: list[SoftwareComponentData]
+
+
+class ComponentDetailData(BaseModel):
+    descriptor: SoftwareComponentData
+    releases: list[ComponentReleaseData]
+
+
+class DependencyLockData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    mcu_config_id: UUID
+    mcu_config_revision: int
+    requirements: list[ComponentRequirement]
+    resolved_components: list[ResolvedComponent]
+    resolution_policy_version: str
+    resolver_version: str
+    lock_hash: str
+    status: str
+
+
+class ComponentMaterializationData(BaseModel):
+    id: UUID
+    project_id: UUID
+    component_id: UUID
+    release_id: UUID
+    owner: str
+    cache_key: str
+    manifest_hash: str
+    content_hash: str
+    storage_uri: str
+    status: str
+    network_used: bool
 
 
 class SourceRevisionData(BaseModel):
@@ -692,6 +807,11 @@ class FirmwareData(BaseModel):
     schematic_id: UUID
     schematic_revision: int
     source_revision_id: UUID
+    dependency_lock_id: UUID | None
+    dependency_lock_hash: str | None
+    component_refs: list[str]
+    platform_adapter_id: str
+    platform_adapter_version: str
     layers: list[str]
     modules: list[FirmwareModule]
     tasks: list[FirmwareTask]
@@ -736,10 +856,14 @@ class BuildInputSnapshotData(BaseModel):
     generated_input_hash: str
     submodule_commit_map: dict[str, str]
     build_config_hash: str
+    build_profile: BuildProfile
     toolchain_id: str
     toolchain_version: str
     environment_profile_hash: str
     source_manifest_hash: str
+    dependency_lock_hash: str
+    component_manifest_hash: str
+    toolchain_manifest_hash: str | None
     build_input_hash: str
 
 
@@ -773,6 +897,7 @@ class BuildRunData(BaseModel):
     source_revision_id: UUID
     build_input_snapshot_id: UUID
     status: BuildStatus
+    profile: BuildProfile
     toolchain_id: str
     toolchain_version: str
     environment_profile_hash: str

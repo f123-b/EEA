@@ -7,6 +7,7 @@ Revises: 0005_m4
 from collections.abc import Sequence
 
 from alembic import op
+from sqlalchemy import inspect
 
 revision: str = "0006_m5"
 down_revision: str | None = "0005_m4"
@@ -64,8 +65,19 @@ def _values(values: tuple[str, ...]) -> str:
 
 
 def _replace_error_constraint(table_name: str) -> None:
+    existing = [
+        item["name"]
+        for item in inspect(op.get_bind()).get_check_constraints(table_name)
+        if "error_code" in (item.get("sqltext") or "").lower()
+    ]
     with op.batch_alter_table(table_name, recreate="always") as batch_op:
-        batch_op.drop_constraint("error_code", type_="check")
+        if existing:
+            name = existing[0]
+            prefix = f"ck_{table_name}_"
+            batch_op.drop_constraint(
+                name[len(prefix) :] if name.startswith(prefix) else name,
+                type_="check",
+            )
         batch_op.create_check_constraint(
             "error_code",
             f"error_code IS NULL OR error_code IN ({_values(ERROR_CODES)})",
@@ -80,8 +92,19 @@ def upgrade() -> None:
 def downgrade() -> None:
     old_codes = ERROR_CODES[:-5]
     for table_name in ("ai_usage_records", "jobs"):
+        existing = [
+            item["name"]
+            for item in inspect(op.get_bind()).get_check_constraints(table_name)
+            if "error_code" in (item.get("sqltext") or "").lower()
+        ]
         with op.batch_alter_table(table_name, recreate="always") as batch_op:
-            batch_op.drop_constraint("error_code", type_="check")
+            if existing:
+                name = existing[0]
+                prefix = f"ck_{table_name}_"
+                batch_op.drop_constraint(
+                    name[len(prefix) :] if name.startswith(prefix) else name,
+                    type_="check",
+                )
             batch_op.create_check_constraint(
                 "error_code",
                 f"error_code IS NULL OR error_code IN ({_values(old_codes)})",

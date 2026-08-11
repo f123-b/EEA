@@ -12,7 +12,12 @@ from eea_core.enums import (
     ClaimConflictStrategy,
     ClaimConflictType,
     ClaimLifecycle,
+    ComponentAuthority,
+    ComponentMaterializationStatus,
+    ComponentRevisionKind,
+    ComponentSourceType,
     DecisionStatus,
+    DependencyLockStatus,
     DocumentParseStatus,
     DocumentType,
     EngineeringDimension,
@@ -26,6 +31,7 @@ from eea_core.enums import (
     RequirementPriority,
     RequirementStatus,
     RequirementType,
+    SoftwareComponentRole,
     TraceabilityRelation,
 )
 from sqlalchemy import (
@@ -647,6 +653,13 @@ class FirmwareRecord(CoreRecordMixin, Base):
     source_revision_id: Mapped[str] = mapped_column(
         ForeignKey("source_revisions.id"), nullable=False, index=True
     )
+    dependency_lock_id: Mapped[str | None] = mapped_column(
+        ForeignKey("dependency_locks.id"), index=True
+    )
+    dependency_lock_hash: Mapped[str | None] = mapped_column(String(64))
+    component_refs: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    platform_adapter_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    platform_adapter_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     layers: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     modules: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
     tasks: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
@@ -701,6 +714,10 @@ class BuildInputSnapshotRecord(CoreRecordMixin, Base):
     toolchain_version: Mapped[str] = mapped_column(String(200), nullable=False)
     environment_profile_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     source_manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    dependency_lock_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    component_manifest_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    toolchain_manifest_hash: Mapped[str | None] = mapped_column(String(64))
+    build_profile: Mapped[str | None] = mapped_column(String(30), nullable=True)
     build_input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
@@ -723,6 +740,7 @@ class BuildRunRecord(CoreRecordMixin, Base):
         ForeignKey("build_input_snapshots.id"), nullable=False, index=True
     )
     status: Mapped[str] = mapped_column(String(20), nullable=False)
+    profile: Mapped[str | None] = mapped_column(String(30), nullable=True)
     toolchain_id: Mapped[str] = mapped_column(String(200), nullable=False)
     toolchain_version: Mapped[str] = mapped_column(String(200), nullable=False)
     environment_profile_hash: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -734,6 +752,130 @@ class BuildRunRecord(CoreRecordMixin, Base):
     artifact_hash: Mapped[str | None] = mapped_column(String(64))
     error_code: Mapped[str | None] = mapped_column(String(80))
     duration_ms: Mapped[int] = mapped_column(nullable=False)
+
+
+class SoftwareComponentRecord(CoreRecordMixin, Base):
+    __tablename__ = "software_components"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(f"authority IN ({_enum_values(ComponentAuthority)})", name="authority"),
+        CheckConstraint(f"role IN ({_enum_values(SoftwareComponentRole)})", name="role"),
+        CheckConstraint(
+            f"source_type IN ({_enum_values(ComponentSourceType)})", name="source_type"
+        ),
+        UniqueConstraint("component_key", name="uq_software_components_component_key"),
+    )
+
+    component_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    vendor: Mapped[str] = mapped_column(String(200), nullable=False)
+    role: Mapped[str] = mapped_column(String(50), nullable=False)
+    authority: Mapped[str] = mapped_column(String(50), nullable=False)
+    provider_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    source_uri: Mapped[str | None] = mapped_column(String(2000))
+    capabilities: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    compatibility: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    license_expression: Mapped[str | None] = mapped_column(String(200))
+    license_text_hash: Mapped[str | None] = mapped_column(String(64))
+    dependencies: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    production_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    reference_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class ComponentReleaseRecord(CoreRecordMixin, Base):
+    __tablename__ = "software_component_releases"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            f"revision_kind IN ({_enum_values(ComponentRevisionKind)})", name="revision_kind"
+        ),
+        UniqueConstraint("component_id", "source_revision", name="uq_component_release_revision"),
+    )
+
+    component_id: Mapped[str] = mapped_column(
+        ForeignKey("software_components.id"), nullable=False, index=True
+    )
+    version: Mapped[str] = mapped_column(String(100), nullable=False)
+    revision_kind: Mapped[str] = mapped_column(String(50), nullable=False)
+    source_revision: Mapped[str] = mapped_column(String(200), nullable=False)
+    manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_hash: Mapped[str | None] = mapped_column(String(64))
+    files: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    submodule_commit_map: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    source_uri: Mapped[str | None] = mapped_column(String(2000))
+    yanked: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    verified: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class DependencyLockRecord(CoreRecordMixin, Base):
+    __tablename__ = "dependency_locks"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(f"status IN ({_enum_values(DependencyLockStatus)})", name="status"),
+        UniqueConstraint("project_id", "lock_hash", name="uq_dependency_locks_project_hash"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    mcu_config_id: Mapped[str] = mapped_column(
+        ForeignKey("mcu_configs.id"), nullable=False, index=True
+    )
+    mcu_config_revision: Mapped[int] = mapped_column(nullable=False)
+    requirements: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    resolved_components: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    resolution_policy_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    resolver_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    lock_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+
+
+class DependencyLockComponentRecord(CoreRecordMixin, Base):
+    __tablename__ = "dependency_lock_components"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        UniqueConstraint("dependency_lock_id", "component_key", name="uq_lock_component_key"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    dependency_lock_id: Mapped[str] = mapped_column(
+        ForeignKey("dependency_locks.id"), nullable=False, index=True
+    )
+    component_id: Mapped[str] = mapped_column(
+        ForeignKey("software_components.id"), nullable=False, index=True
+    )
+    release_id: Mapped[str] = mapped_column(
+        ForeignKey("software_component_releases.id"), nullable=False, index=True
+    )
+    component_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    version: Mapped[str] = mapped_column(String(100), nullable=False)
+    component_revision: Mapped[str] = mapped_column(String(200), nullable=False)
+    manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class ComponentMaterializationRecord(CoreRecordMixin, Base):
+    __tablename__ = "component_materializations"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            f"status IN ({_enum_values(ComponentMaterializationStatus)})", name="status"
+        ),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    component_id: Mapped[str] = mapped_column(
+        ForeignKey("software_components.id"), nullable=False, index=True
+    )
+    release_id: Mapped[str] = mapped_column(
+        ForeignKey("software_component_releases.id"), nullable=False, index=True
+    )
+    owner: Mapped[str] = mapped_column(String(30), nullable=False)
+    cache_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    storage_uri: Mapped[str] = mapped_column(String(2000), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    network_used: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
 
 class PromptDefinitionRecord(CoreRecordMixin, Base):

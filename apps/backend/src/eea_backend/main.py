@@ -2,9 +2,11 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from uuid import uuid4
 
 from eea_adapters.ai import LiteLLMProvider
+from eea_adapters.components import Stm32CubeG4Provider
 from eea_adapters.secrets import KeyringSecretService
 from eea_application.claims import ClaimPredicateRegistry
 from eea_application.requirements import (
@@ -139,6 +141,17 @@ def create_app(
     application.state.settings = resolved_settings
     application.state.engine = engine
     application.state.ai_provider = resolved_ai_provider
+    component_source = resolved_settings.stm32cube_g4_source
+    if component_source is None:
+        candidate = Path(".eea-component-cache/source/STM32CubeG4-v1.6.3")
+        component_source = candidate if candidate.is_dir() else None
+    providers: list[object] = []
+    if component_source is not None:
+        try:
+            providers.append(Stm32CubeG4Provider(component_source))
+        except EngineeringError:
+            providers = []
+    application.state.component_providers = providers
     application.add_exception_handler(EngineeringError, engineering_error_handler)  # type: ignore[arg-type]
     application.add_exception_handler(RequestValidationError, validation_error_handler)  # type: ignore[arg-type]
 

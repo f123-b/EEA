@@ -158,6 +158,8 @@ LLM 不直接写复杂 `.kicad_sch` 作为事实源。PCB 自动生成默认 cap
 
 Firmware 默认 Application / Middleware / Driver / BSP / Platform。
 
+M12R/M12A 将固件构建分为 `HOST_SMOKE` 与 `DEVICE`：DEVICE 必须引用 Core-owned `DependencyLock`，通过 ESCR Provider 解析 immutable revision/hash 并从离线缓存 materialize。首个真实目标为固定 STM32CubeG4 release 的 STM32G431 ARM ELF；远程 CI 未绿灯前不得进入 M13。
+
 # 14. Domain Extension / MotorControl Built-in Plugin
 
 MotorControl 是 EEA 首个官方 Built-in Domain Plugin，而不是 Core Domain。Core 只提供 DomainExtensionRegistry、DomainIR envelope、Rule/Generator/UI hook 与 Capability 接口。

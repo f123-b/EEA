@@ -7,6 +7,7 @@ from eea_ports.ai import (
     AIProviderResponse,
     ProviderUsage,
 )
+from eea_ports.components import ComponentProvider
 from eea_ports.secrets import SecretReference, SecretService, SecretValue
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "AIProvider",
     "AIProviderRequest",
     "AIProviderResponse",
+    "ComponentProvider",
     "ProviderUsage",
     "SecretReference",
     "SecretService",

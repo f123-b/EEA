@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import ConfigDict, Field
 
 from eea_core.entities import EntityBase, Sha256
-from eea_core.enums import BuildStatus, EngineeringErrorCode, IssueSeverity
+from eea_core.enums import BuildProfile, BuildStatus, EngineeringErrorCode, IssueSeverity
 
 
 class BuildDiagnostic(EntityBase):
@@ -31,6 +31,7 @@ class BuildRun(EntityBase):
     source_revision_id: UUID
     build_input_snapshot_id: UUID
     status: BuildStatus
+    profile: BuildProfile = BuildProfile.HOST_SMOKE
     toolchain_id: str = Field(min_length=1, max_length=200)
     toolchain_version: str = Field(default="UNKNOWN", max_length=200)
     environment_profile_hash: Sha256

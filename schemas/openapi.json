@@ -233,6 +233,75 @@
         "title": "ApiEnvelope[CircuitValidationData]",
         "type": "object"
       },
+      "ApiEnvelope_ComponentCatalogData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ComponentCatalogData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ComponentCatalogData]",
+        "type": "object"
+      },
+      "ApiEnvelope_ComponentDetailData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ComponentDetailData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ComponentDetailData]",
+        "type": "object"
+      },
+      "ApiEnvelope_DependencyLockData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DependencyLockData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DependencyLockData]",
+        "type": "object"
+      },
       "ApiEnvelope_DeviceData_": {
         "properties": {
           "data": {
@@ -670,6 +739,33 @@
         "title": "ApiEnvelope[VersionData]",
         "type": "object"
       },
+      "ApiEnvelope_list_ComponentMaterializationData__": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentMaterializationData"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[list[ComponentMaterializationData]]",
+        "type": "object"
+      },
       "ArchitectureBundleData": {
         "properties": {
           "hardware": {
@@ -893,6 +989,27 @@
             ],
             "title": "Cmsis Device"
           },
+          "component_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Component Refs",
+            "type": "array"
+          },
+          "generated_include_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Generated Include Paths",
+            "type": "array"
+          },
+          "generated_source_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Generated Source Paths",
+            "type": "array"
+          },
           "hal_family": {
             "default": "STM32_HAL",
             "title": "Hal Family",
@@ -1035,6 +1152,14 @@
         "title": "BuildListData",
         "type": "object"
       },
+      "BuildProfile": {
+        "enum": [
+          "HOST_SMOKE",
+          "DEVICE"
+        ],
+        "title": "BuildProfile",
+        "type": "string"
+      },
       "BuildRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1128,6 +1253,9 @@
             "title": "Metadata",
             "type": "object"
           },
+          "profile": {
+            "$ref": "#/components/schemas/BuildProfile"
+          },
           "project_id": {
             "format": "uuid",
             "title": "Project Id",
@@ -1184,6 +1312,7 @@
           "source_revision_id",
           "build_input_snapshot_id",
           "status",
+          "profile",
           "toolchain_id",
           "toolchain_version",
           "environment_profile_hash",
@@ -1796,6 +1925,460 @@
         "title": "ClockIR",
         "type": "object"
       },
+      "ComponentAuthority": {
+        "enum": [
+          "VENDOR_OFFICIAL",
+          "UPSTREAM_OFFICIAL",
+          "EEA_CURATED",
+          "PROJECT_LOCAL",
+          "REFERENCE_ONLY"
+        ],
+        "title": "ComponentAuthority",
+        "type": "string"
+      },
+      "ComponentCatalogData": {
+        "properties": {
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/SoftwareComponentData"
+            },
+            "title": "Components",
+            "type": "array"
+          }
+        },
+        "required": [
+          "components"
+        ],
+        "title": "ComponentCatalogData",
+        "type": "object"
+      },
+      "ComponentCompatibility": {
+        "additionalProperties": false,
+        "properties": {
+          "architectures": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Architectures",
+            "type": "array"
+          },
+          "build_systems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Build Systems",
+            "type": "array"
+          },
+          "device_families": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Device Families",
+            "type": "array"
+          },
+          "device_patterns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Device Patterns",
+            "type": "array"
+          },
+          "forbidden_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Forbidden Capabilities",
+            "type": "array"
+          },
+          "required_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Capabilities",
+            "type": "array"
+          },
+          "rtos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rtos",
+            "type": "array"
+          },
+          "toolchain_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Toolchain Ids",
+            "type": "array"
+          }
+        },
+        "title": "ComponentCompatibility",
+        "type": "object"
+      },
+      "ComponentDependencySpec": {
+        "additionalProperties": false,
+        "properties": {
+          "component_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Component Key",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "version_constraint": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Constraint"
+          }
+        },
+        "required": [
+          "component_key"
+        ],
+        "title": "ComponentDependencySpec",
+        "type": "object"
+      },
+      "ComponentDetailData": {
+        "properties": {
+          "descriptor": {
+            "$ref": "#/components/schemas/SoftwareComponentData"
+          },
+          "releases": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentReleaseData"
+            },
+            "title": "Releases",
+            "type": "array"
+          }
+        },
+        "required": [
+          "descriptor",
+          "releases"
+        ],
+        "title": "ComponentDetailData",
+        "type": "object"
+      },
+      "ComponentMaterializationData": {
+        "properties": {
+          "cache_key": {
+            "title": "Cache Key",
+            "type": "string"
+          },
+          "component_id": {
+            "format": "uuid",
+            "title": "Component Id",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "manifest_hash": {
+            "title": "Manifest Hash",
+            "type": "string"
+          },
+          "network_used": {
+            "title": "Network Used",
+            "type": "boolean"
+          },
+          "owner": {
+            "title": "Owner",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "release_id": {
+            "format": "uuid",
+            "title": "Release Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "storage_uri": {
+            "title": "Storage Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "component_id",
+          "release_id",
+          "owner",
+          "cache_key",
+          "manifest_hash",
+          "content_hash",
+          "storage_uri",
+          "status",
+          "network_used"
+        ],
+        "title": "ComponentMaterializationData",
+        "type": "object"
+      },
+      "ComponentMaterializeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "lock_id": {
+            "format": "uuid",
+            "title": "Lock Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lock_id"
+        ],
+        "title": "ComponentMaterializeRequest",
+        "type": "object"
+      },
+      "ComponentReleaseData": {
+        "properties": {
+          "component_id": {
+            "format": "uuid",
+            "title": "Component Id",
+            "type": "string"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "manifest_hash": {
+            "title": "Manifest Hash",
+            "type": "string"
+          },
+          "revision_kind": {
+            "title": "Revision Kind",
+            "type": "string"
+          },
+          "source_revision": {
+            "title": "Source Revision",
+            "type": "string"
+          },
+          "source_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Uri"
+          },
+          "submodule_commit_map": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Submodule Commit Map",
+            "type": "object"
+          },
+          "verified": {
+            "title": "Verified",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "yanked": {
+            "title": "Yanked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "component_id",
+          "version",
+          "revision_kind",
+          "source_revision",
+          "manifest_hash",
+          "content_hash",
+          "submodule_commit_map",
+          "source_uri",
+          "yanked",
+          "verified"
+        ],
+        "title": "ComponentReleaseData",
+        "type": "object"
+      },
+      "ComponentRequirement": {
+        "additionalProperties": false,
+        "properties": {
+          "capability": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Capability",
+            "type": "string"
+          },
+          "component_key": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component Key"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "source_claim_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Source Claim Ids",
+            "type": "array"
+          },
+          "source_domain_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Domain Refs",
+            "type": "array"
+          },
+          "source_requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Source Requirement Ids",
+            "type": "array"
+          },
+          "version_constraint": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Constraint"
+          }
+        },
+        "required": [
+          "capability",
+          "reason"
+        ],
+        "title": "ComponentRequirement",
+        "type": "object"
+      },
+      "ComponentResolveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "architecture": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Architecture",
+            "type": "string"
+          },
+          "build_system": {
+            "default": "CMAKE",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Build System",
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "device": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Device",
+            "type": "string"
+          },
+          "mcu_config_id": {
+            "format": "uuid",
+            "title": "Mcu Config Id",
+            "type": "string"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentRequirement"
+            },
+            "minItems": 1,
+            "title": "Requirements",
+            "type": "array"
+          },
+          "rtos": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rtos"
+          },
+          "toolchain_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Toolchain Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mcu_config_id",
+          "requirements",
+          "architecture",
+          "device",
+          "toolchain_id"
+        ],
+        "title": "ComponentResolveRequest",
+        "type": "object"
+      },
       "DMAIR": {
         "additionalProperties": false,
         "properties": {
@@ -1920,6 +2503,101 @@
         ],
         "title": "DecisionStatus",
         "type": "string"
+      },
+      "DependencyLockData": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lock_hash": {
+            "title": "Lock Hash",
+            "type": "string"
+          },
+          "mcu_config_id": {
+            "format": "uuid",
+            "title": "Mcu Config Id",
+            "type": "string"
+          },
+          "mcu_config_revision": {
+            "title": "Mcu Config Revision",
+            "type": "integer"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentRequirement"
+            },
+            "title": "Requirements",
+            "type": "array"
+          },
+          "resolution_policy_version": {
+            "title": "Resolution Policy Version",
+            "type": "string"
+          },
+          "resolved_components": {
+            "items": {
+              "$ref": "#/components/schemas/ResolvedComponent"
+            },
+            "title": "Resolved Components",
+            "type": "array"
+          },
+          "resolver_version": {
+            "title": "Resolver Version",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "mcu_config_id",
+          "mcu_config_revision",
+          "requirements",
+          "resolved_components",
+          "resolution_policy_version",
+          "resolver_version",
+          "lock_hash",
+          "status"
+        ],
+        "title": "DependencyLockData",
+        "type": "object"
       },
       "DeviceCategory": {
         "enum": [
@@ -2468,7 +3146,20 @@
           "ARCHIVE_UNSAFE",
           "COMMAND_NOT_ALLOWED",
           "NETWORK_DENIED",
-          "RESOURCE_LIMIT_EXCEEDED"
+          "RESOURCE_LIMIT_EXCEEDED",
+          "COMPONENT_UNAVAILABLE",
+          "COMPONENT_VERSION_UNRESOLVED",
+          "COMPONENT_INCOMPATIBLE",
+          "COMPONENT_HASH_MISMATCH",
+          "COMPONENT_LICENSE_BLOCKED",
+          "COMPONENT_REFERENCE_ONLY",
+          "DEPENDENCY_CONFLICT",
+          "DEPENDENCY_CYCLE",
+          "DEPENDENCY_LOCK_REQUIRED",
+          "DEPENDENCY_LOCK_STALE",
+          "COMPONENT_MATERIALIZATION_FAILED",
+          "TOOLCHAIN_INCOMPATIBLE",
+          "DEVICE_BUILD_UNAVAILABLE"
         ],
         "title": "EngineeringErrorCode",
         "type": "string"
@@ -3160,6 +3851,13 @@
           "evidence_type": {
             "$ref": "#/components/schemas/EvidenceType"
           },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -3294,7 +3992,7 @@
             "type": "array"
           },
           "name": {
-            "default": "host-skeleton",
+            "default": "host_skeleton",
             "maxLength": 100,
             "minLength": 1,
             "title": "Name",
@@ -3312,6 +4010,17 @@
             "maxLength": 100,
             "minLength": 1,
             "title": "Output Name",
+            "type": "string"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/BuildProfile",
+            "default": "HOST_SMOKE"
+          },
+          "target_triple": {
+            "default": "host",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Target Triple",
             "type": "string"
           },
           "toolchain_id": {
@@ -3371,10 +4080,40 @@
             "title": "Clock Tree",
             "type": "object"
           },
+          "component_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Component Refs",
+            "type": "array"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "dependency_lock_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependency Lock Hash"
+          },
+          "dependency_lock_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependency Lock Id"
           },
           "evidence_ids": {
             "items": {
@@ -3446,6 +4185,14 @@
             },
             "title": "Peripheral Drivers",
             "type": "array"
+          },
+          "platform_adapter_id": {
+            "title": "Platform Adapter Id",
+            "type": "string"
+          },
+          "platform_adapter_version": {
+            "title": "Platform Adapter Version",
+            "type": "string"
           },
           "project_id": {
             "format": "uuid",
@@ -3533,6 +4280,11 @@
           "schematic_id",
           "schematic_revision",
           "source_revision_id",
+          "dependency_lock_id",
+          "dependency_lock_hash",
+          "component_refs",
+          "platform_adapter_id",
+          "platform_adapter_version",
           "layers",
           "modules",
           "tasks",
@@ -3563,8 +4315,30 @@
             "title": "Board Name",
             "type": "string"
           },
+          "build_profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuildProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "build_target": {
             "$ref": "#/components/schemas/FirmwareBuildTarget"
+          },
+          "dependency_lock_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependency Lock Id"
           },
           "mcu_config_id": {
             "format": "uuid",
@@ -6211,6 +6985,102 @@
         "title": "RequirementValueType",
         "type": "string"
       },
+      "ResolvedComponent": {
+        "additionalProperties": false,
+        "properties": {
+          "authority": {
+            "$ref": "#/components/schemas/ComponentAuthority"
+          },
+          "component_id": {
+            "format": "uuid",
+            "title": "Component Id",
+            "type": "string"
+          },
+          "component_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Component Key",
+            "type": "string"
+          },
+          "content_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "dependencies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "license_expression": {
+            "title": "License Expression",
+            "type": "string"
+          },
+          "manifest_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Manifest Hash",
+            "type": "string"
+          },
+          "provider_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "release_id": {
+            "format": "uuid",
+            "title": "Release Id",
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Revision",
+            "type": "string"
+          },
+          "source_uri": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Uri"
+          },
+          "version": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "component_id",
+          "component_key",
+          "release_id",
+          "version",
+          "revision",
+          "manifest_hash",
+          "content_hash",
+          "provider_id",
+          "authority",
+          "license_expression"
+        ],
+        "title": "ResolvedComponent",
+        "type": "object"
+      },
       "SchemaData": {
         "properties": {
           "json_schema": {
@@ -6526,6 +7396,121 @@
           "kind"
         ],
         "title": "SharedResource",
+        "type": "object"
+      },
+      "SoftwareComponentData": {
+        "properties": {
+          "authority": {
+            "title": "Authority",
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "compatibility": {
+            "$ref": "#/components/schemas/ComponentCompatibility"
+          },
+          "component_key": {
+            "title": "Component Key",
+            "type": "string"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentDependencySpec"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "license_expression": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Expression"
+          },
+          "license_text_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Text Hash"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "production_eligible": {
+            "title": "Production Eligible",
+            "type": "boolean"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "reference_only": {
+            "title": "Reference Only",
+            "type": "boolean"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "source_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Uri"
+          },
+          "vendor": {
+            "title": "Vendor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "component_key",
+          "name",
+          "vendor",
+          "role",
+          "authority",
+          "provider_id",
+          "source_type",
+          "source_uri",
+          "capabilities",
+          "compatibility",
+          "license_expression",
+          "license_text_hash",
+          "dependencies",
+          "production_eligible",
+          "reference_only"
+        ],
+        "title": "SoftwareComponentData",
         "type": "object"
       },
       "SourceRevisionData": {
@@ -6915,6 +7900,79 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/components": {
+      "get": {
+        "operationId": "list_components_api_v1_components_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ComponentCatalogData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Components",
+        "tags": [
+          "components"
+        ]
+      }
+    },
+    "/api/v1/components/{component_key}": {
+      "get": {
+        "operationId": "get_component_api_v1_components__component_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "component_key",
+            "required": true,
+            "schema": {
+              "title": "Component Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ComponentDetailData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Component",
+        "tags": [
+          "components"
+        ]
+      }
+    },
     "/api/v1/devices/{device_ref}": {
       "get": {
         "operationId": "get_device_api_v1_devices__device_ref__get",
@@ -8038,6 +9096,228 @@
         "summary": "Validate Circuit",
         "tags": [
           "circuit"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dependencies": {
+      "get": {
+        "operationId": "get_latest_dependencies_api_v1_projects__project_id__dependencies_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DependencyLockData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Latest Dependencies",
+        "tags": [
+          "components"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dependencies/materialize": {
+      "post": {
+        "operationId": "materialize_dependencies_api_v1_projects__project_id__dependencies_materialize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComponentMaterializeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_list_ComponentMaterializationData__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Materialize Dependencies",
+        "tags": [
+          "components"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dependencies/resolve": {
+      "post": {
+        "operationId": "resolve_dependencies_api_v1_projects__project_id__dependencies_resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComponentResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DependencyLockData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Resolve Dependencies",
+        "tags": [
+          "components"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dependency-locks/{lock_id}": {
+      "get": {
+        "operationId": "get_dependency_lock_api_v1_projects__project_id__dependency_locks__lock_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lock_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lock Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DependencyLockData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Dependency Lock",
+        "tags": [
+          "components"
         ]
       }
     },

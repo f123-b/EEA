@@ -1,11 +1,13 @@
 """Core-neutral FirmwareIR and generated-source contracts."""
 
+import re
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from eea_core.components import DependencyLock
 from eea_core.entities import EntityBase, Sha256
-from eea_core.enums import ArtifactStatus
+from eea_core.enums import ArtifactStatus, BuildProfile
 from eea_core.pin_planner import RuleResult
 from eea_core.source import SourceRevision
 
@@ -65,16 +67,49 @@ class SharedResource(BaseModel):
 class FirmwareBuildTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(default="host-skeleton", min_length=1, max_length=100)
+    name: str = Field(default="host_skeleton", min_length=1, max_length=100)
     family: str = Field(default="STM32", min_length=1, max_length=100)
     architecture: str = Field(default="Cortex-M4", min_length=1, max_length=100)
     build_system: str = Field(default="CMAKE", min_length=1, max_length=50)
     toolchain_id: str = Field(default="cmake-host", min_length=1, max_length=200)
+    target_triple: str = Field(default="host", min_length=1, max_length=100)
+    profile: BuildProfile = BuildProfile.HOST_SMOKE
     output_name: str = Field(default="eea_firmware", min_length=1, max_length=100)
     output_format: str = Field(default="ELF", min_length=1, max_length=30)
     defines: dict[str, str] = Field(default_factory=dict)
     compiler_flags: list[str] = Field(default_factory=list)
     linker_flags: list[str] = Field(default_factory=list)
+
+    @field_validator("name", "output_name")
+    @classmethod
+    def validate_cmake_identifiers(cls, value: str) -> str:
+        if value != "host-skeleton" and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,99}", value) is None:
+            raise ValueError("name and output_name must be CMake identifiers")
+        return value
+
+    @field_validator("compiler_flags", "linker_flags")
+    @classmethod
+    def validate_cmake_tokens(cls, values: list[str]) -> list[str]:
+        for value in values:
+            if (
+                not value
+                or any(character in value for character in "\x00\r\n;(){}$")
+                or any(character.isspace() for character in value)
+            ):
+                raise ValueError("build flags must be single safe CMake tokens")
+        return values
+
+    @field_validator("defines")
+    @classmethod
+    def validate_cmake_defines(cls, values: dict[str, str]) -> dict[str, str]:
+        for key, value in values.items():
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,99}", key) is None:
+                raise ValueError("define names must be C identifiers")
+            if any(character in value for character in "\x00\r\n;(){}$") or any(
+                character.isspace() for character in value
+            ):
+                raise ValueError("define values must be safe single CMake tokens")
+        return values
 
 
 class StartupConfig(BaseModel):
@@ -100,6 +135,10 @@ class BSPConfig(BaseModel):
     board_name: str = "generic-stm32"
     cmsis_device: str | None = None
     hal_family: str = "STM32_HAL"
+    component_refs: list[str] = Field(default_factory=list)
+    generated_include_paths: list[str] = Field(default_factory=list)
+    generated_source_paths: list[str] = Field(default_factory=list)
+    # Kept for reading legacy M12 rows; new generation uses generated_* fields.
     include_paths: list[str] = Field(default_factory=list)
     source_paths: list[str] = Field(default_factory=list)
 
@@ -136,6 +175,11 @@ class FirmwareIR(EntityBase):
     schematic_id: UUID
     schematic_revision: int = Field(ge=1)
     source_revision_id: UUID
+    dependency_lock_id: UUID | None = None
+    dependency_lock_hash: Sha256 | None = None
+    component_refs: list[str] = Field(default_factory=list)
+    platform_adapter_id: str = "host-skeleton"
+    platform_adapter_version: str = "m12.1"
     layers: list[str] = Field(default_factory=list)
     modules: list[FirmwareModule] = Field(default_factory=list)
     tasks: list[FirmwareTask] = Field(default_factory=list)
@@ -160,6 +204,7 @@ class FirmwareBundle(BaseModel):
     firmware: FirmwareIR
     source_revision: SourceRevision
     files: list[FirmwareSourceFile] = Field(default_factory=list)
+    dependency_lock: DependencyLock | None = None
 
 
 __all__ = [

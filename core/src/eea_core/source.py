@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import ConfigDict, Field
 
 from eea_core.entities import EntityBase, Sha256
+from eea_core.enums import BuildProfile
 
 
 class SourceRevision(EntityBase):
@@ -36,10 +37,14 @@ class BuildInputSnapshot(EntityBase):
     generated_input_hash: Sha256
     submodule_commit_map: dict[str, str] = Field(default_factory=dict)
     build_config_hash: Sha256
+    build_profile: BuildProfile = BuildProfile.HOST_SMOKE
     toolchain_id: str = Field(min_length=1, max_length=200)
     toolchain_version: str = Field(default="UNKNOWN", max_length=200)
     environment_profile_hash: Sha256
     source_manifest_hash: Sha256
+    dependency_lock_hash: Sha256
+    component_manifest_hash: Sha256
+    toolchain_manifest_hash: Sha256 | None = None
     build_input_hash: Sha256
 
 

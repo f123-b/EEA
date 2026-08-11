@@ -89,7 +89,9 @@ ClockIR、GPIO、PWMConfig、ADCConfig、DMAIR、InterruptConfigIR。MCUConfigIR
 
 # M12 FirmwareIR + Generator + Real Build
 
-Firmware layers/modules、BSP/Platform、STM32 HAL skeleton、CMake/PlatformIO Adapter、build diagnostics。Firmware 必须读取 PinMap + MCUConfigIR。
+Firmware layers/modules、BSP/Platform、FirmwareIR、SourceRevision、BuildInputSnapshot、BuildRun 与 ESCR。M12R 要求 BuildRun 时间戳单调、构建时长聚合、CMake DSL 注入阻断、PlatformIO native fallback 禁用，并区分 `HOST_SMOKE` 与 `DEVICE`。M12A 要求 Core-neutral component catalog、immutable revision/hash、license/compatibility/reference-only policy、确定性 DependencyLock、离线缓存 materialization，以及官方 STM32CubeG4 固定提交的真实 STM32G431 CMake/ARM ELF 构建。
+
+验收：M12/M12A 本地测试与真实 DEVICE build 通过；远程 CI 必须绿色且人工复核后才可标记 ACCEPTED。远程未绿灯时停止在 M12，禁止进入 M13。
 
 # M13 Static Analysis + Firmware Rules
 

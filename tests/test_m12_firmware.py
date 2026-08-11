@@ -7,7 +7,7 @@ import pytest
 from eea_application.firmware import FirmwareBuildService, FirmwareService
 from eea_core.build import BuildRun
 from eea_core.claims import EngineeringValue
-from eea_core.enums import BuildStatus, EngineeringDimension, IssueSeverity
+from eea_core.enums import BuildProfile, BuildStatus, EngineeringDimension, IssueSeverity
 from eea_core.errors import EngineeringError
 from eea_core.firmware import FirmwareBuildTarget
 from eea_core.mcu_config import ClockIR, MCUConfigIR
@@ -140,3 +140,62 @@ def test_build_snapshot_hashes_generated_inputs_and_reports_artifact_unknown(
     assert snapshot.generated_input_hash != snapshot.tracked_file_manifest_hash
     assert snapshot.build_input_hash == build.build_input_hash
     assert build.build_input_snapshot_id == snapshot.id
+
+
+def test_m12r_generation_hash_covers_target_and_board() -> None:
+    service = FirmwareService()
+    base = service.generate(_config(), board_name="board-a")
+    changed_target = service.generate(
+        _config(),
+        board_name="board-a",
+        build_target=FirmwareBuildTarget(toolchain_id="alternate-cmake"),
+    )
+    changed_board = service.generate(_config(), board_name="board-b")
+    assert base.firmware.input_hash != changed_target.firmware.input_hash
+    assert base.firmware.input_hash != changed_board.firmware.input_hash
+
+
+def test_m12r_rejects_cmake_injection_and_platformio_native_fallback() -> None:
+    with pytest.raises(ValueError):
+        FirmwareBuildTarget(output_name="x)\nexecute_process(COMMAND whoami)")
+    with pytest.raises(ValueError):
+        FirmwareBuildTarget(compiler_flags=["-O2\nexecute_process(COMMAND whoami)"])
+    with pytest.raises(EngineeringError) as error:
+        FirmwareService().generate(
+            _config(),
+            build_target=FirmwareBuildTarget(build_system="PLATFORMIO"),
+        )
+    assert error.value.code.value == "CAPABILITY_UNAVAILABLE"
+
+
+def test_m12r_buildrun_timestamps_are_monotonic_for_all_terminal_states() -> None:
+    bundle = FirmwareService().generate(_config())
+
+    class FakeExecutor:
+        def execute(self, spec: CommandSpec, _workspace: Path, _policy: object) -> CommandResult:
+            return CommandResult(
+                argv=tuple(spec.argv),
+                returncode=0,
+                stdout="cmake version test",
+                stderr="",
+                duration_ms=1,
+            )
+
+    snapshot, build = FirmwareBuildService(FakeExecutor()).build(bundle, Path(".eea-test-build"))  # type: ignore[arg-type]
+    for status in (
+        BuildStatus.BLOCKED,
+        BuildStatus.UNKNOWN,
+        BuildStatus.FAIL,
+        BuildStatus.PASS,
+    ) * 25:
+        candidate = FirmwareBuildService._run(
+            bundle,
+            snapshot,
+            status,
+            "cmake-host",
+            "test",
+            snapshot.environment_profile_hash,
+            build.diagnostics,
+        )
+        assert candidate.updated_at >= candidate.created_at
+        assert candidate.profile is BuildProfile.HOST_SMOKE

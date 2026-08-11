@@ -11,6 +11,8 @@ htmlcov/
 
 # Runtime data
 .eea/
+.eea-component-cache/
+.eea-toolchains/
 *.db
 *.sqlite
 *.sqlite3

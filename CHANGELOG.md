@@ -30,6 +30,10 @@ the frozen documentation changelogs under `docs/`.
 - M5 Sandbox Foundation: SafePath/workspace boundaries, ZIP/TAR traversal and symlink guards,
   archive-size limits, shell-free allowlisted command execution, sanitized environments, network
   denial, timeout/output budgets, and structured sandbox errors.
+- M12R/M12A FirmwareIR review integration: deterministic BuildRun timestamps and durations,
+  HOST_SMOKE/DEVICE build profiles, CMake injection guards, disabled PlatformIO native fallback,
+  Core-neutral ESCR component catalog/resolver/lock/materialization, official pinned STM32CubeG4
+  provider, dependency-aware firmware snapshots, component APIs and migration `0015_m12a`.
 - Alembic `0006_m5` migration extends the API error catalog for sandbox violations and resource
   limits.
 - M6 Requirement DSL: versioned generic requirement profiles, evidence contracts, structured

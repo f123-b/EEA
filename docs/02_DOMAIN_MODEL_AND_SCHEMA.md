@@ -116,6 +116,10 @@ InterruptConfigIR：source、irq、priority、subpriority、max_execution_us、a
 
 layers、modules、tasks、interrupts、shared_resources、mcu_config_id、build_target、requirement_ids、evidence_ids。
 
+M12R/M12A 增加：`build_target.profile`（`HOST_SMOKE`/`DEVICE`）、`dependency_lock_id`、`dependency_lock_hash`、`component_refs`、`platform_adapter_id/version`。`FirmwareIR.input_hash` 必须覆盖 MCUConfigIR、target、board、generator、adapter 与 lock hash。
+
+`DependencyLock` 保存 requirements、resolved immutable releases、resolver/policy version、MCUConfig identity 与 lock hash。`ResolvedComponent` 必须有 verified release、source revision、manifest/content hash；reference-only、无 license 或不兼容组件不得进入 production closure。
+
 FirmwareModule：name、layer、responsibility、public_api、dependencies、timing、state、errors、testability、requirement_ids。
 
 # 17. DomainIRRef / DomainIREnvelope

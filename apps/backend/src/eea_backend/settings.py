@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     ai_provider_enabled: bool = False
     requirements_model: str | None = None
     ai_api_key_reference: str | None = None
+    stm32cube_g4_source: Path | None = None
 
     @cached_property
     def database_url(self) -> str:

@@ -7,6 +7,11 @@ from eea_core.ai import AIUsageRecord, PromptDefinition
 from eea_core.build import BuildRun
 from eea_core.circuit import CircuitBundle
 from eea_core.claims import ClaimConflict, ClaimPredicateDefinition, EngineeringClaim
+from eea_core.components import (
+    ComponentMaterialization,
+    DependencyLock,
+    SoftwareComponentDescriptor,
+)
 from eea_core.entities import Evidence, Project
 from eea_core.firmware import FirmwareBundle
 from eea_core.intelligence import Document, DocumentIR
@@ -161,3 +166,21 @@ class BuildRunRepository(Protocol):
     def get(self, build_id: UUID, *, project_id: UUID | None = None) -> BuildRun | None: ...
 
     def list_for_project(self, project_id: UUID) -> list[BuildRun]: ...
+
+
+class ComponentRepository(Protocol):
+    def list_descriptors(self) -> list[SoftwareComponentDescriptor]: ...
+
+    def get(self, component_key: str) -> SoftwareComponentDescriptor | None: ...
+
+
+class DependencyLockRepository(Protocol):
+    def add(self, lock: DependencyLock) -> DependencyLock: ...
+
+    def get(self, lock_id: UUID, *, project_id: UUID | None = None) -> DependencyLock | None: ...
+
+    def latest_for_project(self, project_id: UUID) -> DependencyLock | None: ...
+
+
+class ComponentMaterializationRepository(Protocol):
+    def add(self, materialization: ComponentMaterialization) -> ComponentMaterialization: ...
