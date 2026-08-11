@@ -495,7 +495,54 @@ class DomainExtensionRegistry:
                 domain_id,
                 "Domain configuration does not satisfy the plugin schema",
                 schema_version=descriptor.schema_version,
-        …514 tokens truncated…               included.add(required)
+                details={"validation_errors": errors[:20]},
+            )
+
+    def artifacts(self, domain_id: str) -> list[dict[str, Any]]:
+        self.get_descriptor(domain_id)
+        value = _plugin_value(self._plugins[domain_id], "artifacts", ())
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+            raise EngineeringError(
+                "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
+                "Domain artifact contribution must be a sequence",
+                details={"domain_id": domain_id},
+            )
+        artifacts: list[dict[str, Any]] = []
+        for item in value:
+            if not isinstance(item, dict):
+                raise EngineeringError(
+                    "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
+                    "Domain artifact metadata must be an object",
+                    details={"domain_id": domain_id},
+                )
+            artifacts.append(dict(item))
+        return artifacts
+
+    def resolve_composition(
+        self,
+        domain_ids: Iterable[str],
+        *,
+        selected_capabilities: Mapping[str, str] | None = None,
+    ) -> DomainCompositionPlan:
+        requested = sorted(set(domain_ids))
+        for domain_id in requested:
+            self.get_descriptor(domain_id)
+        included = set(requested)
+        dependency_edges: set[tuple[str, str]] = set()
+        pending = list(requested)
+        while pending:
+            domain_id = pending.pop(0)
+            descriptor = self.get_descriptor(domain_id)
+            for required in sorted(descriptor.requires_domains):
+                if required not in self._descriptors:
+                    raise EngineeringError(
+                        "DOMAIN_DEPENDENCY_MISSING",  # type: ignore[arg-type]
+                        "Required Domain is not registered",
+                        details={"domain_id": domain_id, "required_domain": required},
+                    )
+                dependency_edges.add((domain_id, required))
+                if required not in included:
+                    included.add(required)
                     pending.append(required)
 
         for domain_id in sorted(included):
@@ -951,4 +998,3 @@ class DomainExtensionService:
         selected_capabilities: Mapping[str, str] | None = None,
     ) -> DomainCompositionPlan:
         return self.resolve(project_id, domain_ids, selected_capabilities=selected_capabilities)
-
