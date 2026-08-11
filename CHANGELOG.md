@@ -7,6 +7,11 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M16 ProtocolIR: added the Core-neutral project-scoped CAN Classic/FD protocol
+  IR, canonical semantic hashing, deterministic 12-rule validation, reference
+  codec, standalone C11/Python/DBC/Markdown generators, revisioned persistence,
+  API routes, migration `0022_m16_protocol_ir`, golden-vector tests, and synced
+  OpenAPI/TypeScript contracts.
 - M15 MotorControl Built-in Domain Plugin: added the bundled `org.eea.motor_control` manifest,
   plugin-owned MotorControlIR requirements/references, deterministic additive rule catalog,
   declarative generator/context/UI contributions, fail-closed MCUConfigIR cross-validation, and

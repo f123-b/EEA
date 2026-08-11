@@ -72,6 +72,12 @@ from eea_core.mcu_config import (
     MemoryConfigIR,
     PeripheralConfigIR,
 )
+from eea_core.protocol import (
+    ProtocolDefinition,
+    ProtocolGenerationBundle,
+    ProtocolIR,
+    ProtocolValidationResult,
+)
 from eea_core.schematic import ErcIssue
 from eea_core.static_analysis import StaticAnalysisToolResult
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -752,6 +758,35 @@ class MCUConfigValidationData(BaseModel):
     config_id: UUID
     config_revision: int
     rule_results: list[dict[str, object]]
+
+
+class ProtocolCreateRequest(ProtocolDefinition):
+    """ProtocolIR semantic content for project-scoped creation."""
+
+
+class ProtocolUpdateRequest(ProtocolDefinition):
+    """ProtocolIR semantic content plus optimistic-concurrency input."""
+
+    expected_revision: int | None = Field(default=None, ge=1)
+
+
+class ProtocolValidateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    protocol_id: UUID | None = None
+    revision: int | None = Field(default=None, ge=1)
+
+
+class ProtocolGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    protocol_id: UUID | None = None
+    revision: int | None = Field(default=None, ge=1)
+
+
+ProtocolData = ProtocolIR
+ProtocolValidationData = ProtocolValidationResult
+ProtocolGenerationData = ProtocolGenerationBundle
 
 
 class FirmwareGenerateRequest(BaseModel):

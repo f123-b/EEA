@@ -785,6 +785,75 @@
         "title": "ApiEnvelope[ProjectListData]",
         "type": "object"
       },
+      "ApiEnvelope_ProtocolGenerationBundle_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProtocolGenerationBundle"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ProtocolGenerationBundle]",
+        "type": "object"
+      },
+      "ApiEnvelope_ProtocolIR_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProtocolIR"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ProtocolIR]",
+        "type": "object"
+      },
+      "ApiEnvelope_ProtocolValidationResult_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProtocolValidationResult"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ProtocolValidationResult]",
+        "type": "object"
+      },
       "ApiEnvelope_RequirementAnalysisData_": {
         "properties": {
           "data": {
@@ -1546,6 +1615,45 @@
         ],
         "title": "BuildStatus",
         "type": "string"
+      },
+      "CANTransportConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "data_bitrate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Bitrate"
+          },
+          "fd_brs": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fd Brs"
+          },
+          "frame_kind": {
+            "default": "CLASSIC",
+            "title": "Frame Kind",
+            "type": "string"
+          },
+          "nominal_bitrate": {
+            "default": 500000,
+            "title": "Nominal Bitrate",
+            "type": "integer"
+          }
+        },
+        "title": "CANTransportConfig",
+        "type": "object"
       },
       "CircuitBundleData": {
         "properties": {
@@ -5908,6 +6016,58 @@
         "title": "GPIOConfig",
         "type": "object"
       },
+      "GeneratedProtocolOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "content_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "generator_version": {
+            "title": "Generator Version",
+            "type": "string"
+          },
+          "input_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "protocol_revision": {
+            "title": "Protocol Revision",
+            "type": "integer"
+          },
+          "target": {
+            "enum": [
+              "C",
+              "PYTHON",
+              "DBC",
+              "MARKDOWN"
+            ],
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "path",
+          "content",
+          "content_hash",
+          "input_hash",
+          "protocol_revision",
+          "generator_version"
+        ],
+        "title": "GeneratedProtocolOutput",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -7721,6 +7881,538 @@
           }
         },
         "title": "ProjectUpdate",
+        "type": "object"
+      },
+      "ProtocolCreateRequest": {
+        "additionalProperties": false,
+        "description": "ProtocolIR semantic content for project-scoped creation.",
+        "properties": {
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ProtocolMessage"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "transports": {
+            "items": {
+              "$ref": "#/components/schemas/ProtocolTransport"
+            },
+            "title": "Transports",
+            "type": "array"
+          },
+          "version_label": {
+            "default": "1.0.0",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Version Label",
+            "type": "string"
+          }
+        },
+        "title": "ProtocolCreateRequest",
+        "type": "object"
+      },
+      "ProtocolField": {
+        "additionalProperties": false,
+        "properties": {
+          "bit_length": {
+            "title": "Bit Length",
+            "type": "integer"
+          },
+          "bit_offset": {
+            "title": "Bit Offset",
+            "type": "integer"
+          },
+          "endian": {
+            "default": "LITTLE",
+            "title": "Endian",
+            "type": "string"
+          },
+          "field_id": {
+            "format": "uuid",
+            "title": "Field Id",
+            "type": "string"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0.0,
+            "title": "Offset",
+            "type": "number"
+          },
+          "scale": {
+            "default": 1.0,
+            "title": "Scale",
+            "type": "number"
+          },
+          "signed": {
+            "default": false,
+            "title": "Signed",
+            "type": "boolean"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "bit_offset",
+          "bit_length"
+        ],
+        "title": "ProtocolField",
+        "type": "object"
+      },
+      "ProtocolGenerateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "protocol_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protocol Id"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          }
+        },
+        "title": "ProtocolGenerateRequest",
+        "type": "object"
+      },
+      "ProtocolGenerationBundle": {
+        "additionalProperties": false,
+        "properties": {
+          "generator_version": {
+            "title": "Generator Version",
+            "type": "string"
+          },
+          "input_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/GeneratedProtocolOutput"
+            },
+            "title": "Outputs",
+            "type": "array"
+          },
+          "protocol_id": {
+            "format": "uuid",
+            "title": "Protocol Id",
+            "type": "string"
+          },
+          "protocol_revision": {
+            "title": "Protocol Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "protocol_id",
+          "protocol_revision",
+          "input_hash",
+          "generator_version"
+        ],
+        "title": "ProtocolGenerationBundle",
+        "type": "object"
+      },
+      "ProtocolIR": {
+        "additionalProperties": false,
+        "description": "Versioned, project-scoped CAN protocol contract.\n\n``input_hash`` is derived from semantic content.  Entity identity, timestamps,\nrevision, metadata, and the hash itself are intentionally excluded so that\ngenerated artifacts bind to content rather than persistence details.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_hash": {
+            "default": "0000000000000000000000000000000000000000000000000000000000000000",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ProtocolMessage"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "revision": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "default": "1.0.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "transports": {
+            "items": {
+              "$ref": "#/components/schemas/ProtocolTransport"
+            },
+            "title": "Transports",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version_label": {
+            "default": "1.0.0",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Version Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "ProtocolIR",
+        "type": "object"
+      },
+      "ProtocolMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "can_id": {
+            "title": "Can Id",
+            "type": "integer"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "extended_id": {
+            "default": false,
+            "title": "Extended Id",
+            "type": "boolean"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ProtocolField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "payload_length_bytes": {
+            "title": "Payload Length Bytes",
+            "type": "integer"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "transport_ref": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Transport Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "transport_ref",
+          "can_id",
+          "payload_length_bytes"
+        ],
+        "title": "ProtocolMessage",
+        "type": "object"
+      },
+      "ProtocolTransport": {
+        "additionalProperties": false,
+        "properties": {
+          "can": {
+            "$ref": "#/components/schemas/CANTransportConfig"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "transport_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Transport Id",
+            "type": "string"
+          },
+          "transport_type": {
+            "default": "CAN",
+            "title": "Transport Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transport_id",
+          "name"
+        ],
+        "title": "ProtocolTransport",
+        "type": "object"
+      },
+      "ProtocolUpdateRequest": {
+        "additionalProperties": false,
+        "description": "ProtocolIR semantic content plus optimistic-concurrency input.",
+        "properties": {
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ProtocolMessage"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "transports": {
+            "items": {
+              "$ref": "#/components/schemas/ProtocolTransport"
+            },
+            "title": "Transports",
+            "type": "array"
+          },
+          "version_label": {
+            "default": "1.0.0",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Version Label",
+            "type": "string"
+          }
+        },
+        "title": "ProtocolUpdateRequest",
+        "type": "object"
+      },
+      "ProtocolValidateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "protocol_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protocol Id"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          }
+        },
+        "title": "ProtocolValidateRequest",
+        "type": "object"
+      },
+      "ProtocolValidationDiagnostic": {
+        "additionalProperties": false,
+        "properties": {
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "UNKNOWN",
+              "BLOCKED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule_id",
+          "status",
+          "message"
+        ],
+        "title": "ProtocolValidationDiagnostic",
+        "type": "object"
+      },
+      "ProtocolValidationResult": {
+        "additionalProperties": false,
+        "properties": {
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/ProtocolValidationDiagnostic"
+            },
+            "title": "Diagnostics",
+            "type": "array"
+          },
+          "input_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "protocol_id": {
+            "format": "uuid",
+            "title": "Protocol Id",
+            "type": "string"
+          },
+          "protocol_revision": {
+            "title": "Protocol Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "protocol_id",
+          "protocol_revision",
+          "input_hash"
+        ],
+        "title": "ProtocolValidationResult",
         "type": "object"
       },
       "RequirementAnalysisData": {
@@ -11949,6 +12641,298 @@
         "summary": "Validate Pin Plan",
         "tags": [
           "pin-planner"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/protocol": {
+      "get": {
+        "operationId": "get_protocol_api_v1_projects__project_id__protocol_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ProtocolIR_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Protocol",
+        "tags": [
+          "protocol"
+        ]
+      },
+      "patch": {
+        "operationId": "update_protocol_api_v1_projects__project_id__protocol_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtocolUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ProtocolIR_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Protocol",
+        "tags": [
+          "protocol"
+        ]
+      },
+      "post": {
+        "operationId": "create_protocol_api_v1_projects__project_id__protocol_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtocolCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ProtocolIR_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Protocol",
+        "tags": [
+          "protocol"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/protocol/generate": {
+      "post": {
+        "operationId": "generate_protocol_api_v1_projects__project_id__protocol_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtocolGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ProtocolGenerationBundle_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Protocol",
+        "tags": [
+          "protocol"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/protocol/validate": {
+      "post": {
+        "operationId": "validate_protocol_ir_api_v1_projects__project_id__protocol_validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProtocolValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ProtocolValidationResult_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Validate Protocol Ir",
+        "tags": [
+          "protocol"
         ]
       }
     },

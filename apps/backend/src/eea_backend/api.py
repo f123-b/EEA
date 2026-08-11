@@ -18,6 +18,7 @@ from eea_application.intelligence import DocumentService, MultiSourceDeviceProvi
 from eea_application.mcu_config import MCUConfigService
 from eea_application.pin_planner import PinPlannerService
 from eea_application.projects import ProjectService
+from eea_application.protocol import ProtocolGenerationError, ProtocolGenerator
 from eea_application.requirements import (
     RequirementAnalysisService,
     RequirementProfileRegistry,
@@ -32,7 +33,7 @@ from eea_core.components import (
     DependencyLock,
     SoftwareComponentDescriptor,
 )
-from eea_core.entities import Evidence, Project
+from eea_core.entities import Evidence, Project, utc_now
 from eea_core.enums import (
     ArtifactStatus,
     ClaimConflictStatus,
@@ -67,6 +68,7 @@ from eea_core.firmware import FirmwareBundle
 from eea_core.intelligence import Device, DevicePin, Document
 from eea_core.mcu_config import MCUConfigBundle
 from eea_core.pin_planner import PinAssignment, PinLock, PinPlan, PinRequirement
+from eea_core.protocol import ProtocolGenerationBundle, ProtocolIR, ProtocolValidationResult
 from eea_core.requirements import RequirementProfile
 from eea_core.schema_registry import create_core_schema_registry
 from eea_core.schematic import SchematicBundle
@@ -88,6 +90,7 @@ from eea_backend.domain_repositories import SqlAlchemyDomainActivationRepository
 from eea_backend.firmware_repositories import SqlAlchemyFirmwareRepository
 from eea_backend.mcu_config_repositories import SqlAlchemyMCUConfigRepository
 from eea_backend.pin_planner_repositories import SqlAlchemyPinPlanRepository
+from eea_backend.protocol_repositories import SqlAlchemyProtocolRepository
 from eea_backend.repositories import (
     SqlAlchemyAIUsageRepository,
     SqlAlchemyEvidenceRepository,
@@ -158,6 +161,10 @@ from eea_backend.schemas import (
     ProjectData,
     ProjectListData,
     ProjectUpdate,
+    ProtocolCreateRequest,
+    ProtocolGenerateRequest,
+    ProtocolUpdateRequest,
+    ProtocolValidateRequest,
     RequirementAnalysisData,
     RequirementNaturalLanguageAnalysisRequest,
     RequirementProfileData,
@@ -1430,6 +1437,159 @@ def validate_mcu_config(
         rule_results=[result.model_dump(mode="json") for result in results],
     )
     return ApiEnvelope(data=data, request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/protocol",
+    response_model=ApiEnvelope[ProtocolIR],
+    status_code=status.HTTP_201_CREATED,
+    tags=["protocol"],
+)
+def create_protocol(
+    project_id: UUID,
+    payload: ProtocolCreateRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+) -> ApiEnvelope[ProtocolIR]:
+    _service(session).get(project_id)
+    protocol = ProtocolIR(project_id=project_id, **payload.model_dump())
+    saved = SqlAlchemyProtocolRepository(session).add(protocol)
+    _set_etag(response, saved.revision)
+    return ApiEnvelope(data=saved, request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/protocol",
+    response_model=ApiEnvelope[ProtocolIR],
+    tags=["protocol"],
+)
+def get_protocol(
+    project_id: UUID,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+) -> ApiEnvelope[ProtocolIR]:
+    _service(session).get(project_id)
+    protocol = SqlAlchemyProtocolRepository(session).latest_for_project(project_id)
+    if protocol is None:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "No current ProtocolIR has been persisted for this project",
+            details={"project_id": str(project_id)},
+        )
+    _set_etag(response, protocol.revision)
+    return ApiEnvelope(data=protocol, request_id=_request_id(request))
+
+
+@router.patch(
+    "/projects/{project_id}/protocol",
+    response_model=ApiEnvelope[ProtocolIR],
+    tags=["protocol"],
+)
+def update_protocol(
+    project_id: UUID,
+    payload: ProtocolUpdateRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+) -> ApiEnvelope[ProtocolIR]:
+    expected_revision = _expected_revision(if_match, payload.expected_revision)
+    repository = SqlAlchemyProtocolRepository(session)
+    current = repository.latest_for_project(project_id)
+    if current is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "No current ProtocolIR is available for update",
+            details={"project_id": str(project_id)},
+        )
+    changes = payload.model_dump(exclude={"expected_revision"}, exclude_unset=True)
+    snapshot = current.model_dump(mode="json")
+    snapshot.update(changes)
+    snapshot["project_id"] = project_id
+    snapshot["revision"] = current.revision + 1
+    snapshot["updated_at"] = utc_now()
+    updated = ProtocolIR.model_validate(snapshot)
+    saved = repository.save(updated, expected_revision=expected_revision)
+    if saved is None:
+        raise EngineeringError(
+            EngineeringErrorCode.REVISION_CONFLICT,
+            "ProtocolIR revision does not match the requested optimistic-concurrency revision",
+            details={
+                "protocol_id": str(current.id),
+                "expected_revision": expected_revision,
+                "current_revision": current.revision,
+            },
+        )
+    _set_etag(response, saved.revision)
+    return ApiEnvelope(data=saved, request_id=_request_id(request))
+
+
+def _select_protocol(
+    project_id: UUID,
+    protocol_id: UUID | None,
+    revision: int | None,
+    session: Session,
+) -> ProtocolIR:
+    repository = SqlAlchemyProtocolRepository(session)
+    protocol = (
+        repository.latest_for_project(project_id)
+        if protocol_id is None
+        else repository.get(protocol_id, project_id=project_id, revision=revision)
+    )
+    if protocol is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "ProtocolIR is not available for this project",
+            details={
+                "protocol_id": str(protocol_id) if protocol_id is not None else None,
+                "revision": revision,
+                "project_id": str(project_id),
+            },
+        )
+    return protocol
+
+
+@router.post(
+    "/projects/{project_id}/protocol/validate",
+    response_model=ApiEnvelope[ProtocolValidationResult],
+    tags=["protocol"],
+)
+def validate_protocol_ir(
+    project_id: UUID,
+    payload: ProtocolValidateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[ProtocolValidationResult]:
+    _service(session).get(project_id)
+    protocol = _select_protocol(project_id, payload.protocol_id, payload.revision, session)
+    result = ProtocolGenerator().validate(protocol)
+    return ApiEnvelope(data=result, request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/protocol/generate",
+    response_model=ApiEnvelope[ProtocolGenerationBundle],
+    tags=["protocol"],
+)
+def generate_protocol(
+    project_id: UUID,
+    payload: ProtocolGenerateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[ProtocolGenerationBundle]:
+    _service(session).get(project_id)
+    protocol = _select_protocol(project_id, payload.protocol_id, payload.revision, session)
+    try:
+        bundle = ProtocolGenerator().generate(protocol)
+    except ProtocolGenerationError as error:
+        raise EngineeringError(
+            EngineeringErrorCode.VALIDATION_ERROR,
+            "ProtocolIR generation is blocked by validation failures",
+            details={"protocol_id": str(protocol.id), "reason": str(error)},
+        ) from error
+    return ApiEnvelope(data=bundle, request_id=_request_id(request))
 
 
 @router.post(

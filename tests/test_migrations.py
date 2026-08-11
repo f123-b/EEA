@@ -59,6 +59,7 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
         "component_materializations",
         "firmware_static_analyses",
         "firmware_static_analysis_results",
+        "protocols",
     } <= table_names
     with engine.connect() as connection:
         assert (

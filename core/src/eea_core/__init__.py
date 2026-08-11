@@ -7,6 +7,14 @@ from eea_core.domain_extensions import (
     DomainIREnvelope,
     DomainIRRef,
 )
+from eea_core.protocol import (
+    ProtocolDefinition,
+    ProtocolField,
+    ProtocolGenerationBundle,
+    ProtocolIR,
+    ProtocolMessage,
+    ProtocolTransport,
+)
 
 __all__ = [
     "DomainActivation",
@@ -14,6 +22,12 @@ __all__ = [
     "DomainDescriptor",
     "DomainIREnvelope",
     "DomainIRRef",
+    "ProtocolDefinition",
+    "ProtocolField",
+    "ProtocolGenerationBundle",
+    "ProtocolIR",
+    "ProtocolMessage",
+    "ProtocolTransport",
 ]
 
 from eea_core.entities import (

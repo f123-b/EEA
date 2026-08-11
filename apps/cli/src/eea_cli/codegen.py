@@ -273,6 +273,99 @@ def render_typescript_contract() -> str:
             "  files: string[];\n"
             "  summary: string;\n"
             "}\n",
+            "export interface CANTransportConfig {\n"
+            "  nominal_bitrate: number;\n"
+            "  frame_kind: string;\n"
+            "  data_bitrate: number | null;\n"
+            "  fd_brs: boolean | null;\n"
+            "}\n",
+            "export interface ProtocolTransport {\n"
+            "  transport_id: string;\n"
+            "  name: string;\n"
+            "  transport_type: string;\n"
+            "  can: CANTransportConfig;\n"
+            "}\n",
+            "export interface ProtocolField {\n"
+            "  field_id: string;\n"
+            "  name: string;\n"
+            "  bit_offset: number;\n"
+            "  bit_length: number;\n"
+            "  endian: string;\n"
+            "  signed: boolean;\n"
+            "  scale: number;\n"
+            "  offset: number;\n"
+            "  unit: string;\n"
+            "  minimum: number | null;\n"
+            "  maximum: number | null;\n"
+            "}\n",
+            "export interface ProtocolMessage {\n"
+            "  message_id: string;\n"
+            "  name: string;\n"
+            "  transport_ref: string;\n"
+            "  can_id: number;\n"
+            "  extended_id: boolean;\n"
+            "  payload_length_bytes: number;\n"
+            "  fields: ProtocolField[];\n"
+            "  requirement_ids: string[];\n"
+            "  description: string;\n"
+            "}\n",
+            "export interface ProtocolDefinition {\n"
+            "  version_label: string;\n"
+            "  transports: ProtocolTransport[];\n"
+            "  messages: ProtocolMessage[];\n"
+            "  requirement_ids: string[];\n"
+            "  evidence_ids: string[];\n"
+            "}\n",
+            "export type ProtocolCreateRequest = ProtocolDefinition;\n",
+            "export interface ProtocolIR extends ProtocolDefinition {\n"
+            "  id: string;\n"
+            "  schema_version: string;\n"
+            "  revision: number;\n"
+            "  created_at: string;\n"
+            "  updated_at: string;\n"
+            "  metadata: Record<string, unknown>;\n"
+            "  project_id: string;\n"
+            "  input_hash: string;\n"
+            "}\n",
+            "export interface ProtocolUpdateRequest extends ProtocolDefinition {\n"
+            "  expected_revision?: number | null;\n"
+            "}\n",
+            "export interface ProtocolValidationDiagnostic {\n"
+            "  rule_id: string;\n"
+            '  status: "PASS" | "FAIL" | "UNKNOWN" | "BLOCKED";\n'
+            "  message: string;\n"
+            "  details: Record<string, unknown>;\n"
+            "}\n",
+            "export interface ProtocolValidationResult {\n"
+            "  protocol_id: string;\n"
+            "  protocol_revision: number;\n"
+            "  input_hash: string;\n"
+            "  diagnostics: ProtocolValidationDiagnostic[];\n"
+            "}\n",
+            "export interface GeneratedProtocolOutput {\n"
+            '  target: "C" | "PYTHON" | "DBC" | "MARKDOWN";\n'
+            "  path: string;\n"
+            "  content: string;\n"
+            "  content_hash: string;\n"
+            "  input_hash: string;\n"
+            "  protocol_revision: number;\n"
+            "  generator_version: string;\n"
+            "}\n",
+            "export interface ProtocolGenerationBundle {\n"
+            "  protocol_id: string;\n"
+            "  protocol_revision: number;\n"
+            "  input_hash: string;\n"
+            "  generator_version: string;\n"
+            "  outputs: GeneratedProtocolOutput[];\n"
+            "}\n",
+            "export interface ProtocolValidateRequest {\n"
+            "  protocol_id?: string | null;\n"
+            "  revision?: number | null;\n"
+            "}\n",
+            "export interface ProtocolGenerateRequest {\n"
+            "  protocol_id?: string | null;\n"
+            "  revision?: number | null;\n"
+            "}\n",
         ]
     )
     return "\n".join(sections)

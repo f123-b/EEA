@@ -23,6 +23,8 @@ jobs:
       - run: python -m eea_cli db upgrade
       - run: alembic check
       - run: pytest
+      - name: Compile and execute generated M16 C codec
+        run: pytest --no-cov tests/test_m16_protocol.py -q
       - run: eea openapi export --check
       - run: eea openapi typescript --check
 

@@ -703,6 +703,33 @@ class FirmwareRecord(CoreRecordMixin, Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False)
 
 
+class ProtocolRecord(Base):
+    """Revision history for the project-scoped M16 ProtocolIR."""
+
+    __tablename__ = "protocols"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("status IN ('CURRENT', 'STALE')", name="status"),
+        UniqueConstraint("id", "revision", name="uq_protocols_id_revision"),
+    )
+
+    record_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    schema_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    revision: Mapped[int] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    entity_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    version_label: Mapped[str] = mapped_column(String(100), nullable=False)
+    transports: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    messages: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
 class FirmwareSourceFileRecord(CoreRecordMixin, Base):
     __tablename__ = "firmware_source_files"
     __table_args__ = (
