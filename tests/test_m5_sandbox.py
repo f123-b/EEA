@@ -232,7 +232,7 @@ def test_timeout_kills_process_tree_when_runtime_supports_it(tmp_path: Path) -> 
         executor.execute(
             CommandSpec(argv=(sys.executable, "-c", child_code)),
             workspace.root,
-            _policy(max_runtime_seconds=0.1, max_processes=2),
+            _policy(max_runtime_seconds=0.1, max_processes=64),
         )
     assert error.value.code is EngineeringErrorCode.RESOURCE_LIMIT_EXCEEDED
     deadline = time.monotonic() + 2
