@@ -75,17 +75,36 @@ above. No M5 source or safety policy was changed.
 
 ## Acceptance gate state
 
-The previous PR #3 CI passed before this M16R delta. A new remote CI run is
-required after the updated branch is pushed; GitHub PR checks are the final
-remote evidence for this revision.
-
-This report records implementation and review readiness; it does not declare
-M16 accepted or authorize merge:
+M16 acceptance is recorded against the reviewed implementation head and its
+matching GitHub evidence:
 
 ```text
-M16R = IMPLEMENTED
-READY_FOR_M16_FINAL_REVIEW = YES
+M16 = ACCEPTED
+M16R = ACCEPTED
+READY_FOR_M17 = YES
+M17 = NOT_STARTED
+
+Acceptance implementation head = e75a06d72eec057b230618d6478c98ed734d3b68
+Acceptance CI evidence = GitHub Actions Run 31516179752
+backend = PASS
+desktop = PASS
 ```
 
-The report must not be interpreted as M16 acceptance or as permission to merge
-the Draft PR.
+The accepted implementation includes canonical generation determinism,
+fail-closed CAN arbitration/transport ambiguity handling, generated identifier
+hardening, signed/unsigned 1..64-bit raw codec semantics, physical IEEE-754
+unsafe-range fail-closed behavior, project-scope isolation, and optimistic
+concurrency CAS.
+
+M17 Test/Traceability/Review has not been implemented. M18 Dependency Graph,
+M19 FOC E2E/commissioning, and M21 Desktop UI remain unimplemented.
+
+```text
+M16 = ACCEPTED
+M16R = ACCEPTED
+READY_FOR_M17 = YES
+M17 = NOT_STARTED
+```
+
+This acceptance records the implementation head and its CI evidence; it does
+not include a later docs-only CI run number.

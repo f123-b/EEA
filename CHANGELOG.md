@@ -64,6 +64,9 @@ the frozen documentation changelogs under `docs/`.
 
 ### Changed
 
+- M16 ProtocolIR and M16R are accepted at implementation head
+  `e75a06d72eec057b230618d6478c98ed734d3b68`, with GitHub Actions Run `31516179752` passing
+  for backend and desktop; M17 remains not started.
 - M16R closes ProtocolIR determinism and boundary semantics: canonical ordering is shared by
   every generator, CAN arbitration and transport identifiers are fail-closed when ambiguous,
   generated identifiers are C11/DBC safe, full 1..64-bit raw integer codecs are available with
