@@ -115,13 +115,19 @@ class MemoryDomainActivationRepository(DomainActivationRepository):
         return activation
 
 
-def _plugin_set() -> tuple[FakeDomainPlugin, ...]:
+def _plugin_set(
+    *,
+    base_version: str = "1.0.0",
+    dependent_version: str = "1.0.0",
+    base_plugin_id: str = "org.test.base.plugin",
+    dependent_plugin_id: str = "org.test.dependent.plugin",
+) -> tuple[FakeDomainPlugin, ...]:
     base = FakeDomainPlugin(
         DomainDescriptor(
             id="org.test.base",
-            plugin_id="org.test.base.plugin",
+            plugin_id=base_plugin_id,
             name="Base Domain",
-            version="1.0.0",
+            version=base_version,
             api_version="1",
             capabilities=["transport"],
             priority=10,
@@ -138,9 +144,9 @@ def _plugin_set() -> tuple[FakeDomainPlugin, ...]:
     dependent = FakeDomainPlugin(
         DomainDescriptor(
             id="org.test.dependent",
-            plugin_id="org.test.dependent.plugin",
+            plugin_id=dependent_plugin_id,
             name="Dependent Domain",
-            version="1.0.0",
+            version=dependent_version,
             api_version="1",
             requires_domains=["org.test.base"],
             required_capabilities=["transport"],
@@ -341,6 +347,93 @@ def test_active_reactivation_applies_new_configuration_and_increments_revision()
     assert omitted.revision == updated.revision
 
 
+def test_active_domain_plugin_version_upgrade_reconciles_snapshot_and_preserves_configuration() -> (
+    None
+):
+    projects = MemoryProjectRepository()
+    activations = MemoryDomainActivationRepository()
+    project = projects.add(Project(name="compatible domain upgrade"))
+    service = DomainExtensionService(DomainExtensionRegistry(_plugin_set()), activations, projects)
+    first = service.activate(
+        project.id, "org.test.dependent", configuration={"enabled": True}, activated_by="test"
+    )
+
+    upgraded_service = DomainExtensionService(
+        DomainExtensionRegistry(_plugin_set(base_version="1.1.0", dependent_version="1.1.0")),
+        activations,
+        projects,
+    )
+    upgraded = upgraded_service.activate(project.id, "org.test.dependent", activated_by="test")
+
+    assert upgraded.plugin_version == "1.1.0"
+    assert upgraded.configuration == {"enabled": True}
+    assert upgraded.revision == first.revision + 1
+    assert activations.get(project.id, "org.test.base").plugin_version == "1.1.0"  # type: ignore[union-attr]
+
+
+def test_dependency_active_but_plugin_upgraded_is_reconciled() -> None:
+    projects = MemoryProjectRepository()
+    activations = MemoryDomainActivationRepository()
+    project = projects.add(Project(name="dependency upgrade"))
+    service = DomainExtensionService(DomainExtensionRegistry(_plugin_set()), activations, projects)
+    service.activate(project.id, "org.test.dependent", activated_by="test")
+    base_before = activations.get(project.id, "org.test.base")
+    assert base_before is not None
+
+    upgraded_service = DomainExtensionService(
+        DomainExtensionRegistry(_plugin_set(base_version="1.1.0")), activations, projects
+    )
+    upgraded_service.activate(project.id, "org.test.dependent", activated_by="test")
+    base_after = activations.get(project.id, "org.test.base")
+    assert base_after is not None
+    assert base_after.plugin_version == "1.1.0"
+    assert base_after.revision == base_before.revision + 1
+
+
+def test_incompatible_domain_upgrade_fails_closed_and_preserves_old_activation() -> None:
+    projects = MemoryProjectRepository()
+    activations = MemoryDomainActivationRepository()
+    project = projects.add(Project(name="incompatible domain upgrade"))
+    service = DomainExtensionService(DomainExtensionRegistry(_plugin_set()), activations, projects)
+    existing = service.activate(
+        project.id, "org.test.dependent", configuration={"enabled": True}, activated_by="test"
+    )
+
+    upgraded_service = DomainExtensionService(
+        DomainExtensionRegistry(
+            _plugin_set(
+                dependent_version="2.0.0",
+                dependent_plugin_id="org.test.dependent.replaced",
+            )
+        ),
+        activations,
+        projects,
+    )
+    with pytest.raises(EngineeringError) as error:
+        upgraded_service.activate(project.id, "org.test.dependent", activated_by="test")
+
+    assert error.value.code is EngineeringErrorCode.DOMAIN_INCOMPATIBLE
+    current = activations.get(project.id, "org.test.dependent")
+    assert current is not None
+    assert current.model_dump() == existing.model_dump()
+
+
+def test_configuration_is_preserved_during_compatible_domain_upgrade() -> None:
+    projects = MemoryProjectRepository()
+    activations = MemoryDomainActivationRepository()
+    project = projects.add(Project(name="configuration preservation"))
+    service = DomainExtensionService(DomainExtensionRegistry(_plugin_set()), activations, projects)
+    service.activate(
+        project.id, "org.test.dependent", configuration={"enabled": False}, activated_by="test"
+    )
+
+    upgraded_service = DomainExtensionService(
+        DomainExtensionRegistry(_plugin_set(dependent_version="1.0.1")), activations, projects
+    )
+    upgraded = upgraded_service.activate(project.id, "org.test.dependent", activated_by="test")
+    assert upgraded.configuration == {"enabled": False}
+
+
 def test_explicit_empty_configuration_is_validated_and_rejected_without_writes() -> None:
     projects = MemoryProjectRepository()
     activations = MemoryDomainActivationRepository()
@@ -462,3 +555,4 @@ def test_empty_domain_list_api_and_domain_contract_routes(tmp_path: Path) -> Non
             empty_client.get(f"/api/v1/projects/{plain_project_id}/domains").json()["data"]["items"]
             == []
         )
+
