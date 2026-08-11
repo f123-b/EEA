@@ -2008,11 +2008,10 @@ def resolve_domain_composition(
     request: Request,
     session: SessionDependency,
 ) -> ApiEnvelope[DomainCompositionData]:
-    composition = _domain_service(request, session).validate(
+    composition = _domain_service(request, session).resolve(
         project_id,
         payload.domain_ids,
         selected_capabilities=payload.selected_capabilities,
-        validation_inputs=_domain_validation_inputs(project_id, payload, session),
     )
     return ApiEnvelope(data=_domain_composition_data(composition), request_id=_request_id(request))
 

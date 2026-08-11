@@ -289,14 +289,16 @@ def test_positive_evaluation_preserves_unknown_runtime_gates() -> None:
 
     assert diagnostics["COMPLEMENTARY_PWM"].status == "PASS"
     assert diagnostics["DEADTIME_REQUIRED"].status == "PASS"
-    assert diagnostics["CURRENT_SENSE_ADC_RANGE"].status == "PASS"
+    assert diagnostics["CURRENT_SENSE_ADC_RANGE"].status == "UNKNOWN"
+    assert diagnostics["CURRENT_SENSE_ADC_RANGE"].details["range_evidence_required"] is True
     assert diagnostics["ADC_TRIGGER_ALIGNMENT"].status == "PASS"
     assert diagnostics["CURRENT_LOOP_TIMING_BUDGET"].status == "UNKNOWN"
     assert diagnostics["SIGN_CONVENTION_COMPLETE"].status == "PASS"
     assert diagnostics["SPEED_FEEDBACK_SIGN_CONSISTENT"].status == "PASS"
     assert diagnostics["ELECTRICAL_ANGLE_DIRECTION_CONSISTENT"].status == "UNKNOWN"
     assert diagnostics["PI_OUTPUT_SATURATION_LIMIT"].status == "PASS"
-    assert diagnostics["STARTUP_ALIGNMENT_REQUIRED"].status == "PASS"
+    assert diagnostics["STARTUP_ALIGNMENT_REQUIRED"].status == "UNKNOWN"
+    assert diagnostics["STARTUP_ALIGNMENT_REQUIRED"].details["execution_evidence_required"] is True
     assert diagnostics["MOTOR_REQUIREMENT_MCUCONFIG_MISMATCH"].status == "PASS"
 
 
@@ -390,6 +392,37 @@ def test_requirement_mcu_config_mismatch_is_negative_when_pwm_reference_is_wrong
     assert diagnostics["MOTOR_REQUIREMENT_MCUCONFIG_MISMATCH"].status == "FAIL"
 
 
+@pytest.mark.parametrize(
+    ("test_result", "expected_status"),
+    [
+        ("PASS", "UNKNOWN"),
+        ("FAIL", "FAIL"),
+        ("BLOCKED", "BLOCKED"),
+        ("UNKNOWN", "UNKNOWN"),
+        (None, "UNKNOWN"),
+    ],
+)
+def test_startup_result_requires_trusted_execution_evidence(
+    test_result: str | None, expected_status: str
+) -> None:
+    startup = _motor_control_ir().startup.model_copy(update={"test_result": test_result})
+    diagnostics = _diagnostics_by_rule(_motor_control_ir(startup=startup), _mcu_config())
+    startup_diagnostic = diagnostics["STARTUP_ALIGNMENT_REQUIRED"]
+
+    assert startup_diagnostic.status == expected_status
+    if test_result in {"PASS", None}:
+        assert startup_diagnostic.details["execution_evidence_required"] is True
+    assert startup_diagnostic.status != "PASS" or test_result != "PASS"
+
+
+def test_adc_expected_range_without_current_sense_range_evidence_is_unknown() -> None:
+    diagnostics = _diagnostics_by_rule(_motor_control_ir(), _mcu_config())
+
+    current_sense = diagnostics["CURRENT_SENSE_ADC_RANGE"]
+    assert current_sense.status == "UNKNOWN"
+    assert current_sense.details["range_evidence_required"] is True
+
+
 def test_missing_mcu_config_returns_unknown_for_every_frozen_rule() -> None:
     diagnostics = validate_against_mcu_config(_motor_control_ir(), None)
 
@@ -457,6 +490,23 @@ def test_default_application_validate_action_executes_motor_control_validator(cl
     assert results[0]["domain_id"] == "org.eea.motor_control"
     assert len(results[0]["diagnostics"]) == 11
     assert {item["status"] for item in results[0]["diagnostics"]} == {"UNKNOWN"}
+
+
+def test_default_application_resolve_composition_does_not_execute_validator(client) -> None:
+    project_id = client.post("/api/v1/projects", json={"name": "M15R preview project"}).json()[
+        "data"
+    ]["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/domains/resolve-composition",
+        json={
+            "domain_ids": ["org.eea.motor_control"],
+            "domain_ir": _motor_control_ir().model_dump(mode="json"),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["validation_results"] == []
 
 
 def test_default_application_discovers_and_activates_bundled_motor_control(client) -> None:

@@ -176,12 +176,12 @@ def _evaluate_current_sense(
             "ADC expected range is required to close current-sense range validation",
             adc_instance=adc.instance,
         )
-    del mcu_config
     return _diagnostic(
         "CURRENT_SENSE_ADC_RANGE",
-        "PASS",
-        "Current-sense ADC channels and expected range are available",
+        "UNKNOWN",
+        "ADC channels and expected range are insufficient without current-sense range evidence",
         adc_instance=adc.instance,
+        range_evidence_required=True,
     )
 
 
@@ -415,12 +415,17 @@ def _evaluate_startup(ir: MotorControlIR) -> MotorControlDiagnostic:
             "BLOCKED",
             "Every startup step requires current, voltage, and timeout limits",
         )
-    if startup.test_result is None:
+    if startup.test_result is None or startup.test_result == "PASS":
         return _diagnostic(
             "STARTUP_ALIGNMENT_REQUIRED",
             "UNKNOWN",
-            "Startup/calibration execution result is not available",
+            (
+                "Startup/calibration execution evidence is not available"
+                if startup.test_result is None
+                else "Declared startup/calibration PASS is not trusted without execution evidence"
+            ),
             execution_evidence_required=True,
+            declared_test_result=startup.test_result,
         )
     return _diagnostic(
         "STARTUP_ALIGNMENT_REQUIRED",
