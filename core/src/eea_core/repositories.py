@@ -185,7 +185,7 @@ class ProtocolRepository(Protocol):
         self,
         protocol_id: UUID,
         *,
-        project_id: UUID | None = None,
+        project_id: UUID,
         revision: int | None = None,
     ) -> ProtocolIR | None: ...
 

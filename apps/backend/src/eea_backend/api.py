@@ -1504,6 +1504,16 @@ def update_protocol(
             "No current ProtocolIR is available for update",
             details={"project_id": str(project_id)},
         )
+    if current.revision != expected_revision:
+        raise EngineeringError(
+            EngineeringErrorCode.REVISION_CONFLICT,
+            "ProtocolIR revision does not match the requested optimistic-concurrency revision",
+            details={
+                "protocol_id": str(current.id),
+                "expected_revision": expected_revision,
+                "current_revision": current.revision,
+            },
+        )
     changes = payload.model_dump(exclude={"expected_revision"}, exclude_unset=True)
     snapshot = current.model_dump(mode="json")
     snapshot.update(changes)

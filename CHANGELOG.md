@@ -64,6 +64,11 @@ the frozen documentation changelogs under `docs/`.
 
 ### Changed
 
+- M16R closes ProtocolIR determinism and boundary semantics: canonical ordering is shared by
+  every generator, CAN arbitration and transport identifiers are fail-closed when ambiguous,
+  generated identifiers are C11/DBC safe, full 1..64-bit raw integer codecs are available with
+  explicit IEEE-754 physical-value limits, and project-scoped repository writes use atomic
+  optimistic-concurrency compare-and-swap semantics.
 - M15R.1 closes fail-closed validation semantics: declaration-only startup/calibration `PASS` now
   returns `UNKNOWN` without trusted execution evidence, ADC expected range alone returns `UNKNOWN`
   until current-sense range evidence exists, and composition preview no longer executes Domain

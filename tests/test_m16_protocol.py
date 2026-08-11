@@ -11,6 +11,8 @@ from uuid import UUID, uuid4
 
 import pytest
 from eea_application.protocol import ProtocolGenerationError, ProtocolGenerator
+from eea_backend.database import create_database_engine
+from eea_backend.protocol_repositories import SqlAlchemyProtocolRepository
 from eea_core.protocol import (
     CANTransportConfig,
     ProtocolCodecError,
@@ -24,6 +26,7 @@ from eea_core.protocol import (
     validate_protocol,
 )
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
 PROJECT_ID = UUID("00000000-0000-0000-0000-000000000001")
 MESSAGE_ID = UUID("00000000-0000-0000-0000-000000000002")
@@ -701,3 +704,380 @@ def test_protocol_api_enforces_project_scope(client: TestClient) -> None:
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "KNOWLEDGE_SCOPE_DENIED"
+
+
+def test_reordered_semantic_input_has_identical_hash_and_all_outputs() -> None:
+    message_a = ProtocolMessage(
+        message_id=UUID("00000000-0000-0000-0000-000000000101"),
+        name="A",
+        transport_ref="can0",
+        can_id=1,
+        payload_length_bytes=8,
+        fields=[
+            ProtocolField(
+                field_id=UUID("00000000-0000-0000-0000-000000000111"),
+                name="a_low",
+                bit_offset=0,
+                bit_length=8,
+            ),
+            ProtocolField(
+                field_id=UUID("00000000-0000-0000-0000-000000000112"),
+                name="a_high",
+                bit_offset=8,
+                bit_length=8,
+            ),
+        ],
+    )
+    message_b = ProtocolMessage(
+        message_id=UUID("00000000-0000-0000-0000-000000000102"),
+        name="B",
+        transport_ref="can1",
+        can_id=2,
+        payload_length_bytes=8,
+        fields=[ProtocolField(name="b", bit_offset=0, bit_length=8)],
+    )
+    transports = [
+        ProtocolTransport(transport_id="can0", name="CAN 0"),
+        ProtocolTransport(transport_id="can1", name="CAN 1"),
+    ]
+    first = protocol_with(
+        transports=transports,
+        messages=[message_a, message_b],
+    )
+    reordered = first.model_copy(deep=True)
+    reordered.transports.reverse()
+    reordered.messages.reverse()
+    for message in reordered.messages:
+        message.fields.reverse()
+    reordered = ProtocolIR.model_validate(reordered.model_dump(mode="json"))
+
+    first_bundle = ProtocolGenerator().generate(first)
+    reordered_bundle = ProtocolGenerator().generate(reordered)
+    first_outputs = {output.path: output.content for output in first_bundle.outputs}
+    reordered_outputs = {output.path: output.content for output in reordered_bundle.outputs}
+    first_hashes = {output.path: output.content_hash for output in first_bundle.outputs}
+    reordered_hashes = {output.path: output.content_hash for output in reordered_bundle.outputs}
+
+    assert first.input_hash == reordered.input_hash
+    assert first_outputs == reordered_outputs
+    assert first_hashes == reordered_hashes
+
+
+def test_can_arbitration_id_is_unique_per_transport_and_frame_kind() -> None:
+    duplicate = protocol_with(
+        messages=[
+            ProtocolMessage(
+                message_id=MESSAGE_ID,
+                name="A",
+                transport_ref="can0",
+                can_id=0x201,
+                payload_length_bytes=8,
+            ),
+            ProtocolMessage(
+                message_id=uuid4(),
+                name="B",
+                transport_ref="can0",
+                can_id=0x201,
+                payload_length_bytes=8,
+            ),
+        ]
+    )
+    standard_and_extended = protocol_with(
+        messages=[
+            ProtocolMessage(
+                message_id=MESSAGE_ID,
+                name="Standard",
+                transport_ref="can0",
+                can_id=0x201,
+                payload_length_bytes=8,
+            ),
+            ProtocolMessage(
+                message_id=uuid4(),
+                name="Extended",
+                transport_ref="can0",
+                can_id=0x201,
+                extended_id=True,
+                payload_length_bytes=8,
+            ),
+        ]
+    )
+
+    assert diagnostic_map(duplicate)["CAN_ID_VALID"] == "FAIL"
+    assert diagnostic_map(standard_and_extended)["CAN_ID_VALID"] == "PASS"
+
+    reused_on_different_transports = protocol_with(
+        transports=[
+            ProtocolTransport(transport_id="can0", name="CAN 0"),
+            ProtocolTransport(transport_id="can1", name="CAN 1"),
+        ],
+        messages=[
+            ProtocolMessage(
+                message_id=MESSAGE_ID,
+                name="Can0Status",
+                transport_ref="can0",
+                can_id=0x201,
+                payload_length_bytes=8,
+            ),
+            ProtocolMessage(
+                message_id=uuid4(),
+                name="Can1Status",
+                transport_ref="can1",
+                can_id=0x201,
+                payload_length_bytes=8,
+            ),
+        ],
+    )
+    assert diagnostic_map(reused_on_different_transports)["CAN_ID_VALID"] == "PASS"
+    with pytest.raises(ProtocolGenerationError, match="duplicate arbitration keys"):
+        ProtocolGenerator().generate(reused_on_different_transports)
+
+
+def test_duplicate_transport_id_fails_closed_instead_of_being_overwritten() -> None:
+    protocol = protocol_with(
+        transports=[
+            ProtocolTransport(transport_id="can0", name="Classic", can=CANTransportConfig()),
+            ProtocolTransport(
+                transport_id="can0",
+                name="FD",
+                can=CANTransportConfig(frame_kind="FD"),
+            ),
+        ]
+    )
+
+    assert diagnostic_map(protocol)["TRANSPORT_REFERENCE_VALID"] == "FAIL"
+
+
+def test_identifier_normalization_is_collision_safe_and_c11_compiles(tmp_path: Path) -> None:
+    protocol = protocol_with(
+        messages=[
+            ProtocolMessage(
+                message_id=MESSAGE_ID,
+                name="A-B",
+                transport_ref="can0",
+                can_id=1,
+                payload_length_bytes=8,
+                fields=[
+                    ProtocolField(name="float", bit_offset=0, bit_length=8),
+                    ProtocolField(name="struct", bit_offset=8, bit_length=8),
+                    ProtocolField(name="for", bit_offset=16, bit_length=8),
+                ],
+            ),
+            ProtocolMessage(
+                message_id=uuid4(),
+                name="A_B",
+                transport_ref="can0",
+                can_id=2,
+                payload_length_bytes=8,
+                fields=[
+                    ProtocolField(name="Speed RPM", bit_offset=0, bit_length=8),
+                    ProtocolField(name="Speed-RPM", bit_offset=8, bit_length=8),
+                ],
+            ),
+        ]
+    )
+    bundle = ProtocolGenerator().generate(protocol)
+    header = next(output.content for output in bundle.outputs if output.path == "protocol.h")
+    source = next(output.content for output in bundle.outputs if output.path == "protocol.c")
+    dbc = next(output.content for output in bundle.outputs if output.path == "protocol.dbc")
+    (tmp_path / "protocol.h").write_text(header, encoding="utf-8")
+    (tmp_path / "protocol.c").write_text(source, encoding="utf-8")
+    compiler = shutil.which("gcc") or shutil.which("clang") or shutil.which("cc")
+    assert compiler is not None
+    result = subprocess.run(
+        [
+            compiler,
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-c",
+            str(tmp_path / "protocol.c"),
+            "-o",
+            str(tmp_path / "protocol.o"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "double float;" not in header
+    assert "eea_eea_float" not in header
+    assert "eea_float" in header
+    assert "BO_ 1 a_b: 8" in dbc
+    assert "BO_ 2 a_b_2: 8" in dbc
+    assert "SG_ speed_rpm :" in dbc
+    assert "SG_ speed_rpm_2 :" in dbc
+
+
+def _raw_boundary_protocol(*, signed: bool) -> ProtocolIR:
+    return protocol_with(
+        messages=[
+            ProtocolMessage(
+                message_id=MESSAGE_ID,
+                name="Signed64" if signed else "Unsigned64",
+                transport_ref="can0",
+                can_id=1,
+                payload_length_bytes=8,
+                fields=[
+                    ProtocolField(
+                        name="value",
+                        bit_offset=0,
+                        bit_length=64,
+                        signed=signed,
+                    )
+                ],
+            )
+        ]
+    )
+
+
+@pytest.mark.parametrize("value", [0, 1, 2**32, 2**53, 2**63, 2**64 - 1])
+def test_reference_and_standalone_python_unsigned_64_raw_boundaries(
+    value: int, tmp_path: Path
+) -> None:
+    protocol = _raw_boundary_protocol(signed=False)
+    bundle = ProtocolGenerator().generate(protocol)
+    python_output = next(output for output in bundle.outputs if output.path == "protocol_codec.py")
+    module_path = tmp_path / python_output.path
+    module_path.write_text(python_output.content, encoding="utf-8")
+    namespace: dict[str, object] = {}
+    exec(compile(python_output.content, str(module_path), "exec"), namespace)
+
+    expected = value.to_bytes(8, "little", signed=False)
+    reference = ReferenceProtocolCodec(protocol)
+    assert reference.encode("Unsigned64", {"value": value}, raw_values=True) == expected
+    assert reference.decode("Unsigned64", expected, raw_values=True)["value"] == value
+    assert namespace["encode_unsigned64_raw"]({"value": value}) == expected  # type: ignore[operator]
+    assert namespace["decode_unsigned64_raw"](expected)["value"] == value  # type: ignore[operator]
+
+
+@pytest.mark.parametrize("value", [-(2**63), -(2**53), -1, 0, 2**53, 2**63 - 1])
+def test_reference_and_standalone_python_signed_64_raw_boundaries(
+    value: int, tmp_path: Path
+) -> None:
+    protocol = _raw_boundary_protocol(signed=True)
+    bundle = ProtocolGenerator().generate(protocol)
+    python_output = next(output for output in bundle.outputs if output.path == "protocol_codec.py")
+    module_path = tmp_path / python_output.path
+    module_path.write_text(python_output.content, encoding="utf-8")
+    namespace: dict[str, object] = {}
+    exec(compile(python_output.content, str(module_path), "exec"), namespace)
+
+    expected = value.to_bytes(8, "little", signed=True)
+    reference = ReferenceProtocolCodec(protocol)
+    assert reference.encode("Signed64", {"value": value}, raw_values=True) == expected
+    assert reference.decode("Signed64", expected, raw_values=True)["value"] == value
+    assert namespace["encode_signed64_raw"]({"value": value}) == expected  # type: ignore[operator]
+    assert namespace["decode_signed64_raw"](expected)["value"] == value  # type: ignore[operator]
+
+
+def test_physical_codec_fails_closed_outside_ieee754_integer_safety() -> None:
+    protocol = _raw_boundary_protocol(signed=False)
+    codec = ReferenceProtocolCodec(protocol)
+
+    with pytest.raises(ProtocolCodecError, match="raw_values=True"):
+        codec.encode("Unsigned64", {"value": 2**53 + 1})
+    payload = codec.encode("Unsigned64", {"value": 2**53 + 1}, raw_values=True)
+    with pytest.raises(ProtocolCodecError, match="raw_values=True"):
+        codec.decode("Unsigned64", payload)
+    assert codec.decode("Unsigned64", payload, raw_values=True)["value"] == 2**53 + 1
+
+
+def test_generated_c_codec_supports_unsigned_and_signed_64_raw_boundaries(tmp_path: Path) -> None:
+    compiler = shutil.which("gcc") or shutil.which("clang") or shutil.which("cc")
+    assert compiler is not None
+    protocol = ProtocolIR(
+        id=UUID("00000000-0000-0000-0000-000000000020"),
+        project_id=PROJECT_ID,
+        transports=[ProtocolTransport(transport_id="can0", name="CAN 0")],
+        messages=[
+            _raw_boundary_protocol(signed=False).messages[0],
+            ProtocolMessage(
+                message_id=uuid4(),
+                name="Signed64",
+                transport_ref="can0",
+                can_id=2,
+                payload_length_bytes=8,
+                fields=[ProtocolField(name="value", bit_offset=0, bit_length=64, signed=True)],
+            ),
+        ],
+    )
+    bundle = ProtocolGenerator().generate(protocol)
+    for output in bundle.outputs:
+        if output.path in {"protocol.h", "protocol.c"}:
+            (tmp_path / output.path).write_text(output.content, encoding="utf-8")
+    harness = tmp_path / "raw64.c"
+    harness.write_text(
+        """
+#include <stdint.h>
+#include "protocol.h"
+
+int main(void) {
+    eea_unsigned64_raw_values_t u = { .value = UINT64_MAX };
+    uint8_t payload[8];
+    if (!eea_unsigned64_encode_raw(&u, payload, sizeof(payload))) return 2;
+    eea_unsigned64_raw_values_t u_decoded;
+    if (!eea_unsigned64_decode_raw(payload, sizeof(payload), &u_decoded)) return 3;
+    if (u_decoded.value != UINT64_MAX) return 4;
+    eea_signed64_raw_values_t s = { .value = INT64_MIN };
+    if (!eea_signed64_encode_raw(&s, payload, sizeof(payload))) return 5;
+    eea_signed64_raw_values_t s_decoded;
+    if (!eea_signed64_decode_raw(payload, sizeof(payload), &s_decoded)) return 6;
+    if (s_decoded.value != INT64_MIN) return 7;
+    return 0;
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            compiler,
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            str(tmp_path / "protocol.c"),
+            str(harness),
+            "-o",
+            str(tmp_path / "raw64.exe"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    run = subprocess.run([str(tmp_path / "raw64.exe")], capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr
+
+
+def test_protocol_repository_requires_project_scope_and_cas_conflict(
+    settings, client: TestClient
+) -> None:
+    project = client.post("/api/v1/projects", json={"name": "Repository race"}).json()["data"]
+    engine = create_database_engine(settings)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    first_session = sessions()
+    second_session = sessions()
+    try:
+        first_repository = SqlAlchemyProtocolRepository(first_session)
+        second_repository = SqlAlchemyProtocolRepository(second_session)
+        initial = ProtocolIR(project_id=UUID(project["id"]), **protocol_api_payload())
+        saved = first_repository.add(initial)
+        first_snapshot = first_repository.get(saved.id, project_id=UUID(project["id"]))
+        second_snapshot = second_repository.get(saved.id, project_id=UUID(project["id"]))
+        assert first_snapshot is not None
+        assert second_snapshot is not None
+        assert first_repository.get(saved.id, project_id=uuid4()) is None
+
+        first_update = first_snapshot.model_copy(update={"revision": 2})
+        second_update = second_snapshot.model_copy(update={"revision": 2})
+        first_result = first_repository.save(first_update, expected_revision=1)
+        second_result = second_repository.save(second_update, expected_revision=1)
+
+        assert first_result is not None
+        assert second_result is None
+    finally:
+        first_session.close()
+        second_session.close()
+        engine.dispose()

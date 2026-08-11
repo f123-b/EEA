@@ -12,6 +12,7 @@ import json
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -151,6 +152,35 @@ def _stable_uuid(value: UUID) -> str:
     return str(value)
 
 
+def canonical_transports(
+    protocol: ProtocolIR | ProtocolDefinition,
+) -> list[ProtocolTransport]:
+    """Return transports in the same order used by semantic hashing."""
+
+    return sorted(
+        protocol.transports,
+        key=lambda item: (item.transport_id, item.name),
+    )
+
+
+def canonical_messages(protocol: ProtocolIR | ProtocolDefinition) -> list[ProtocolMessage]:
+    """Return messages in the same order used by semantic hashing."""
+
+    return sorted(
+        protocol.messages,
+        key=lambda item: (_stable_uuid(item.message_id), item.name),
+    )
+
+
+def canonical_fields(message: ProtocolMessage) -> list[ProtocolField]:
+    """Return fields in the same order used by semantic hashing."""
+
+    return sorted(
+        message.fields,
+        key=lambda item: (_stable_uuid(item.field_id), item.name),
+    )
+
+
 def canonical_protocol_dict(protocol: ProtocolIR | ProtocolDefinition) -> dict[str, object]:
     """Return the semantically relevant, stably ordered protocol representation."""
 
@@ -259,7 +289,12 @@ def _diagnostic(
 
 
 def _protocol_transports(protocol: ProtocolIR | ProtocolDefinition) -> dict[str, ProtocolTransport]:
-    return {transport.transport_id: transport for transport in protocol.transports}
+    # Keep the first deterministic candidate.  Validation rejects duplicate IDs;
+    # this prevents lookup behavior from silently depending on dict overwrite.
+    transports: dict[str, ProtocolTransport] = {}
+    for transport in canonical_transports(protocol):
+        transports.setdefault(transport.transport_id, transport)
+    return transports
 
 
 def validate_protocol(protocol: ProtocolIR) -> ProtocolValidationResult:
@@ -270,6 +305,12 @@ def validate_protocol(protocol: ProtocolIR) -> ProtocolValidationResult:
     """
 
     transports = _protocol_transports(protocol)
+    transport_id_groups: dict[str, list[str]] = {}
+    for transport in protocol.transports:
+        transport_id_groups.setdefault(transport.transport_id, []).append(transport.name)
+    duplicate_transport_ids = {
+        transport_id: names for transport_id, names in transport_id_groups.items() if len(names) > 1
+    }
     transport_errors: list[dict[str, object]] = []
     for transport in protocol.transports:
         if transport.transport_type.upper() != "CAN":
@@ -293,19 +334,44 @@ def validate_protocol(protocol: ProtocolIR) -> ProtocolValidationResult:
     diagnostics: list[ProtocolValidationDiagnostic] = [
         _diagnostic(
             "TRANSPORT_REFERENCE_VALID",
-            "PASS" if not transport_errors else "BLOCKED",
+            "FAIL" if duplicate_transport_ids else ("PASS" if not transport_errors else "BLOCKED"),
             "All message transport references resolve to valid CAN transports."
             if not transport_errors
-            else "A message transport reference or transport configuration is unresolved.",
+            else (
+                "Transport identifiers must be unique."
+                if duplicate_transport_ids
+                else "A message transport reference or transport configuration is unresolved."
+            ),
             errors=transport_errors,
+            duplicates=duplicate_transport_ids,
         )
     ]
 
-    can_id_errors = [
+    can_id_errors: list[dict[str, object]] = [
         {"message": message.name, "can_id": message.can_id, "extended": message.extended_id}
         for message in protocol.messages
         if message.can_id < 0 or message.can_id > (0x1FFFFFFF if message.extended_id else 0x7FF)
     ]
+    arbitration_groups: dict[tuple[str, bool, int], list[str]] = {}
+    for message in protocol.messages:
+        key = (message.transport_ref, message.extended_id, message.can_id)
+        arbitration_groups.setdefault(key, []).append(message.name)
+    duplicate_arbitration_ids = {
+        f"{transport}:{'extended' if extended else 'standard'}:{can_id:#x}": names
+        for (transport, extended, can_id), names in arbitration_groups.items()
+        if len(names) > 1
+    }
+    can_id_errors.extend(
+        {
+            "transport_ref": transport,
+            "extended": extended,
+            "can_id": can_id,
+            "messages": names,
+            "reason": "DUPLICATE_ARBITRATION_ID",
+        }
+        for (transport, extended, can_id), names in arbitration_groups.items()
+        if len(names) > 1
+    )
     diagnostics.append(
         _diagnostic(
             "CAN_ID_VALID",
@@ -314,6 +380,7 @@ def validate_protocol(protocol: ProtocolIR) -> ProtocolValidationResult:
             if not can_id_errors
             else "One or more CAN identifiers are outside the allowed range.",
             errors=can_id_errors,
+            duplicate_arbitration_ids=duplicate_arbitration_ids,
         )
     )
 
@@ -597,24 +664,55 @@ def _read_raw(payload: bytes, field: ProtocolField) -> int:
     return unsigned
 
 
+def _decimal_value(value: float | int, field_name: str) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError) as error:
+        raise ProtocolCodecError(f"field {field_name} requires a finite value") from error
+
+
+def _safe_physical_float(value: Decimal, field_name: str) -> float:
+    converted = float(value)
+    if not math.isfinite(converted) or Decimal(str(converted)) != value:
+        raise ProtocolCodecError(
+            f"decoded physical value for field {field_name} is not exactly representable; "
+            "use raw_values=True"
+        )
+    return converted
+
+
 def _encode_field_value(field: ProtocolField, value: float | int, *, raw_value: bool) -> int:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ProtocolCodecError(f"field {field.name} requires a numeric value")
-    numeric = float(value)
-    if not math.isfinite(numeric):
-        raise ProtocolCodecError(f"field {field.name} requires a finite value")
     if raw_value:
-        if not numeric.is_integer():
-            raise ProtocolCodecError(f"raw value for field {field.name} must be integral")
-        raw = int(numeric)
+        if not isinstance(value, int):
+            raise ProtocolCodecError(
+                f"raw value for field {field.name} must be an exact Python int"
+            )
+        raw = value
     else:
         if not math.isfinite(field.scale) or field.scale <= 0:
             raise ProtocolCodecError(f"field {field.name} has invalid scale")
-        if field.minimum is not None and numeric < field.minimum:
+        if isinstance(value, float) and (not math.isfinite(value) or abs(value) > float(1 << 53)):
+            raise ProtocolCodecError(
+                f"physical value for field {field.name} exceeds exact IEEE-754 integer safety; "
+                "use raw_values=True"
+            )
+        numeric = _decimal_value(value, field.name)
+        if field.minimum is not None and numeric < _decimal_value(field.minimum, field.name):
             raise ProtocolCodecError(f"field {field.name} is below declared minimum")
-        if field.maximum is not None and numeric > field.maximum:
+        if field.maximum is not None and numeric > _decimal_value(field.maximum, field.name):
             raise ProtocolCodecError(f"field {field.name} is above declared maximum")
-        raw = _round_half_away_from_zero((numeric - field.offset) / field.scale)
+        raw_decimal = (
+            (numeric - _decimal_value(field.offset, field.name))
+            / _decimal_value(field.scale, field.name)
+        ).to_integral_value(rounding=ROUND_HALF_UP)
+        raw = int(raw_decimal)
+        if abs(raw) > (1 << 53):
+            raise ProtocolCodecError(
+                f"physical conversion for field {field.name} exceeds exact IEEE-754 "
+                "integer safety; use raw_values=True"
+            )
     raw_min, raw_max = _raw_bounds(field)
     if raw < raw_min or raw > raw_max:
         raise ProtocolCodecError(f"field {field.name} cannot represent value")
@@ -645,16 +743,29 @@ def decode_message(
     protocol: ProtocolIR,
     message_ref: str | UUID,
     payload: bytes | bytearray,
-) -> dict[str, float]:
+    *,
+    raw_values: bool = False,
+) -> dict[str, float | int]:
     message = _field_by_ref(protocol, message_ref)
     if len(payload) != message.payload_length_bytes:
         raise ProtocolCodecError(
             f"payload length for {message.name} must be {message.payload_length_bytes}"
         )
-    decoded: dict[str, float] = {}
+    decoded: dict[str, float | int] = {}
     for field in message.fields:
         raw = _read_raw(bytes(payload), field)
-        decoded[field.name] = raw * field.scale + field.offset
+        if raw_values:
+            decoded[field.name] = raw
+            continue
+        if abs(raw) > (1 << 53):
+            raise ProtocolCodecError(
+                f"physical value for field {field.name} exceeds exact IEEE-754 integer "
+                "safety; use raw_values=True"
+            )
+        physical = Decimal(raw) * _decimal_value(field.scale, field.name) + _decimal_value(
+            field.offset, field.name
+        )
+        decoded[field.name] = _safe_physical_float(physical, field.name)
     return decoded
 
 
@@ -673,8 +784,14 @@ class ReferenceProtocolCodec:
     ) -> bytes:
         return encode_message(self.protocol, message_ref, values, raw_values=raw_values)
 
-    def decode(self, message_ref: str | UUID, payload: bytes | bytearray) -> dict[str, float]:
-        return decode_message(self.protocol, message_ref, payload)
+    def decode(
+        self,
+        message_ref: str | UUID,
+        payload: bytes | bytearray,
+        *,
+        raw_values: bool = False,
+    ) -> dict[str, float | int]:
+        return decode_message(self.protocol, message_ref, payload, raw_values=raw_values)
 
 
 __all__ = [
@@ -693,8 +810,11 @@ __all__ = [
     "ProtocolValidationResult",
     "ReferenceProtocolCodec",
     "can_fd_valid_lengths",
+    "canonical_fields",
+    "canonical_messages",
     "canonical_protocol_dict",
     "canonical_protocol_json",
+    "canonical_transports",
     "decode_message",
     "encode_message",
     "field_occupied_bits",

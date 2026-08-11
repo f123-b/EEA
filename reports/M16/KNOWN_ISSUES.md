@@ -8,6 +8,13 @@
   scheduling are not implemented.
 - Generated C uses a standalone C11 codec and compile gate; it does not flash,
   open a socket, or communicate with hardware.
+- Full 1..64-bit raw integer semantics are available through the explicit raw
+  codec interfaces. Physical-value interfaces fail closed when the converted
+  raw value is outside the exact IEEE-754 integer safety boundary (2^53); use
+  raw values for uint64/int64 boundary payloads.
+- CAN identifiers may be reused on different transports at the ProtocolIR
+  validation layer, but DBC generation fails closed when the target format
+  cannot represent the resulting duplicate arbitration key.
 - Protocol validation is deterministic over the persisted ProtocolIR. It does
   not substitute hardware test evidence, commissioning evidence, or runtime
   traceability.

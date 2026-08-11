@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from eea_core.protocol import ProtocolIR
 from sqlalchemy import desc, select, update
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from eea_backend.models import ProtocolRecord
@@ -44,7 +45,7 @@ class SqlAlchemyProtocolRepository:
         self,
         protocol_id: UUID,
         *,
-        project_id: UUID | None = None,
+        project_id: UUID,
         revision: int | None = None,
     ) -> ProtocolIR | None:
         statement = select(ProtocolRecord).where(ProtocolRecord.id == str(protocol_id))
@@ -77,18 +78,41 @@ class SqlAlchemyProtocolRepository:
         expected_revision: int,
         commit: bool = True,
     ) -> ProtocolIR | None:
-        latest = self.get(protocol.id, project_id=protocol.project_id)
-        if latest is None or latest.revision != expected_revision:
-            return None
         if protocol.revision != expected_revision + 1:
             raise ValueError("ProtocolIR revision must increment by exactly one")
-        self._mark_current_stale(protocol.project_id)
-        record = self._record(protocol)
-        self._session.add(record)
-        self._session.flush()
-        if commit:
-            self._session.commit()
-            self._session.refresh(record)
+        try:
+            # This conditional update is the revision compare-and-swap.  It is
+            # the serialization point for two sessions using the same ETag.
+            result = self._session.execute(
+                update(ProtocolRecord)
+                .where(
+                    ProtocolRecord.id == str(protocol.id),
+                    ProtocolRecord.project_id == str(protocol.project_id),
+                    ProtocolRecord.revision == expected_revision,
+                    ProtocolRecord.status == "CURRENT",
+                )
+                .values(status="STALE")
+            )
+            if getattr(result, "rowcount", 0) != 1:
+                return None
+            record = self._record(protocol)
+            self._session.add(record)
+            self._session.flush()
+            if commit:
+                self._session.commit()
+                self._session.refresh(record)
+        except IntegrityError:
+            # A concurrent revision insert must remain a public conflict, not
+            # leak a backend-specific integrity exception.
+            self._session.rollback()
+            return None
+        except OperationalError as error:
+            self._session.rollback()
+            if "locked" not in str(error).lower() and "busy" not in str(error).lower():
+                raise
+            # SQLite has a database-wide writer lock.  A competing writer that
+            # cannot acquire it is still a stale optimistic-concurrency write.
+            return None
         return self.get(protocol.id, project_id=protocol.project_id, revision=protocol.revision)
 
     @staticmethod
