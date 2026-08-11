@@ -598,4 +598,3 @@ class StructuredCommandExecutor:
     @staticmethod
     def _bounded(value: bytes, limit: int = 4096) -> bytes:
         return value[:limit]
-
