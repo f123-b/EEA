@@ -2,8 +2,9 @@
 
 Date: 2026-08-11
 Repository: `f123-b/EEA`
-Exact base SHA: `4b5346f695e89db81982def2ba56d1d07515c97b`
-Exact final SHA: **NOT AVAILABLE — working tree is intentionally uncommitted**
+Exact base SHA: `74671ff94366925851c85f42b04b98b5d20a7d06`
+Implementation commit SHA: `ade9da3`
+Documentation/report commit: **pending**
 Python: `3.12.13`
 Node: `v24.14.0`
 pnpm: `11.16.0`
@@ -28,22 +29,29 @@ domain plugin was implemented and M15 was not started.
   synchronization, and the reserved `plugins/builtin/` location.
 - M14R isolated Windows Job Object ctypes into a Windows-only lazy adapter while preserving
   process-tree/resource enforcement and fail-closed behavior.
+- M14R added an independent POSIX process controller using real `RLIMIT_AS` address-space and
+  `RLIMIT_NPROC` process-spawn boundaries where the current runtime can enforce them. Unsupported
+  or privileged runtimes do not advertise the capability and fail closed.
 - M14R made configuration omitted/empty/changed semantics explicit, validates plugin schemas and
   activation configuration fail closed, persists schema version/hash snapshots, and adds
   `DOMAIN_CONFIGURATION_INVALID` to the API and persisted error catalog.
+- M14R reconciles every Domain in the resolved activation plan against the current Registry
+  descriptor and persisted activation snapshot. Compatible plugin upgrades preserve configuration
+  and increment revision; incompatible plugin/schema changes return `DOMAIN_INCOMPATIBLE` without
+  writes, including for already-active dependencies.
 
 ## Verification
 
 Focused commands:
 
 ```text
-python -m pytest tests/test_m5_sandbox.py tests/test_m14_domain_extensions.py \
-  tests/test_project_scope_hardening.py -q --no-cov
+python -m pytest tests/test_m5_sandbox.py -q --no-cov
 python -m pytest tests/test_m14_domain_extensions.py -q --no-cov
+python -m pytest tests/test_project_scope_hardening.py -q --no-cov
 ```
 
-Results: **25 passed, 1 skipped** for the combined focused suite; **13 passed** for the M14
-configuration-focused suite.
+Results: M5 **8 passed, 3 skipped** on Windows (POSIX-only enforcement tests are skipped on this
+host); M14 **17 passed**; Project Scope **4 passed**.
 
 Full regression:
 
@@ -51,7 +59,7 @@ Full regression:
 python -m pytest
 ```
 
-Result: **171 passed, 1 skipped**, coverage **84.92%** (80% gate passed).
+Result: **175 passed, 3 skipped**, coverage **84.27%** (80% gate passed).
 
 Contracts and frontend:
 
@@ -63,9 +71,11 @@ Contracts and frontend:
 - `ruff check .`: **PASS**
 - `ruff format --check .`: **PASS**
 - `mypy`: **PASS**
-- Clean database `eea db upgrade` + `alembic check`: **PASS**
+- Clean database `python -m eea_cli db upgrade` + `alembic check`: **PASS**
+- Current local `.eea/eea.db` retains historical constraint/type drift; it is not the clean CI
+  acceptance database and was not rewritten by this scoped correction.
 
-Remote CI Run ID: **NOT RUN — no final commit was pushed**
+Remote CI Run ID: **NOT RUN — GitHub CLI is not authenticated in this environment**
 
 Remote CI result: **PENDING**
 
@@ -74,3 +84,4 @@ Human acceptance state: **HUMAN_ACCEPTANCE_PENDING**
 Final state: **LOCAL_VERIFIED**
 
 M14R: **LOCAL_VERIFIED, not ACCEPTED**
+READY_FOR_M15: **NO**
