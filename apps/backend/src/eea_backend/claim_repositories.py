@@ -127,7 +127,7 @@ class SqlAlchemyEngineeringClaimRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def add(self, claim: EngineeringClaim) -> EngineeringClaim:
+    def add(self, claim: EngineeringClaim, *, commit: bool = True) -> EngineeringClaim:
         value = (
             claim.value.model_dump(mode="json")
             if isinstance(claim.value, EngineeringValue)
@@ -154,8 +154,11 @@ class SqlAlchemyEngineeringClaimRepository:
             lifecycle=claim.lifecycle.value,
         )
         self._session.add(record)
-        self._session.commit()
-        self._session.refresh(record)
+        if commit:
+            self._session.commit()
+            self._session.refresh(record)
+        else:
+            self._session.flush()
         return _to_claim(record)
 
     def list_for_subject_predicate(

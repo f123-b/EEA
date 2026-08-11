@@ -23,9 +23,22 @@ def _policy(**changes: object) -> SandboxPolicy:
 def test_safe_path_rejects_traversal_absolute_and_symlink_escape(tmp_path: Path) -> None:
     workspace = SandboxWorkspace.from_root(tmp_path / "workspace")
     assert workspace.path("nested/file.txt") == workspace.root / "nested" / "file.txt"
-    for path in ("../outside.txt", "/etc/passwd", "C:/Windows/system.ini", "\\\\server\\share"):
+    for path in (
+        "../outside.txt",
+        "..\\outside.txt",
+        "/etc/passwd",
+        "C:/Windows/system.ini",
+        "C:\\Windows\\system.ini",
+        "\\\\server\\share",
+        "//server/share",
+        "nested/../../outside",
+        "nested\\..\\..\\outside",
+    ):
         with pytest.raises(ValueError):
             workspace.path(path)
+
+    assert workspace.path("src/main.c") == workspace.root / "src" / "main.c"
+    assert workspace.path("src\\main.c") == workspace.root / "src" / "main.c"
 
     outside = tmp_path / "outside"
     outside.mkdir()

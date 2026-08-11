@@ -5,7 +5,7 @@ from uuid import UUID
 
 from eea_core.ai import AIUsageRecord, PromptDefinition
 from eea_core.claims import ClaimConflict, ClaimPredicateDefinition, EngineeringClaim
-from eea_core.entities import Project
+from eea_core.entities import Evidence, Project
 from eea_core.intelligence import Document, DocumentIR
 from eea_core.requirements import Requirement, RequirementAnalysis, RequirementProfile
 
@@ -30,6 +30,12 @@ class AIUsageRepository(Protocol):
     def add(self, record: AIUsageRecord) -> AIUsageRecord: ...
 
     def list_for_request(self, request_id: object) -> list[AIUsageRecord]: ...
+
+
+class EvidenceRepository(Protocol):
+    """Read-only evidence lookup used to validate requirement references."""
+
+    def get(self, evidence_id: UUID) -> Evidence | None: ...
 
 
 class ClaimPredicateRepository(Protocol):

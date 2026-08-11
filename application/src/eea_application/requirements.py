@@ -5,6 +5,7 @@ Natural-language analysis is deliberately routed through M2's
 filesystem execution capability.
 """
 
+import math
 from collections.abc import Mapping
 from typing import cast
 from uuid import UUID
@@ -22,7 +23,7 @@ from eea_core.enums import (
     RequirementValueType,
 )
 from eea_core.errors import EngineeringError
-from eea_core.repositories import RequirementProfileRepository
+from eea_core.repositories import EvidenceRepository, PromptRepository, RequirementProfileRepository
 from eea_core.requirements import (
     FollowUpQuestion,
     Requirement,
@@ -30,6 +31,7 @@ from eea_core.requirements import (
     RequirementAnalysisDraft,
     RequirementClaimDraft,
     RequirementCompleteness,
+    RequirementDraft,
     RequirementEvidenceContract,
     RequirementFieldObservation,
     RequirementFieldSpec,
@@ -77,9 +79,11 @@ class RequirementAnalysisService:
         self,
         profile_registry: RequirementProfileRegistry,
         structured_generation: StructuredGenerationService | None = None,
+        evidence_repository: EvidenceRepository | None = None,
     ) -> None:
         self._profiles = profile_registry
         self._structured_generation = structured_generation
+        self._evidence_repository = evidence_repository
 
     async def analyze_natural_language(
         self,
@@ -92,16 +96,16 @@ class RequirementAnalysisService:
     ) -> RequirementAnalysis:
         """Use M2 structured generation, then run the deterministic gate."""
 
-        if self._structured_generation is None:
-            raise EngineeringError(
-                EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
-                "Structured requirement generation is not configured",
-            )
-        profile = self._profiles.require(profile_name, profile_version)
         if not source_text.strip():
             raise EngineeringError(
                 EngineeringErrorCode.INVALID_REQUIREMENT,
                 "Natural-language requirement input cannot be empty",
+            )
+        profile = self._profiles.require(profile_name, profile_version)
+        if self._structured_generation is None:
+            raise EngineeringError(
+                EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+                "Structured requirement generation is not configured",
             )
         resolved_evidence = evidence_refs or {}
         draft = await self._structured_generation.generate(
@@ -131,7 +135,7 @@ class RequirementAnalysisService:
         profile_version: str,
         values: Mapping[str, object],
         evidence_refs: Mapping[str, UUID] | None = None,
-        requirements: list[Requirement] | None = None,
+        requirements: list[RequirementDraft] | None = None,
     ) -> RequirementAnalysis:
         """Analyze deterministic profile input without invoking an AI provider."""
 
@@ -206,7 +210,13 @@ class RequirementAnalysisService:
 
         specs = {field.key: field for field in profile.fields}
         observations = self._validate_observations(draft.field_observations, specs)
-        evidence_ids_by_ref = dict(evidence_refs)
+        evidence_ids_by_ref = self._validate_evidence_references(
+            project_id=project_id,
+            profile=profile,
+            observations=observations,
+            draft=draft,
+            evidence_refs=evidence_refs,
+        )
         claims = self._build_claims(
             project_id=project_id,
             observations=observations,
@@ -230,7 +240,12 @@ class RequirementAnalysisService:
             for item in draft.issues
         ]
         requirements = [
-            self._normalize_requirement(item, project_id, completeness.status)
+            self._build_requirement(
+                item,
+                project_id=project_id,
+                status=completeness.status,
+                evidence_ids_by_ref=evidence_ids_by_ref,
+            )
             for item in draft.requirements
         ]
         return RequirementAnalysis(
@@ -282,11 +297,20 @@ class RequirementAnalysisService:
             )
         value_type = spec.value_type
         valid = (
-            (value_type is RequirementValueType.TEXT and isinstance(value, str))
+            (
+                value_type is RequirementValueType.TEXT
+                and isinstance(value, str)
+                and bool(value.strip())
+                and (spec.text_min_length is None or len(value.strip()) >= spec.text_min_length)
+            )
             or (
                 value_type is RequirementValueType.NUMBER
                 and isinstance(value, (int, float))
                 and not isinstance(value, bool)
+                and math.isfinite(float(value))
+                and (spec.number_minimum is None or value >= spec.number_minimum)
+                and (spec.number_maximum is None or value <= spec.number_maximum)
+                and (not spec.integer_only or float(value).is_integer())
             )
             or (value_type is RequirementValueType.BOOLEAN and isinstance(value, bool))
             or (
@@ -295,7 +319,11 @@ class RequirementAnalysisService:
                 and value in spec.allowed_values
             )
             or (value_type is RequirementValueType.OBJECT and isinstance(value, dict))
-            or (value_type is RequirementValueType.LIST and isinstance(value, list))
+            or (
+                value_type is RequirementValueType.LIST
+                and isinstance(value, list)
+                and (spec.list_min_items is None or len(value) >= spec.list_min_items)
+            )
         )
         if value_type is RequirementValueType.ENGINEERING_VALUE:
             try:
@@ -342,7 +370,7 @@ class RequirementAnalysisService:
                     predicate=spec.claim_predicate,
                     value=cast(JsonValue, value),
                     evidence_ids=self._resolve_evidence_refs(
-                        observation.evidence_refs, evidence_ids_by_ref
+                        observation.evidence_refs, evidence_ids_by_ref, project_id=project_id
                     ),
                     confidence=observation.confidence,
                     source_priority=0,
@@ -357,7 +385,7 @@ class RequirementAnalysisService:
                     value=cast(JsonValue, draft.value),
                     applicability=draft.applicability,
                     evidence_ids=self._resolve_evidence_refs(
-                        draft.evidence_refs, evidence_ids_by_ref
+                        draft.evidence_refs, evidence_ids_by_ref, project_id=project_id
                     ),
                     confidence=draft.confidence,
                     source_priority=draft.source_priority,
@@ -498,8 +526,8 @@ class RequirementAnalysisService:
         )
         return completeness, issues, questions
 
-    @staticmethod
     def _issue_from_draft(
+        self,
         *,
         project_id: UUID,
         item: RequirementIssueDraft,
@@ -514,27 +542,136 @@ class RequirementAnalysisService:
             severity=item.severity,
             status=IssueStatus.OPEN,
             claim_ids=claim_ids,
-            evidence_ids=RequirementAnalysisService._resolve_evidence_refs(
-                item.evidence_refs, evidence_ids_by_ref
+            evidence_ids=self._resolve_evidence_refs(
+                item.evidence_refs, evidence_ids_by_ref, project_id=project_id
             ),
         )
 
-    @staticmethod
-    def _normalize_requirement(
-        requirement: Requirement,
+    def _build_requirement(
+        self,
+        draft: RequirementDraft,
+        *,
         project_id: UUID,
         status: RequirementStatus,
+        evidence_ids_by_ref: Mapping[str, UUID],
     ) -> Requirement:
-        if requirement.project_id != project_id:
-            raise EngineeringError(
-                EngineeringErrorCode.VALIDATION_ERROR,
-                "Requirement output belongs to a different project",
-            )
-        return requirement.model_copy(update={"status": status})
+        return Requirement(
+            project_id=project_id,
+            code=draft.code,
+            title=draft.title,
+            requirement_type=draft.requirement_type,
+            priority=draft.priority,
+            statement=draft.statement,
+            rationale=draft.rationale,
+            acceptance_criteria=draft.acceptance_criteria,
+            source_evidence_ids=self._resolve_evidence_refs(
+                draft.source_evidence_refs, evidence_ids_by_ref, project_id=project_id
+            ),
+            status=status,
+        )
 
-    @staticmethod
+    def _validate_evidence_references(
+        self,
+        *,
+        project_id: UUID,
+        profile: RequirementProfile,
+        observations: list[RequirementFieldObservation],
+        draft: RequirementAnalysisDraft,
+        evidence_refs: Mapping[str, UUID],
+    ) -> dict[str, UUID]:
+        if self._evidence_repository is None and (
+            evidence_refs
+            or any(field.evidence_required for field in profile.fields)
+            or any(contract.required for contract in profile.evidence_contracts)
+        ):
+            raise EngineeringError(
+                EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+                "Evidence validation is not configured for this requirement profile",
+            )
+        contracts = {item.key: item for item in profile.evidence_contracts}
+        specs = {item.key: item for item in profile.fields}
+        evidence_ids_by_ref = dict(evidence_refs)
+        for ref, evidence_id in evidence_refs.items():
+            contract = contracts.get(ref)
+            self._resolve_evidence_id(
+                evidence_id,
+                project_id=project_id,
+                evidence_ref=ref,
+                allowed_types=contract.allowed_types if contract else [],
+            )
+        for observation in observations:
+            self._resolve_evidence_refs(
+                observation.evidence_refs,
+                evidence_ids_by_ref,
+                project_id=project_id,
+                allowed_types=specs[observation.field_key].allowed_evidence_types,
+            )
+        for claim in draft.claims:
+            self._resolve_evidence_refs(
+                claim.evidence_refs, evidence_ids_by_ref, project_id=project_id
+            )
+        for issue in draft.issues:
+            self._resolve_evidence_refs(
+                issue.evidence_refs, evidence_ids_by_ref, project_id=project_id
+            )
+        for requirement in draft.requirements:
+            self._resolve_evidence_refs(
+                requirement.source_evidence_refs,
+                evidence_ids_by_ref,
+                project_id=project_id,
+            )
+        return evidence_ids_by_ref
+
+    def _resolve_evidence_id(
+        self,
+        evidence_id: UUID,
+        *,
+        project_id: UUID,
+        evidence_ref: str,
+        allowed_types: list[EvidenceType] | None = None,
+    ) -> UUID:
+        if self._evidence_repository is None:
+            raise EngineeringError(
+                EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+                "Evidence validation is not configured",
+            )
+        evidence = self._evidence_repository.get(evidence_id)
+        if evidence is None:
+            raise EngineeringError(
+                EngineeringErrorCode.INVALID_REQUIREMENT,
+                "Requirement analysis referenced unknown evidence",
+                details={"evidence_ref": evidence_ref, "evidence_id": str(evidence_id)},
+            )
+        if evidence.project_id is not None and evidence.project_id != project_id:
+            raise EngineeringError(
+                EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+                "Evidence belongs to a different project",
+                details={
+                    "evidence_ref": evidence_ref,
+                    "evidence_id": str(evidence_id),
+                    "project_id": str(project_id),
+                },
+            )
+        if allowed_types and evidence.evidence_type not in allowed_types:
+            raise EngineeringError(
+                EngineeringErrorCode.INVALID_REQUIREMENT,
+                "Evidence type does not match its requirement contract",
+                details={
+                    "evidence_ref": evidence_ref,
+                    "evidence_contract": evidence_ref,
+                    "actual_type": evidence.evidence_type.value,
+                    "allowed_types": [item.value for item in allowed_types],
+                },
+            )
+        return evidence_id
+
     def _resolve_evidence_refs(
-        refs: list[str], evidence_ids_by_ref: Mapping[str, UUID]
+        self,
+        refs: list[str],
+        evidence_ids_by_ref: Mapping[str, UUID],
+        *,
+        project_id: UUID,
+        allowed_types: list[EvidenceType] | None = None,
     ) -> list[UUID]:
         resolved: list[UUID] = []
         for ref in refs:
@@ -548,6 +685,12 @@ class RequirementAnalysisService:
                         "Requirement analysis referenced unknown evidence",
                         details={"evidence_ref": ref},
                     ) from None
+            self._resolve_evidence_id(
+                evidence_id,
+                project_id=project_id,
+                evidence_ref=ref,
+                allowed_types=allowed_types,
+            )
             if evidence_id not in resolved:
                 resolved.append(evidence_id)
         return resolved
@@ -584,6 +727,35 @@ def build_requirement_analysis_prompt_definition() -> object:
     )
 
 
+def ensure_requirement_prompt_registered(repository: PromptRepository) -> object:
+    """Seed the durable prompt contract once and reject version drift."""
+
+    expected = build_requirement_analysis_prompt_definition()
+    existing = repository.get(REQUIREMENT_ANALYSIS_PROMPT_NAME, REQUIREMENT_ANALYSIS_PROMPT_VERSION)
+    if existing is None:
+        try:
+            return repository.add(expected)  # type: ignore[arg-type]
+        except ValueError:
+            existing = repository.get(
+                REQUIREMENT_ANALYSIS_PROMPT_NAME, REQUIREMENT_ANALYSIS_PROMPT_VERSION
+            )
+            if existing is None:
+                raise
+    comparable = {"id", "revision", "created_at", "updated_at", "metadata"}
+    if existing.model_dump(mode="json", exclude=comparable) != expected.model_dump(  # type: ignore[attr-defined]
+        mode="json", exclude=comparable
+    ):
+        raise EngineeringError(
+            EngineeringErrorCode.SCHEMA_VERSION_UNSUPPORTED,
+            "Durable requirement prompt contract does not match the application contract",
+            details={
+                "prompt_name": REQUIREMENT_ANALYSIS_PROMPT_NAME,
+                "prompt_version": REQUIREMENT_ANALYSIS_PROMPT_VERSION,
+            },
+        )
+    return existing
+
+
 __all__ = [
     "REQUIREMENT_ANALYSIS_PROMPT_NAME",
     "REQUIREMENT_ANALYSIS_PROMPT_VERSION",
@@ -591,6 +763,7 @@ __all__ = [
     "RequirementProfileRegistry",
     "build_foc_benchmark_profile",
     "build_requirement_analysis_prompt_definition",
+    "ensure_requirement_prompt_registered",
 ]
 
 
@@ -616,6 +789,7 @@ def build_foc_benchmark_profile() -> RequirementProfile:
                 value_type=RequirementValueType.TEXT,
                 required=True,
                 claim_predicate="target.device",
+                text_min_length=1,
             ),
             RequirementFieldSpec(
                 key="target.package",
@@ -623,6 +797,7 @@ def build_foc_benchmark_profile() -> RequirementProfile:
                 value_type=RequirementValueType.TEXT,
                 required=True,
                 claim_predicate="target.package",
+                text_min_length=1,
             ),
             RequirementFieldSpec(
                 key="power.bus_voltage",
@@ -632,6 +807,7 @@ def build_foc_benchmark_profile() -> RequirementProfile:
                 required=True,
                 evidence_required=True,
                 claim_predicate="power.bus-voltage",
+                allowed_evidence_types=[EvidenceType.DOCUMENT, EvidenceType.USER_CONFIRMATION],
             ),
             RequirementFieldSpec(
                 key="power.phase_current",
@@ -641,6 +817,7 @@ def build_foc_benchmark_profile() -> RequirementProfile:
                 required=True,
                 evidence_required=True,
                 claim_predicate="power.phase-current",
+                allowed_evidence_types=[EvidenceType.DOCUMENT, EvidenceType.USER_CONFIRMATION],
             ),
             RequirementFieldSpec(
                 key="control.loop_frequency",
@@ -650,6 +827,7 @@ def build_foc_benchmark_profile() -> RequirementProfile:
                 required=True,
                 evidence_required=True,
                 claim_predicate="control.loop-frequency",
+                allowed_evidence_types=[EvidenceType.DOCUMENT, EvidenceType.USER_CONFIRMATION],
             ),
             RequirementFieldSpec(
                 key="feedback.position_interface",
@@ -665,6 +843,9 @@ def build_foc_benchmark_profile() -> RequirementProfile:
                 value_type=RequirementValueType.NUMBER,
                 required=True,
                 claim_predicate="pwm.phase-count",
+                number_minimum=3,
+                number_maximum=3,
+                integer_only=True,
             ),
             RequirementFieldSpec(
                 key="pwm.complementary",
@@ -681,6 +862,7 @@ def build_foc_benchmark_profile() -> RequirementProfile:
                 required=True,
                 evidence_required=True,
                 claim_predicate="pwm.deadtime",
+                allowed_evidence_types=[EvidenceType.DOCUMENT, EvidenceType.USER_CONFIRMATION],
             ),
             RequirementFieldSpec(
                 key="current_sense.method",
@@ -698,6 +880,7 @@ def build_foc_benchmark_profile() -> RequirementProfile:
                 required=True,
                 evidence_required=True,
                 claim_predicate="current-sense.range",
+                allowed_evidence_types=[EvidenceType.DOCUMENT, EvidenceType.USER_CONFIRMATION],
             ),
             RequirementFieldSpec(
                 key="communication.protocol",
@@ -714,6 +897,7 @@ def build_foc_benchmark_profile() -> RequirementProfile:
                 required=True,
                 evidence_required=True,
                 claim_predicate="safety.emergency-disable",
+                allowed_evidence_types=[EvidenceType.DOCUMENT, EvidenceType.USER_CONFIRMATION],
             ),
         ],
         evidence_contracts=[

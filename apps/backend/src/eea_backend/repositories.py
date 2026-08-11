@@ -5,14 +5,72 @@ from typing import Any, cast
 from uuid import UUID
 
 from eea_core.ai import AIUsage, AIUsageRecord, PromptDefinition
-from eea_core.entities import Project
+from eea_core.entities import Evidence, Project
 from eea_core.enums import EngineeringErrorCode, ProjectStatus
 from sqlalchemy import desc, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from eea_backend.models import AIUsageRecordModel, ProjectRecord, PromptDefinitionRecord
+from eea_backend.models import (
+    AIUsageRecordModel,
+    EvidenceRecord,
+    ProjectRecord,
+    PromptDefinitionRecord,
+)
+
+
+def _to_evidence(record: EvidenceRecord) -> Evidence:
+    return Evidence.model_validate(
+        {
+            "id": record.id,
+            "schema_version": record.schema_version,
+            "revision": record.revision,
+            "created_at": record.created_at,
+            "updated_at": record.updated_at,
+            "metadata": record.entity_metadata,
+            "project_id": record.project_id,
+            "evidence_type": record.evidence_type,
+            "locator": record.locator,
+            "source_uri": record.source_uri,
+            "content_hash": record.content_hash,
+            "summary": record.summary,
+        }
+    )
+
+
+class SqlAlchemyEvidenceRepository:
+    """Evidence lookup with canonical project-scope semantics."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, evidence: Evidence, *, commit: bool = True) -> Evidence:
+        record = EvidenceRecord(
+            id=str(evidence.id),
+            schema_version=evidence.schema_version,
+            revision=evidence.revision,
+            created_at=evidence.created_at,
+            updated_at=evidence.updated_at,
+            entity_metadata=evidence.metadata,
+            project_id=str(evidence.project_id) if evidence.project_id else None,
+            evidence_type=evidence.evidence_type.value,
+            locator=evidence.locator,
+            source_uri=evidence.source_uri,
+            content_hash=evidence.content_hash,
+            summary=evidence.summary,
+        )
+        self._session.add(record)
+        if commit:
+            self._session.commit()
+            self._session.refresh(record)
+        else:
+            self._session.flush()
+        return _to_evidence(record)
+
+    def get(self, evidence_id: UUID) -> Evidence | None:
+        record = self._session.get(EvidenceRecord, str(evidence_id))
+        return _to_evidence(record) if record else None
 
 
 def _to_project(record: ProjectRecord) -> Project:

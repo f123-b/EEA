@@ -2,7 +2,7 @@
 
 import os
 from dataclasses import dataclass
-from pathlib import Path, PurePath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -23,12 +23,15 @@ class SafePath:
         raw = os.fspath(relative)
         if not raw or "\x00" in raw:
             raise ValueError("path must be a non-empty, NUL-free relative path")
-        candidate_path = Path(raw)
-        pure = PurePath(raw)
-        if candidate_path.is_absolute() or candidate_path.drive or raw.startswith(("\\\\", "//")):
+        # Validate both path grammars before using the host's Path implementation.
+        # This keeps Windows drive/UNC inputs blocked when tests or services run on Linux.
+        posix = PurePosixPath(raw.replace("\\", "/"))
+        windows = PureWindowsPath(raw.replace("/", "\\"))
+        if posix.is_absolute() or windows.is_absolute() or windows.root or windows.drive:
             raise ValueError("absolute, UNC, and drive-qualified paths are not allowed")
-        if any(part == ".." for part in pure.parts):
+        if any(part == ".." for part in posix.parts) or any(part == ".." for part in windows.parts):
             raise ValueError("parent traversal is not allowed")
+        candidate_path = Path(raw.replace("\\", os.sep))
         candidate = (self._root / candidate_path).resolve(strict=False)
         try:
             candidate.relative_to(self._root)

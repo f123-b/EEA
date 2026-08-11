@@ -178,6 +178,16 @@ class RequirementStructuredAnalysisRequest(BaseModel):
     evidence_refs: dict[str, UUID] = Field(default_factory=dict)
 
 
+class RequirementNaturalLanguageAnalysisRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID
+    profile_name: str = Field(min_length=1, max_length=120)
+    profile_version: str = Field(min_length=1, max_length=50)
+    source_text: str = Field(min_length=1, max_length=100_000)
+    evidence_refs: dict[str, UUID] = Field(default_factory=dict)
+
+
 class RequirementCompletenessData(BaseModel):
     status: RequirementStatus
     score: float
@@ -203,6 +213,8 @@ class RequirementAnalysisData(BaseModel):
     issues: list[dict[str, object]]
     follow_up_questions: list[dict[str, object]]
     completeness: RequirementCompletenessData
+    requirement_ids: list[UUID]
+    claim_ids: list[UUID]
 
 
 class SchemaData(BaseModel):

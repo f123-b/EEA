@@ -311,6 +311,8 @@ class RequirementAnalysisRecord(CoreRecordMixin, Base):
     issues: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
     follow_up_questions: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
     completeness: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
 
 
 class PromptDefinitionRecord(CoreRecordMixin, Base):

@@ -36,6 +36,12 @@ class RequirementFieldSpec(BaseModel):
     claim_predicate: str | None = Field(default=None, max_length=200)
     engineering_dimension: EngineeringDimension | None = None
     allowed_values: list[str] = Field(default_factory=list)
+    text_min_length: int | None = Field(default=None, ge=1)
+    number_minimum: float | None = None
+    number_maximum: float | None = None
+    integer_only: bool = False
+    list_min_items: int | None = Field(default=None, ge=1)
+    allowed_evidence_types: list[EvidenceType] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_value_contract(self) -> "RequirementFieldSpec":
@@ -48,6 +54,20 @@ class RequirementFieldSpec(BaseModel):
             raise ValueError("enum fields require at least one allowed value")
         if len(set(self.allowed_values)) != len(self.allowed_values):
             raise ValueError("allowed_values must not contain duplicates")
+        if self.text_min_length is not None and self.value_type is not RequirementValueType.TEXT:
+            raise ValueError("text_min_length is only valid for text fields")
+        if (
+            self.number_minimum is not None or self.number_maximum is not None or self.integer_only
+        ) and self.value_type is not RequirementValueType.NUMBER:
+            raise ValueError("number constraints are only valid for number fields")
+        if (
+            self.number_minimum is not None
+            and self.number_maximum is not None
+            and self.number_minimum > self.number_maximum
+        ):
+            raise ValueError("number_minimum must not exceed number_maximum")
+        if self.list_min_items is not None and self.value_type is not RequirementValueType.LIST:
+            raise ValueError("list_min_items is only valid for list fields")
         return self
 
 
@@ -96,6 +116,28 @@ class Requirement(EntityBase):
     acceptance_criteria: list[str] = Field(default_factory=list, max_length=50)
     source_evidence_ids: list[UUID] = Field(default_factory=list)
     status: RequirementStatus = RequirementStatus.CANDIDATE
+
+
+class RequirementDraft(BaseModel):
+    """Provider-owned requirement content without server-owned identity fields."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    code: str = Field(min_length=1, max_length=120, pattern=r"^[A-Z][A-Z0-9_.-]*$")
+    title: str = Field(min_length=1, max_length=300)
+    requirement_type: RequirementType = RequirementType.UNKNOWN
+    priority: RequirementPriority = RequirementPriority.UNKNOWN
+    statement: str = Field(min_length=1, max_length=8000)
+    rationale: str = Field(default="", max_length=8000)
+    acceptance_criteria: list[str] = Field(default_factory=list, max_length=50)
+    source_evidence_refs: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def reject_blank_content(self) -> "RequirementDraft":
+        for field_name in ("code", "title", "statement"):
+            if not getattr(self, field_name).strip():
+                raise ValueError(f"{field_name} cannot be empty or whitespace")
+        return self
 
 
 class RequirementFieldObservation(BaseModel):
@@ -158,7 +200,7 @@ class RequirementAnalysisDraft(BaseModel):
 
     profile_name: str = Field(min_length=1, max_length=120)
     profile_version: str = Field(min_length=1, max_length=50)
-    requirements: list[Requirement] = Field(default_factory=list)
+    requirements: list[RequirementDraft] = Field(default_factory=list)
     field_observations: list[RequirementFieldObservation] = Field(default_factory=list)
     claims: list[RequirementClaimDraft] = Field(default_factory=list)
     issues: list[RequirementIssueDraft] = Field(default_factory=list)
@@ -179,7 +221,12 @@ class RequirementCompleteness(BaseModel):
 
 
 class RequirementAnalysis(EntityBase):
-    """Auditable result of deterministic or structured requirement analysis."""
+    """Auditable result of deterministic or structured requirement analysis.
+
+    ``requirements`` and ``claims`` are immutable snapshots for this analysis.
+    ``requirement_ids`` and ``claim_ids`` are canonical persistence references;
+    M7+ consumers must use those references as the source of truth.
+    """
 
     project_id: UUID
     profile_name: str = Field(min_length=1, max_length=120)
@@ -190,3 +237,5 @@ class RequirementAnalysis(EntityBase):
     issues: list[Issue] = Field(default_factory=list)
     follow_up_questions: list[FollowUpQuestion] = Field(default_factory=list)
     completeness: RequirementCompleteness
+    requirement_ids: list[UUID] = Field(default_factory=list)
+    claim_ids: list[UUID] = Field(default_factory=list)

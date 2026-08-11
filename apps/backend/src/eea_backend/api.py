@@ -8,12 +8,12 @@ from typing import Annotated
 from uuid import UUID
 
 from eea_adapters.devices import Stm32G431FixtureProvider
+from eea_application.ai import PromptRegistry, StructuredGenerationService
 from eea_application.intelligence import DocumentService, MultiSourceDeviceProvider
 from eea_application.projects import ProjectService
 from eea_application.requirements import (
     RequirementAnalysisService,
     RequirementProfileRegistry,
-    build_foc_benchmark_profile,
 )
 from eea_core.entities import Project
 from eea_core.enums import (
@@ -51,10 +51,15 @@ from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.orm import Session
 
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
-from eea_backend.repositories import SqlAlchemyProjectRepository
+from eea_backend.repositories import (
+    SqlAlchemyAIUsageRepository,
+    SqlAlchemyEvidenceRepository,
+    SqlAlchemyProjectRepository,
+    SqlAlchemyPromptRepository,
+)
 from eea_backend.requirement_repositories import (
-    SqlAlchemyRequirementAnalysisRepository,
     SqlAlchemyRequirementProfileRepository,
+    persist_requirement_analysis_bundle,
 )
 from eea_backend.schemas import (
     ApiEnvelope,
@@ -70,6 +75,7 @@ from eea_backend.schemas import (
     ProjectListData,
     ProjectUpdate,
     RequirementAnalysisData,
+    RequirementNaturalLanguageAnalysisRequest,
     RequirementProfileData,
     RequirementStructuredAnalysisRequest,
     SchemaData,
@@ -113,17 +119,6 @@ def _device_data(device: Device) -> DeviceData:
 
 def _requirement_profile_repository(session: Session) -> SqlAlchemyRequirementProfileRepository:
     return SqlAlchemyRequirementProfileRepository(session)
-
-
-def _ensure_builtin_profile(
-    repository: SqlAlchemyRequirementProfileRepository,
-    profile_name: str,
-    profile_version: str,
-) -> RequirementProfile | None:
-    profile = repository.get(profile_name, profile_version)
-    if profile is None and (profile_name, profile_version) == ("foc-benchmark", "1.0"):
-        profile = repository.add(build_foc_benchmark_profile())
-    return profile
 
 
 def _requirement_profile_data(profile: RequirementProfile) -> RequirementProfileData:
@@ -243,9 +238,7 @@ def get_requirement_profile(
     request: Request,
     session: SessionDependency,
 ) -> ApiEnvelope[RequirementProfileData]:
-    profile = _ensure_builtin_profile(
-        _requirement_profile_repository(session), profile_name, profile_version
-    )
+    profile = _requirement_profile_repository(session).get(profile_name, profile_version)
     if profile is None:
         raise EngineeringError(
             EngineeringErrorCode.SCHEMA_VERSION_UNSUPPORTED,
@@ -268,9 +261,9 @@ def analyze_structured_requirements(
 ) -> ApiEnvelope[RequirementAnalysisData]:
     _service(session).get(payload.project_id)
     repository = _requirement_profile_repository(session)
-    _ensure_builtin_profile(repository, payload.profile_name, payload.profile_version)
     analysis = RequirementAnalysisService(
-        RequirementProfileRegistry(repository)
+        RequirementProfileRegistry(repository),
+        evidence_repository=SqlAlchemyEvidenceRepository(session),
     ).analyze_structured(
         project_id=payload.project_id,
         profile_name=payload.profile_name,
@@ -278,7 +271,46 @@ def analyze_structured_requirements(
         values=payload.values,
         evidence_refs=payload.evidence_refs,
     )
-    saved = SqlAlchemyRequirementAnalysisRepository(session).add(analysis)
+    saved = persist_requirement_analysis_bundle(session, analysis)
+    return ApiEnvelope(
+        data=RequirementAnalysisData.model_validate(saved.model_dump(mode="json")),
+        request_id=_request_id(request),
+    )
+
+
+@router.post(
+    "/requirements/analyze/natural-language",
+    response_model=ApiEnvelope[RequirementAnalysisData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["requirements"],
+)
+async def analyze_natural_language_requirements(
+    payload: RequirementNaturalLanguageAnalysisRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[RequirementAnalysisData]:
+    _service(session).get(payload.project_id)
+    repository = _requirement_profile_repository(session)
+    provider = getattr(request.app.state, "ai_provider", None)
+    generation = None
+    if provider is not None:
+        generation = StructuredGenerationService(
+            provider,
+            PromptRegistry(SqlAlchemyPromptRepository(session)),
+            SqlAlchemyAIUsageRepository(session),
+        )
+    analysis = await RequirementAnalysisService(
+        RequirementProfileRegistry(repository),
+        structured_generation=generation,
+        evidence_repository=SqlAlchemyEvidenceRepository(session),
+    ).analyze_natural_language(
+        project_id=payload.project_id,
+        profile_name=payload.profile_name,
+        profile_version=payload.profile_version,
+        source_text=payload.source_text,
+        evidence_refs=payload.evidence_refs,
+    )
+    saved = persist_requirement_analysis_bundle(session, analysis)
     return ApiEnvelope(
         data=RequirementAnalysisData.model_validate(saved.model_dump(mode="json")),
         request_id=_request_id(request),

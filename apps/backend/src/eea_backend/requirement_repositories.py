@@ -112,7 +112,7 @@ class SqlAlchemyRequirementRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def add(self, requirement: Requirement) -> Requirement:
+    def add(self, requirement: Requirement, *, commit: bool = True) -> Requirement:
         record = RequirementRecord(
             id=str(requirement.id),
             schema_version=requirement.schema_version,
@@ -132,8 +132,11 @@ class SqlAlchemyRequirementRepository:
             status=requirement.status.value,
         )
         self._session.add(record)
-        self._session.commit()
-        self._session.refresh(record)
+        if commit:
+            self._session.commit()
+            self._session.refresh(record)
+        else:
+            self._session.flush()
         return _to_requirement(record)
 
     def list_for_project(self, project_id: UUID) -> list[Requirement]:
@@ -158,6 +161,8 @@ def _to_analysis(record: RequirementAnalysisRecord) -> RequirementAnalysis:
             "issues": record.issues,
             "follow_up_questions": record.follow_up_questions,
             "completeness": record.completeness,
+            "requirement_ids": record.requirement_ids,
+            "claim_ids": record.claim_ids,
         }
     )
 
@@ -166,7 +171,7 @@ class SqlAlchemyRequirementAnalysisRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def add(self, analysis: RequirementAnalysis) -> RequirementAnalysis:
+    def add(self, analysis: RequirementAnalysis, *, commit: bool = True) -> RequirementAnalysis:
         serialized = analysis.model_dump(mode="json")
         record = RequirementAnalysisRecord(
             id=str(analysis.id),
@@ -184,12 +189,46 @@ class SqlAlchemyRequirementAnalysisRepository:
             issues=cast(list[dict[str, Any]], serialized["issues"]),
             follow_up_questions=cast(list[dict[str, Any]], serialized["follow_up_questions"]),
             completeness=cast(dict[str, Any], serialized["completeness"]),
+            requirement_ids=[str(value) for value in analysis.requirement_ids],
+            claim_ids=[str(value) for value in analysis.claim_ids],
         )
         self._session.add(record)
-        self._session.commit()
-        self._session.refresh(record)
+        if commit:
+            self._session.commit()
+            self._session.refresh(record)
+        else:
+            self._session.flush()
         return _to_analysis(record)
 
     def get(self, analysis_id: UUID) -> RequirementAnalysis | None:
         record = self._session.get(RequirementAnalysisRecord, str(analysis_id))
         return _to_analysis(record) if record else None
+
+
+def persist_requirement_analysis_bundle(
+    session: Session, analysis: RequirementAnalysis
+) -> RequirementAnalysis:
+    """Persist the canonical requirements, claims, and analysis atomically."""
+
+    from eea_backend.claim_repositories import SqlAlchemyEngineeringClaimRepository
+
+    requirements = SqlAlchemyRequirementRepository(session)
+    claims = SqlAlchemyEngineeringClaimRepository(session)
+    analyses = SqlAlchemyRequirementAnalysisRepository(session)
+    try:
+        saved_requirements = [
+            requirements.add(value, commit=False) for value in analysis.requirements
+        ]
+        saved_claims = [claims.add(value, commit=False) for value in analysis.claims]
+        canonical = analysis.model_copy(
+            update={
+                "requirement_ids": [item.id for item in saved_requirements],
+                "claim_ids": [item.id for item in saved_claims],
+            }
+        )
+        analyses.add(canonical, commit=False)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return canonical

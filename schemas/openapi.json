@@ -1381,6 +1381,14 @@
       },
       "RequirementAnalysisData": {
         "properties": {
+          "claim_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Claim Ids",
+            "type": "array"
+          },
           "claims": {
             "items": {
               "additionalProperties": true,
@@ -1444,6 +1452,14 @@
             "title": "Project Id",
             "type": "string"
           },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
           "requirements": {
             "items": {
               "additionalProperties": true,
@@ -1481,7 +1497,9 @@
           "claims",
           "issues",
           "follow_up_questions",
-          "completeness"
+          "completeness",
+          "requirement_ids",
+          "claim_ids"
         ],
         "title": "RequirementAnalysisData",
         "type": "object"
@@ -1544,6 +1562,50 @@
         ],
         "title": "RequirementFieldStatus",
         "type": "string"
+      },
+      "RequirementNaturalLanguageAnalysisRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_refs": {
+            "additionalProperties": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "object"
+          },
+          "profile_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Profile Name",
+            "type": "string"
+          },
+          "profile_version": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Profile Version",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "source_text": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Source Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "profile_name",
+          "profile_version",
+          "source_text"
+        ],
+        "title": "RequirementNaturalLanguageAnalysisRequest",
+        "type": "object"
       },
       "RequirementPriority": {
         "enum": [
@@ -2516,6 +2578,52 @@
           }
         ],
         "summary": "Get Requirement Profile",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/analyze/natural-language": {
+      "post": {
+        "operationId": "analyze_natural_language_requirements_api_v1_requirements_analyze_natural_language_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementNaturalLanguageAnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_RequirementAnalysisData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Analyze Natural Language Requirements",
         "tags": [
           "requirements"
         ]
