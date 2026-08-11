@@ -18,12 +18,14 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     table_names = set(inspect(engine).get_table_names())
     assert {
+        "ai_usage_records",
         "artifacts",
         "engineering_decisions",
         "evidence",
         "issues",
         "jobs",
         "permissions_audit",
+        "prompt_definitions",
         "projects",
         "schema_registry",
         "system_metadata",

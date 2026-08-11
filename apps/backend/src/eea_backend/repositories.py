@@ -1,15 +1,18 @@
 """SQLAlchemy repository adapters."""
 
+from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
+from eea_core.ai import AIUsage, AIUsageRecord, PromptDefinition
 from eea_core.entities import Project
-from eea_core.enums import ProjectStatus
-from sqlalchemy import select, update
+from eea_core.enums import EngineeringErrorCode, ProjectStatus
+from sqlalchemy import desc, select, update
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from eea_backend.models import ProjectRecord
+from eea_backend.models import AIUsageRecordModel, ProjectRecord, PromptDefinitionRecord
 
 
 def _to_project(record: ProjectRecord) -> Project:
@@ -86,3 +89,153 @@ class SqlAlchemyProjectRepository:
             return None
         self._session.commit()
         return self.get(project.id, include_deleted=True)
+
+
+def _to_prompt_definition(record: PromptDefinitionRecord) -> PromptDefinition:
+    return PromptDefinition.model_validate(
+        {
+            "id": record.id,
+            "schema_version": record.schema_version,
+            "revision": record.revision,
+            "created_at": record.created_at,
+            "updated_at": record.updated_at,
+            "metadata": record.entity_metadata,
+            "name": record.name,
+            "prompt_version": record.prompt_version,
+            "purpose": record.purpose,
+            "system_template": record.system_template,
+            "user_template": record.user_template,
+            "model_policy": record.model_policy,
+            "allowed_tools": record.allowed_tools,
+            "input_schema": record.input_schema,
+            "output_schema": record.output_schema,
+            "evidence_requirements": record.evidence_requirements,
+            "fallback": record.fallback,
+            "max_steps": record.max_steps,
+            "budget_policy": record.budget_policy,
+            "active": record.active,
+        }
+    )
+
+
+class SqlAlchemyPromptRepository:
+    """Durable versioned prompt registry."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, definition: PromptDefinition) -> PromptDefinition:
+        serialized = definition.model_dump(mode="json")
+        record = PromptDefinitionRecord(
+            id=str(definition.id),
+            schema_version=definition.schema_version,
+            revision=definition.revision,
+            created_at=definition.created_at,
+            updated_at=definition.updated_at,
+            entity_metadata=definition.metadata,
+            name=definition.name,
+            prompt_version=definition.prompt_version,
+            purpose=definition.purpose,
+            system_template=definition.system_template,
+            user_template=definition.user_template,
+            model_policy=cast(dict[str, Any], serialized["model_policy"]),
+            allowed_tools=definition.allowed_tools,
+            input_schema=definition.input_schema,
+            output_schema=definition.output_schema,
+            evidence_requirements=definition.evidence_requirements,
+            fallback=definition.fallback,
+            max_steps=definition.max_steps,
+            budget_policy=cast(dict[str, Any], serialized["budget_policy"]),
+            active=definition.active,
+        )
+        self._session.add(record)
+        try:
+            self._session.commit()
+        except IntegrityError:
+            self._session.rollback()
+            raise ValueError(
+                "Prompt version is already registered: "
+                f"{definition.name}@{definition.prompt_version}"
+            ) from None
+        self._session.refresh(record)
+        return _to_prompt_definition(record)
+
+    def get(self, name: str, version: str | None = None) -> PromptDefinition | None:
+        statement = select(PromptDefinitionRecord).where(PromptDefinitionRecord.name == name)
+        if version is not None:
+            statement = statement.where(PromptDefinitionRecord.prompt_version == version)
+        else:
+            statement = statement.where(PromptDefinitionRecord.active.is_(True)).order_by(
+                desc(PromptDefinitionRecord.created_at),
+                desc(PromptDefinitionRecord.prompt_version),
+            )
+        record = self._session.scalar(statement.limit(1))
+        return _to_prompt_definition(record) if record else None
+
+
+def _to_usage_record(record: AIUsageRecordModel) -> AIUsageRecord:
+    return AIUsageRecord(
+        id=UUID(record.id),
+        schema_version=record.schema_version,
+        revision=record.revision,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        metadata=record.entity_metadata,
+        request_id=UUID(record.request_id),
+        prompt_definition_id=UUID(record.prompt_definition_id),
+        project_id=UUID(record.project_id) if record.project_id else None,
+        job_id=UUID(record.job_id) if record.job_id else None,
+        provider=record.provider,
+        model=record.model,
+        usage=AIUsage(
+            input_tokens=record.input_tokens,
+            output_tokens=record.output_tokens,
+            total_tokens=record.total_tokens,
+            llm_cost=Decimal(str(record.llm_cost)),
+        ),
+        duration_ms=record.duration_ms,
+        succeeded=record.succeeded,
+        error_code=EngineeringErrorCode(record.error_code) if record.error_code else None,
+    )
+
+
+class SqlAlchemyAIUsageRepository:
+    """Append-only AI usage accounting repository."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, usage_record: AIUsageRecord) -> AIUsageRecord:
+        record = AIUsageRecordModel(
+            id=str(usage_record.id),
+            schema_version=usage_record.schema_version,
+            revision=usage_record.revision,
+            created_at=usage_record.created_at,
+            updated_at=usage_record.updated_at,
+            entity_metadata=usage_record.metadata,
+            request_id=str(usage_record.request_id),
+            prompt_definition_id=str(usage_record.prompt_definition_id),
+            project_id=str(usage_record.project_id) if usage_record.project_id else None,
+            job_id=str(usage_record.job_id) if usage_record.job_id else None,
+            provider=usage_record.provider,
+            model=usage_record.model,
+            input_tokens=usage_record.usage.input_tokens,
+            output_tokens=usage_record.usage.output_tokens,
+            total_tokens=usage_record.usage.total_tokens,
+            llm_cost=usage_record.usage.llm_cost,
+            duration_ms=usage_record.duration_ms,
+            succeeded=usage_record.succeeded,
+            error_code=usage_record.error_code.value if usage_record.error_code else None,
+        )
+        self._session.add(record)
+        self._session.commit()
+        self._session.refresh(record)
+        return _to_usage_record(record)
+
+    def list_for_request(self, request_id: object) -> list[AIUsageRecord]:
+        statement = (
+            select(AIUsageRecordModel)
+            .where(AIUsageRecordModel.request_id == str(request_id))
+            .order_by(AIUsageRecordModel.created_at, AIUsageRecordModel.id)
+        )
+        return [_to_usage_record(record) for record in self._session.scalars(statement)]

@@ -1,6 +1,7 @@
 """SQLAlchemy persistence models owned by the backend adapter."""
 
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
@@ -24,6 +25,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     MetaData,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -245,3 +247,59 @@ class SchemaRegistryRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class PromptDefinitionRecord(CoreRecordMixin, Base):
+    __tablename__ = "prompt_definitions"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("max_steps >= 1", name="max_steps_positive"),
+        UniqueConstraint("name", "prompt_version", name="uq_prompt_definitions_name_version"),
+    )
+
+    name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    prompt_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    system_template: Mapped[str] = mapped_column(Text, nullable=False)
+    user_template: Mapped[str] = mapped_column(Text, nullable=False)
+    model_policy: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    allowed_tools: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    input_schema: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    output_schema: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    evidence_requirements: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    fallback: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    max_steps: Mapped[int] = mapped_column(nullable=False)
+    budget_policy: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class AIUsageRecordModel(CoreRecordMixin, Base):
+    __tablename__ = "ai_usage_records"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("input_tokens >= 0", name="input_tokens_non_negative"),
+        CheckConstraint("output_tokens >= 0", name="output_tokens_non_negative"),
+        CheckConstraint("total_tokens >= input_tokens + output_tokens", name="total_tokens_valid"),
+        CheckConstraint("llm_cost >= 0", name="llm_cost_non_negative"),
+        CheckConstraint("duration_ms >= 0", name="duration_ms_non_negative"),
+        CheckConstraint(
+            f"error_code IS NULL OR error_code IN ({_enum_values(EngineeringErrorCode)})",
+            name="error_code",
+        ),
+    )
+
+    request_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    prompt_definition_id: Mapped[str] = mapped_column(
+        ForeignKey("prompt_definitions.id"), nullable=False, index=True
+    )
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    job_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False)
+    model: Mapped[str] = mapped_column(String(200), nullable=False)
+    input_tokens: Mapped[int] = mapped_column(nullable=False)
+    output_tokens: Mapped[int] = mapped_column(nullable=False)
+    total_tokens: Mapped[int] = mapped_column(nullable=False)
+    llm_cost: Mapped[Decimal] = mapped_column(Numeric(18, 8), nullable=False)
+    duration_ms: Mapped[int] = mapped_column(nullable=False)
+    succeeded: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(80))

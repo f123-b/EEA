@@ -105,3 +105,32 @@ def test_core_must_not_import_motor_control_plugin() -> None:
                 violations.append(str(source_file))
 
     assert not violations, "Core imports the MotorControl plugin: " + ", ".join(violations)
+
+
+def test_provider_sdks_are_confined_to_adapters() -> None:
+    violations: list[str] = []
+    for root in ("core", "domain", "ports", "application"):
+        for source_file in Path(root).rglob("*.py"):
+            content = source_file.read_text(encoding="utf-8")
+            if "import litellm" in content or "from litellm" in content:
+                violations.append(str(source_file))
+
+    assert not violations, "Provider SDK escaped the adapter boundary: " + ", ".join(violations)
+
+
+def test_ports_do_not_depend_on_core_or_frameworks() -> None:
+    violations: list[str] = []
+    forbidden_roots = {"eea_adapters", "eea_application", "eea_backend", "eea_core", "pydantic"}
+    for source_file in Path("ports").rglob("*.py"):
+        tree = ast.parse(source_file.read_text(encoding="utf-8"), filename=str(source_file))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module]
+            else:
+                names = []
+            if any(name.split(".", maxsplit=1)[0] in forbidden_roots for name in names):
+                violations.append(str(source_file))
+
+    assert not violations, "Ports depend on Core or frameworks: " + ", ".join(violations)

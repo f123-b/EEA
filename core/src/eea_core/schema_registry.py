@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
+from eea_core.ai import AIUsageRecord, PromptDefinition
 from eea_core.entities import (
     Artifact,
     EngineeringDecision,
@@ -50,12 +51,14 @@ class SchemaRegistry:
 def create_core_schema_registry() -> SchemaRegistry:
     registry = SchemaRegistry()
     for model in (
+        AIUsageRecord,
         Artifact,
         EngineeringDecision,
         Evidence,
         Issue,
         Job,
         PermissionAuditRecord,
+        PromptDefinition,
         Project,
         TraceabilityEdge,
     ):

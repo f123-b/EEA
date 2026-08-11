@@ -19,6 +19,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+ai = [
+  "keyring>=25,<26",
+  "litellm>=1.60,<2",
+]
 dev = [
   "httpx>=0.28,<1",
   "mypy>=1.14,<2",
@@ -32,10 +36,17 @@ eea = "eea_cli.main:app"
 eea-api = "eea_backend.__main__:main"
 
 [tool.setuptools.packages.find]
-where = ["application/src", "apps/backend/src", "apps/cli/src", "core/src"]
+where = [
+  "adapters/src",
+  "application/src",
+  "apps/backend/src",
+  "apps/cli/src",
+  "core/src",
+  "ports/src",
+]
 
 [tool.pytest.ini_options]
-addopts = "--strict-config --strict-markers --cov=eea_application --cov=eea_backend --cov=eea_cli --cov=eea_core --cov-report=term-missing --cov-fail-under=80"
+addopts = "--strict-config --strict-markers --cov=eea_adapters --cov=eea_application --cov=eea_backend --cov=eea_cli --cov=eea_core --cov=eea_ports --cov-report=term-missing --cov-fail-under=80"
 testpaths = ["tests"]
 
 [tool.coverage.run]
@@ -59,5 +70,12 @@ select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["eea_application", "eea_backend", "eea_cli", "eea_core"]
-mypy_path = ["application/src", "apps/backend/src", "apps/cli/src", "core/src"]
+packages = ["eea_adapters", "eea_application", "eea_backend", "eea_cli", "eea_core", "eea_ports"]
+mypy_path = [
+  "adapters/src",
+  "application/src",
+  "apps/backend/src",
+  "apps/cli/src",
+  "core/src",
+  "ports/src",
+]
