@@ -9,4 +9,7 @@ M14R remote evidence: CI Run `31490343829`, backend and desktop GREEN. This repo
 
 M15 must preserve the M14 invariants: Core remains domain-neutral, ordinary projects may keep zero
 active Domains, plugin-owned IR is referenced through opaque envelopes, and plugin rules may only
-add safety constraints. The M15 scope must be separately inspected and planned before code changes.
+add safety constraints. This M15 scope was separately inspected and planned before code changes.
+
+M15 implementation is recorded in `reports/M15/TEST_REPORT.md`; the implementation commit is
+`e247a12`. The next frozen milestone after M15 is M16 ProtocolIR.

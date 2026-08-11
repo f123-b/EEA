@@ -7,7 +7,7 @@ Assessment point: after M5 acceptance.
 | FIX-01 Core / Domain boundary | DONE | Core contains no concrete MotorControl/FOC definition or plugin import; frozen docs and merged documentation now use DomainIRRef/DomainIREnvelope; named architecture invariants added |
 | FIX-02 Canonical Unit | DONE | M3 adds immutable `EngineeringValue` normalization through the Core-owned `UnitNormalizationService`, with frozen dimensions, source value/range retention, canonical comparison, and explicit cross-dimension rejection. Acceptance proves `24 V == 24000 mV`, `48 V > 40 V`, `1 kHz == 1000 Hz`, and `1000 us == 1 ms`. |
 | FIX-03 SourceRevision / BuildInputSnapshot | PARTIAL | M12R/M12A add deterministic generated-source `SourceRevision`, mandatory `BuildRun.build_input_snapshot_id`, DependencyLock/component/toolchain hashes, and explicit HOST_SMOKE/DEVICE snapshots. Full Git workspace scanning, undeclared-untracked enforcement, and patch proposal/apply flow remain future work. |
-| FIX-04 Domain Composition | NOT_STARTED | Required in M14 before M15; no plugin implementation exists yet |
+| FIX-04 Domain Composition | DONE | M14/M14R provides the Core-neutral composition and activation contract; M15 adds the first bundled MotorControl Domain Plugin without moving MotorControl into Core |
 | FIX-05 Durable Outbox ACK | NOT_STARTED | Required before the first critical event consumer; M0/M1 do not dispatch business events |
 | FIX-06 Hardware three-layer fail-safe | NOT_STARTED | Required before commissioning gates; no hardware execution exists yet |
 | FIX-07 FOC gate / adapter order | NOT_STARTED | Required at M19A/M19B; no FOC or hardware adapter exists yet |
