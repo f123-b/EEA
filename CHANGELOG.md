@@ -7,6 +7,10 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M15 MotorControl Built-in Domain Plugin: added the bundled `org.eea.motor_control` manifest,
+  plugin-owned MotorControlIR requirements/references, deterministic additive rule catalog,
+  declarative generator/context/UI contributions, fail-closed MCUConfigIR cross-validation, and
+  default Domain Registry integration without adding MotorControl concepts to Core.
 - M0 repository skeleton with FastAPI, SQLAlchemy/Alembic, CLI, React/Tauri placeholder, CI,
   health checks, and deterministic OpenAPI export.
 - M1 Core Domain entities, schema registry, SQL migration, Project application service, REST API,

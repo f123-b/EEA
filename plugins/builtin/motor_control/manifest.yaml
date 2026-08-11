@@ -1,0 +1,16 @@
+id: org.eea.motor_control
+name: Motor Control
+version: 1.3.0
+api_version: "1"
+plugin_type: domain
+trust_tier: bundled
+entrypoint: plugins.builtin.motor_control.plugin:Plugin
+capabilities:
+  - motor_control.ir
+  - motor_control.review
+  - motor_control.codegen
+permissions:
+  - READ
+  - WRITE
+  - BUILD
+dependencies: []

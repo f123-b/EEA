@@ -35,6 +35,7 @@ from eea_backend.schemas import ApiEnvelope, HealthResponse, VersionData
 from eea_backend.security import require_session_token
 from eea_backend.settings import Settings
 from eea_backend.version import __version__
+from plugins.builtin.motor_control import build_motor_control_plugin
 
 
 def seed_builtin_requirement_contracts(session: Session) -> None:
@@ -146,7 +147,11 @@ def create_app(
     application.state.settings = resolved_settings
     application.state.engine = engine
     application.state.ai_provider = resolved_ai_provider
-    application.state.domain_registry = domain_registry or DomainExtensionRegistry()
+    application.state.domain_registry = (
+        domain_registry
+        if domain_registry is not None
+        else DomainExtensionRegistry((build_motor_control_plugin(),))
+    )
     application.state.static_analysis_provider = CppcheckAdapter()
     component_source = resolved_settings.stm32cube_g4_source
     if component_source is None:
@@ -183,7 +188,7 @@ def create_app(
             product="Embedded Engineering Agent",
             version=__version__,
             api_version="v1",
-            milestone="M14R",
+            milestone="M15",
         )
         return ApiEnvelope(data=data, request_id=request.state.request_id)
 

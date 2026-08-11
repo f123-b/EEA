@@ -15,4 +15,4 @@ def test_current_version_metadata_is_aligned() -> None:
 
     assert re.search(rf'version = "{re.escape(__version__)}"', pyproject)
     assert desktop["version"] == __version__.replace(".dev", "-dev.")
-    assert "M14 Domain Extension Infrastructure and M14R Repository Acceptance Hardening" in readme
+    assert "M15 MotorControl Built-in Domain Plugin" in readme
