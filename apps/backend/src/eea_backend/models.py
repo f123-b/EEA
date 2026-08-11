@@ -20,6 +20,7 @@ from eea_core.enums import (
     DependencyLockStatus,
     DocumentParseStatus,
     DocumentType,
+    DomainActivationStatus,
     EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
@@ -265,6 +266,27 @@ class SchemaRegistryRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class DomainActivationRecord(CoreRecordMixin, Base):
+    __tablename__ = "domain_activations"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(f"status IN ({_enum_values(DomainActivationStatus)})", name="status"),
+        UniqueConstraint("project_id", "domain_id", name="uq_domain_activations_project_domain"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    domain_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    plugin_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    plugin_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    domain_schema_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    configuration: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    activated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    activated_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    capability_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    dependency_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
 class RequirementProfileRecord(CoreRecordMixin, Base):

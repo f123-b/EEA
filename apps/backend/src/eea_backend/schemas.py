@@ -12,6 +12,12 @@ from eea_core.components import (
     ComponentRequirement,
     ResolvedComponent,
 )
+from eea_core.domain_extensions import (
+    DomainContextContribution,
+    DomainGeneratorContribution,
+    DomainRuleContribution,
+    DomainUIContribution,
+)
 from eea_core.enums import (
     ArtifactStatus,
     BuildProfile,
@@ -25,6 +31,9 @@ from eea_core.enums import (
     DeviceMergeConflictType,
     DocumentParseStatus,
     DocumentType,
+    DomainActivationStatus,
+    DomainRulePhase,
+    DomainTrustTier,
     EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
@@ -177,6 +186,101 @@ class ProjectData(BaseModel):
 class ProjectListData(BaseModel):
     items: list[ProjectData]
     next_cursor: str | None = None
+
+
+class DomainDescriptorData(BaseModel):
+    id: str
+    plugin_id: str
+    name: str
+    version: str
+    api_version: str
+    schema_version: str
+    trust_tier: DomainTrustTier
+    entrypoint: str
+    capabilities: list[str]
+    required_capabilities: list[str]
+    requires_domains: list[str]
+    optional_domains: list[str]
+    conflicts_with: list[str]
+    priority: int
+    rule_phases: list[DomainRulePhase]
+    generator_phases: list[str]
+    migration_provider: str | None
+    context_contributions: list[str]
+    ui_contributions: list[str]
+    permissions: list[Permission]
+
+
+class DomainAvailableData(BaseModel):
+    descriptor: DomainDescriptorData
+    active: bool
+
+
+class DomainAvailableListData(BaseModel):
+    items: list[DomainAvailableData]
+
+
+class DomainActivationData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    domain_id: str
+    plugin_id: str
+    plugin_version: str
+    domain_schema_version: str
+    status: DomainActivationStatus
+    configuration: dict[str, object]
+    activated_at: datetime
+    activated_by: str
+    capability_snapshot: dict[str, object]
+    dependency_snapshot: dict[str, object]
+
+
+class DomainActivationListData(BaseModel):
+    items: list[DomainActivationData]
+
+
+class DomainCompositionData(BaseModel):
+    active_domain_ids: list[str]
+    ordered_domain_ids: list[str]
+    dependency_edges: list[list[str]]
+    capability_routes: dict[str, str]
+    rules: list[DomainRuleContribution]
+    generators: list[DomainGeneratorContribution]
+    context_contributions: list[DomainContextContribution]
+    ui_contributions: list[DomainUIContribution]
+
+
+class DomainSchemaData(BaseModel):
+    domain_id: str
+    schema_version: str
+    json_schema: dict[str, object]
+
+
+class DomainArtifactsData(BaseModel):
+    items: list[dict[str, object]]
+
+
+class DomainUIExtensionsData(BaseModel):
+    items: list[DomainUIContribution]
+
+
+class DomainActivationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    configuration: dict[str, object] = Field(default_factory=dict)
+    activated_by: str = Field(default="system", min_length=1, max_length=200)
+
+
+class DomainValidationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    domain_ids: list[str] = Field(default_factory=list, max_length=100)
+    selected_capabilities: dict[str, str] = Field(default_factory=dict)
 
 
 class EnumValues(BaseModel):

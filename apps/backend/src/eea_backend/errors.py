@@ -13,6 +13,7 @@ from eea_backend.schemas import ErrorData, ErrorEnvelope
 HTTP_STATUS_BY_CODE = {
     EngineeringErrorCode.AUTH_REQUIRED: status.HTTP_401_UNAUTHORIZED,
     EngineeringErrorCode.PROJECT_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    EngineeringErrorCode.DOMAIN_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     EngineeringErrorCode.REVISION_CONFLICT: status.HTTP_409_CONFLICT,
     EngineeringErrorCode.SOURCE_REVISION_CONFLICT: status.HTTP_409_CONFLICT,
     EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT: status.HTTP_409_CONFLICT,

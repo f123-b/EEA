@@ -25,3 +25,6 @@ __all__ = [
     "SecretValue",
     "StaticAnalysisProvider",
 ]
+from eea_ports.domain_extensions import DomainPlugin
+
+__all__ = ["DomainPlugin"]

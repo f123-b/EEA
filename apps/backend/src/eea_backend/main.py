@@ -10,6 +10,7 @@ from eea_adapters.components import Stm32CubeG4Provider
 from eea_adapters.secrets import KeyringSecretService
 from eea_adapters.static_analysis import CppcheckAdapter
 from eea_application.claims import ClaimPredicateRegistry
+from eea_application.domains import DomainExtensionRegistry
 from eea_application.requirements import (
     build_claim_predicate_definitions,
     build_foc_benchmark_profile,
@@ -106,7 +107,10 @@ def _configured_ai_provider(settings: Settings) -> AIProvider | None:
 
 
 def create_app(
-    settings: Settings | None = None, *, ai_provider: AIProvider | None = None
+    settings: Settings | None = None,
+    *,
+    ai_provider: AIProvider | None = None,
+    domain_registry: DomainExtensionRegistry | None = None,
 ) -> FastAPI:
     """Create an isolated application instance, suitable for runtime and tests."""
 
@@ -142,6 +146,7 @@ def create_app(
     application.state.settings = resolved_settings
     application.state.engine = engine
     application.state.ai_provider = resolved_ai_provider
+    application.state.domain_registry = domain_registry or DomainExtensionRegistry()
     application.state.static_analysis_provider = CppcheckAdapter()
     component_source = resolved_settings.stm32cube_g4_source
     if component_source is None:

@@ -42,6 +42,17 @@ from eea_core.components import (
     ResolvedComponent,
     SoftwareComponentDescriptor,
 )
+from eea_core.domain_extensions import (
+    DomainActivation,
+    DomainCompositionPlan,
+    DomainContextContribution,
+    DomainDescriptor,
+    DomainGeneratorContribution,
+    DomainIREnvelope,
+    DomainIRRef,
+    DomainRuleContribution,
+    DomainUIContribution,
+)
 from eea_core.entities import (
     Artifact,
     EngineeringDecision,
@@ -189,6 +200,15 @@ def create_core_schema_registry() -> SchemaRegistry:
         DeviceMergeConflict,
         DeviceMergeResult,
         DevicePin,
+        DomainActivation,
+        DomainCompositionPlan,
+        DomainContextContribution,
+        DomainDescriptor,
+        DomainGeneratorContribution,
+        DomainIREnvelope,
+        DomainIRRef,
+        DomainRuleContribution,
+        DomainUIContribution,
         DebugConfigIR,
         DMAIR,
         EngineeringDecision,

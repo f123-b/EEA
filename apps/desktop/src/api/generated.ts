@@ -52,6 +52,32 @@ export const decisionStatusValues = [
 ] as const;
 export type DecisionStatus = (typeof decisionStatusValues)[number];
 
+export const domainActivationStatusValues = [
+  "ACTIVE",
+  "DISABLED",
+  "INCOMPATIBLE",
+  "BLOCKED"
+] as const;
+export type DomainActivationStatus = (typeof domainActivationStatusValues)[number];
+
+export const domainRulePhaseValues = [
+  "PRE_SCHEMA",
+  "PRE_DESIGN",
+  "PRE_GENERATION",
+  "POST_GENERATION",
+  "PRE_EXECUTION",
+  "POST_EXECUTION",
+  "RELEASE_GATE"
+] as const;
+export type DomainRulePhase = (typeof domainRulePhaseValues)[number];
+
+export const domainTrustTierValues = [
+  "bundled",
+  "signed_trusted",
+  "community_untrusted"
+] as const;
+export type DomainTrustTier = (typeof domainTrustTierValues)[number];
+
 export const deviceCategoryValues = [
   "MCU",
   "SENSOR",
@@ -132,6 +158,7 @@ export const engineeringErrorCodeValues = [
   "DOMAIN_COMPOSITION_CONFLICT",
   "DOMAIN_DEPENDENCY_MISSING",
   "DOMAIN_INCOMPATIBLE",
+  "DOMAIN_NOT_FOUND",
   "COMMISSIONING_REQUIRED",
   "COMMISSIONING_BLOCKED",
   "SAFETY_LIMIT_VIOLATION",
@@ -324,6 +351,118 @@ export interface ProjectData {
   name: string;
   description: string;
   status: ProjectStatus;
+}
+
+export interface DomainRuleContribution {
+  rule_id: string;
+  rule_version: string;
+  phase: DomainRulePhase;
+  inputs: string[];
+  severity: IssueSeverity;
+  priority: number;
+  safety_mode: "ADDITIVE";
+}
+
+export interface DomainGeneratorContribution {
+  generator_id: string;
+  version: string;
+  consumes: string[];
+  produces: string[];
+  requires_capabilities: string[];
+  before: string[];
+  after: string[];
+  deterministic: boolean;
+  side_effects: boolean;
+}
+
+export interface DomainContextContribution {
+  context_id: string;
+  keys: string[];
+  description: string;
+}
+
+export interface DomainUIContribution {
+  extension_id: string;
+  kind: "navigation" | "action" | "form";
+  label: string;
+  route: string;
+  json_schema: Record<string, unknown>;
+  action: string | null;
+}
+
+export interface DomainDescriptorData {
+  id: string;
+  plugin_id: string;
+  name: string;
+  version: string;
+  api_version: string;
+  schema_version: string;
+  trust_tier: DomainTrustTier;
+  entrypoint: string;
+  capabilities: string[];
+  required_capabilities: string[];
+  requires_domains: string[];
+  optional_domains: string[];
+  conflicts_with: string[];
+  priority: number;
+  rule_phases: DomainRulePhase[];
+  generator_phases: string[];
+  migration_provider: string | null;
+  context_contributions: string[];
+  ui_contributions: string[];
+  permissions: Permission[];
+}
+
+export interface DomainAvailableData {
+  descriptor: DomainDescriptorData;
+  active: boolean;
+}
+
+export interface DomainActivationData {
+  id: string;
+  schema_version: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+  project_id: string;
+  domain_id: string;
+  plugin_id: string;
+  plugin_version: string;
+  domain_schema_version: string;
+  status: DomainActivationStatus;
+  configuration: Record<string, unknown>;
+  activated_at: string;
+  activated_by: string;
+  capability_snapshot: Record<string, unknown>;
+  dependency_snapshot: Record<string, unknown>;
+}
+
+export interface DomainCompositionData {
+  active_domain_ids: string[];
+  ordered_domain_ids: string[];
+  dependency_edges: string[][];
+  capability_routes: Record<string, string>;
+  rules: DomainRuleContribution[];
+  generators: DomainGeneratorContribution[];
+  context_contributions: DomainContextContribution[];
+  ui_contributions: DomainUIContribution[];
+}
+
+export interface DomainSchemaData {
+  domain_id: string;
+  schema_version: string;
+  json_schema: Record<string, unknown>;
+}
+
+export interface DomainActivationRequest {
+  configuration: Record<string, unknown>;
+  activated_by: string;
+}
+
+export interface DomainValidationRequest {
+  domain_ids: string[];
+  selected_capabilities: Record<string, string>;
 }
 
 export interface DocumentUploadRequest {

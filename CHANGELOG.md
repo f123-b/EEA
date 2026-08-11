@@ -37,6 +37,9 @@ the frozen documentation changelogs under `docs/`.
 - M13 Firmware static analysis: deterministic FirmwareStaticAnalysis contracts, sandboxed
   Cppcheck provider, four firmware RELEASE_GATE rules, normalized SQL persistence, migration
   `0016_m13_firmware_static_analysis`, and project analysis APIs.
+- M14 Domain Extension Infrastructure: Core-neutral Domain descriptors and opaque IR envelopes,
+  deterministic composition/capability/generator routing, project activation APIs and storage,
+  metadata-only UI hooks, bundled-only trust enforcement, and migrations `0018`/`0019`.
 - M5R/M13R/Project Scope Hardening: runtime-enforced sandbox boundaries with fail-closed
   capability checks, Tree-sitter C/C++ analysis with strict Cppcheck XML validation, scoped
   Document/DocumentIR/Evidence reads, per-project document metadata, and migration `0017`.

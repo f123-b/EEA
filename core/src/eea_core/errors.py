@@ -16,7 +16,7 @@ class EngineeringError(Exception):
         details: Mapping[str, object] | None = None,
     ) -> None:
         super().__init__(message)
-        self.code = code
+        self.code = code if isinstance(code, EngineeringErrorCode) else EngineeringErrorCode(code)
         self.message = message
         self.details = dict(details or {})
 

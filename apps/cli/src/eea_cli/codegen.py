@@ -14,6 +14,9 @@ from eea_core.enums import (
     DeviceMergeConflictType,
     DocumentParseStatus,
     DocumentType,
+    DomainActivationStatus,
+    DomainRulePhase,
+    DomainTrustTier,
     EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
@@ -39,6 +42,9 @@ CORE_ENUMS: tuple[type[StrEnum], ...] = (
     ClaimConflictType,
     ClaimLifecycle,
     DecisionStatus,
+    DomainActivationStatus,
+    DomainRulePhase,
+    DomainTrustTier,
     DeviceCategory,
     DeviceMergeConflictType,
     DocumentParseStatus,
@@ -102,6 +108,107 @@ def render_typescript_contract() -> str:
             "  name: string;\n"
             "  description: string;\n"
             "  status: ProjectStatus;\n"
+            "}\n",
+            "export interface DomainRuleContribution {\n"
+            "  rule_id: string;\n"
+            "  rule_version: string;\n"
+            "  phase: DomainRulePhase;\n"
+            "  inputs: string[];\n"
+            "  severity: IssueSeverity;\n"
+            "  priority: number;\n"
+            '  safety_mode: "ADDITIVE";\n'
+            "}\n",
+            "export interface DomainGeneratorContribution {\n"
+            "  generator_id: string;\n"
+            "  version: string;\n"
+            "  consumes: string[];\n"
+            "  produces: string[];\n"
+            "  requires_capabilities: string[];\n"
+            "  before: string[];\n"
+            "  after: string[];\n"
+            "  deterministic: boolean;\n"
+            "  side_effects: boolean;\n"
+            "}\n",
+            "export interface DomainContextContribution {\n"
+            "  context_id: string;\n"
+            "  keys: string[];\n"
+            "  description: string;\n"
+            "}\n",
+            "export interface DomainUIContribution {\n"
+            "  extension_id: string;\n"
+            '  kind: "navigation" | "action" | "form";\n'
+            "  label: string;\n"
+            "  route: string;\n"
+            "  json_schema: Record<string, unknown>;\n"
+            "  action: string | null;\n"
+            "}\n",
+            "export interface DomainDescriptorData {\n"
+            "  id: string;\n"
+            "  plugin_id: string;\n"
+            "  name: string;\n"
+            "  version: string;\n"
+            "  api_version: string;\n"
+            "  schema_version: string;\n"
+            "  trust_tier: DomainTrustTier;\n"
+            "  entrypoint: string;\n"
+            "  capabilities: string[];\n"
+            "  required_capabilities: string[];\n"
+            "  requires_domains: string[];\n"
+            "  optional_domains: string[];\n"
+            "  conflicts_with: string[];\n"
+            "  priority: number;\n"
+            "  rule_phases: DomainRulePhase[];\n"
+            "  generator_phases: string[];\n"
+            "  migration_provider: string | null;\n"
+            "  context_contributions: string[];\n"
+            "  ui_contributions: string[];\n"
+            "  permissions: Permission[];\n"
+            "}\n",
+            "export interface DomainAvailableData {\n"
+            "  descriptor: DomainDescriptorData;\n"
+            "  active: boolean;\n"
+            "}\n",
+            "export interface DomainActivationData {\n"
+            "  id: string;\n"
+            "  schema_version: string;\n"
+            "  revision: number;\n"
+            "  created_at: string;\n"
+            "  updated_at: string;\n"
+            "  metadata: Record<string, unknown>;\n"
+            "  project_id: string;\n"
+            "  domain_id: string;\n"
+            "  plugin_id: string;\n"
+            "  plugin_version: string;\n"
+            "  domain_schema_version: string;\n"
+            "  status: DomainActivationStatus;\n"
+            "  configuration: Record<string, unknown>;\n"
+            "  activated_at: string;\n"
+            "  activated_by: string;\n"
+            "  capability_snapshot: Record<string, unknown>;\n"
+            "  dependency_snapshot: Record<string, unknown>;\n"
+            "}\n",
+            "export interface DomainCompositionData {\n"
+            "  active_domain_ids: string[];\n"
+            "  ordered_domain_ids: string[];\n"
+            "  dependency_edges: string[][];\n"
+            "  capability_routes: Record<string, string>;\n"
+            "  rules: DomainRuleContribution[];\n"
+            "  generators: DomainGeneratorContribution[];\n"
+            "  context_contributions: DomainContextContribution[];\n"
+            "  ui_contributions: DomainUIContribution[];\n"
+            "}\n",
+            "export interface DomainSchemaData {\n"
+            "  domain_id: string;\n"
+            "  schema_version: string;\n"
+            "  json_schema: Record<string, unknown>;\n"
+            "}\n",
+            "export interface DomainActivationRequest {\n"
+            "  configuration: Record<string, unknown>;\n"
+            "  activated_by: string;\n"
+            "}\n",
+            "export interface DomainValidationRequest {\n"
+            "  domain_ids: string[];\n"
+            "  selected_capabilities: Record<string, string>;\n"
             "}\n",
             "export interface DocumentUploadRequest {\n"
             "  filename: string;\n"

@@ -12,6 +12,7 @@ from eea_core.components import (
     DependencyLock,
     SoftwareComponentDescriptor,
 )
+from eea_core.domain_extensions import DomainActivation
 from eea_core.entities import Evidence, Project
 from eea_core.firmware import FirmwareBundle
 from eea_core.intelligence import Document, DocumentIR
@@ -30,6 +31,16 @@ class ProjectRepository(Protocol):
     def list(self, *, include_deleted: bool = False) -> list[Project]: ...
 
     def save(self, project: Project, *, expected_revision: int) -> Project | None: ...
+
+
+class DomainActivationRepository(Protocol):
+    def add(self, activation: DomainActivation) -> DomainActivation: ...
+
+    def get(self, project_id: UUID, domain_id: str) -> DomainActivation | None: ...
+
+    def list_for_project(self, project_id: UUID) -> list[DomainActivation]: ...
+
+    def save(self, activation: DomainActivation) -> DomainActivation | None: ...
 
 
 class PromptRepository(Protocol):

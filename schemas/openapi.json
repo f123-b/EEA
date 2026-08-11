@@ -371,6 +371,167 @@
         "title": "ApiEnvelope[DocumentData]",
         "type": "object"
       },
+      "ApiEnvelope_DomainActivationData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DomainActivationData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DomainActivationData]",
+        "type": "object"
+      },
+      "ApiEnvelope_DomainActivationListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DomainActivationListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DomainActivationListData]",
+        "type": "object"
+      },
+      "ApiEnvelope_DomainArtifactsData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DomainArtifactsData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DomainArtifactsData]",
+        "type": "object"
+      },
+      "ApiEnvelope_DomainAvailableListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DomainAvailableListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DomainAvailableListData]",
+        "type": "object"
+      },
+      "ApiEnvelope_DomainCompositionData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DomainCompositionData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DomainCompositionData]",
+        "type": "object"
+      },
+      "ApiEnvelope_DomainSchemaData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DomainSchemaData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DomainSchemaData]",
+        "type": "object"
+      },
+      "ApiEnvelope_DomainUIExtensionsData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DomainUIExtensionsData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DomainUIExtensionsData]",
+        "type": "object"
+      },
       "ApiEnvelope_EnumCatalogData_": {
         "properties": {
           "data": {
@@ -3115,6 +3276,712 @@
         "title": "DocumentUploadRequest",
         "type": "object"
       },
+      "DomainActivationData": {
+        "properties": {
+          "activated_at": {
+            "format": "date-time",
+            "title": "Activated At",
+            "type": "string"
+          },
+          "activated_by": {
+            "title": "Activated By",
+            "type": "string"
+          },
+          "capability_snapshot": {
+            "additionalProperties": true,
+            "title": "Capability Snapshot",
+            "type": "object"
+          },
+          "configuration": {
+            "additionalProperties": true,
+            "title": "Configuration",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dependency_snapshot": {
+            "additionalProperties": true,
+            "title": "Dependency Snapshot",
+            "type": "object"
+          },
+          "domain_id": {
+            "title": "Domain Id",
+            "type": "string"
+          },
+          "domain_schema_version": {
+            "title": "Domain Schema Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "plugin_id": {
+            "title": "Plugin Id",
+            "type": "string"
+          },
+          "plugin_version": {
+            "title": "Plugin Version",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DomainActivationStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "domain_id",
+          "plugin_id",
+          "plugin_version",
+          "domain_schema_version",
+          "status",
+          "configuration",
+          "activated_at",
+          "activated_by",
+          "capability_snapshot",
+          "dependency_snapshot"
+        ],
+        "title": "DomainActivationData",
+        "type": "object"
+      },
+      "DomainActivationListData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DomainActivationData"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DomainActivationListData",
+        "type": "object"
+      },
+      "DomainActivationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "activated_by": {
+            "default": "system",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Activated By",
+            "type": "string"
+          },
+          "configuration": {
+            "additionalProperties": true,
+            "title": "Configuration",
+            "type": "object"
+          }
+        },
+        "title": "DomainActivationRequest",
+        "type": "object"
+      },
+      "DomainActivationStatus": {
+        "enum": [
+          "ACTIVE",
+          "DISABLED",
+          "INCOMPATIBLE",
+          "BLOCKED"
+        ],
+        "title": "DomainActivationStatus",
+        "type": "string"
+      },
+      "DomainArtifactsData": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DomainArtifactsData",
+        "type": "object"
+      },
+      "DomainAvailableData": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "descriptor": {
+            "$ref": "#/components/schemas/DomainDescriptorData"
+          }
+        },
+        "required": [
+          "descriptor",
+          "active"
+        ],
+        "title": "DomainAvailableData",
+        "type": "object"
+      },
+      "DomainAvailableListData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DomainAvailableData"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DomainAvailableListData",
+        "type": "object"
+      },
+      "DomainCompositionData": {
+        "properties": {
+          "active_domain_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Active Domain Ids",
+            "type": "array"
+          },
+          "capability_routes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Capability Routes",
+            "type": "object"
+          },
+          "context_contributions": {
+            "items": {
+              "$ref": "#/components/schemas/DomainContextContribution"
+            },
+            "title": "Context Contributions",
+            "type": "array"
+          },
+          "dependency_edges": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Dependency Edges",
+            "type": "array"
+          },
+          "generators": {
+            "items": {
+              "$ref": "#/components/schemas/DomainGeneratorContribution"
+            },
+            "title": "Generators",
+            "type": "array"
+          },
+          "ordered_domain_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ordered Domain Ids",
+            "type": "array"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/DomainRuleContribution"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "ui_contributions": {
+            "items": {
+              "$ref": "#/components/schemas/DomainUIContribution"
+            },
+            "title": "Ui Contributions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "active_domain_ids",
+          "ordered_domain_ids",
+          "dependency_edges",
+          "capability_routes",
+          "rules",
+          "generators",
+          "context_contributions",
+          "ui_contributions"
+        ],
+        "title": "DomainCompositionData",
+        "type": "object"
+      },
+      "DomainContextContribution": {
+        "additionalProperties": false,
+        "description": "A namespaced, declarative context contribution exposed to a Domain plugin.",
+        "properties": {
+          "context_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Context Id",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Description",
+            "type": "string"
+          },
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "context_id"
+        ],
+        "title": "DomainContextContribution",
+        "type": "object"
+      },
+      "DomainDescriptorData": {
+        "properties": {
+          "api_version": {
+            "title": "Api Version",
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "conflicts_with": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Conflicts With",
+            "type": "array"
+          },
+          "context_contributions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Context Contributions",
+            "type": "array"
+          },
+          "entrypoint": {
+            "title": "Entrypoint",
+            "type": "string"
+          },
+          "generator_phases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Generator Phases",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "migration_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Migration Provider"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "optional_domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Optional Domains",
+            "type": "array"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "plugin_id": {
+            "title": "Plugin Id",
+            "type": "string"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "required_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Capabilities",
+            "type": "array"
+          },
+          "requires_domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Requires Domains",
+            "type": "array"
+          },
+          "rule_phases": {
+            "items": {
+              "$ref": "#/components/schemas/DomainRulePhase"
+            },
+            "title": "Rule Phases",
+            "type": "array"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "trust_tier": {
+            "$ref": "#/components/schemas/DomainTrustTier"
+          },
+          "ui_contributions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ui Contributions",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "plugin_id",
+          "name",
+          "version",
+          "api_version",
+          "schema_version",
+          "trust_tier",
+          "entrypoint",
+          "capabilities",
+          "required_capabilities",
+          "requires_domains",
+          "optional_domains",
+          "conflicts_with",
+          "priority",
+          "rule_phases",
+          "generator_phases",
+          "migration_provider",
+          "context_contributions",
+          "ui_contributions",
+          "permissions"
+        ],
+        "title": "DomainDescriptorData",
+        "type": "object"
+      },
+      "DomainGeneratorContribution": {
+        "additionalProperties": false,
+        "description": "A deterministic generator declaration used to construct a composition DAG.",
+        "properties": {
+          "after": {
+            "items": {
+              "type": "string"
+            },
+            "title": "After",
+            "type": "array"
+          },
+          "before": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Before",
+            "type": "array"
+          },
+          "consumes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Consumes",
+            "type": "array"
+          },
+          "deterministic": {
+            "default": true,
+            "title": "Deterministic",
+            "type": "boolean"
+          },
+          "generator_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Generator Id",
+            "type": "string"
+          },
+          "produces": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Produces",
+            "type": "array"
+          },
+          "requires_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Requires Capabilities",
+            "type": "array"
+          },
+          "side_effects": {
+            "default": false,
+            "title": "Side Effects",
+            "type": "boolean"
+          },
+          "version": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generator_id",
+          "version"
+        ],
+        "title": "DomainGeneratorContribution",
+        "type": "object"
+      },
+      "DomainRuleContribution": {
+        "additionalProperties": false,
+        "description": "A deterministic additive rule contribution.\n\n``safety_mode`` is intentionally restricted to ADDITIVE. Domain rules cannot replace,\ndisable, or downgrade Core safety rules.",
+        "properties": {
+          "inputs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Inputs",
+            "type": "array"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/DomainRulePhase"
+          },
+          "priority": {
+            "default": 0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "rule_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "rule_version": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Rule Version",
+            "type": "string"
+          },
+          "safety_mode": {
+            "const": "ADDITIVE",
+            "default": "ADDITIVE",
+            "title": "Safety Mode",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/IssueSeverity",
+            "default": "MEDIUM"
+          }
+        },
+        "required": [
+          "rule_id",
+          "rule_version",
+          "phase"
+        ],
+        "title": "DomainRuleContribution",
+        "type": "object"
+      },
+      "DomainRulePhase": {
+        "enum": [
+          "PRE_SCHEMA",
+          "PRE_DESIGN",
+          "PRE_GENERATION",
+          "POST_GENERATION",
+          "PRE_EXECUTION",
+          "POST_EXECUTION",
+          "RELEASE_GATE"
+        ],
+        "title": "DomainRulePhase",
+        "type": "string"
+      },
+      "DomainSchemaData": {
+        "properties": {
+          "domain_id": {
+            "title": "Domain Id",
+            "type": "string"
+          },
+          "json_schema": {
+            "additionalProperties": true,
+            "title": "Json Schema",
+            "type": "object"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "domain_id",
+          "schema_version",
+          "json_schema"
+        ],
+        "title": "DomainSchemaData",
+        "type": "object"
+      },
+      "DomainTrustTier": {
+        "enum": [
+          "bundled",
+          "signed_trusted",
+          "community_untrusted"
+        ],
+        "title": "DomainTrustTier",
+        "type": "string"
+      },
+      "DomainUIContribution": {
+        "additionalProperties": false,
+        "description": "Metadata-only UI contribution; arbitrary remote JavaScript is not representable.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "extension_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Extension Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "navigation",
+              "action",
+              "form"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "route": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Route",
+            "type": "string"
+          },
+          "schema": {
+            "additionalProperties": true,
+            "title": "Schema",
+            "type": "object"
+          }
+        },
+        "required": [
+          "extension_id",
+          "kind",
+          "label",
+          "route"
+        ],
+        "title": "DomainUIContribution",
+        "type": "object"
+      },
+      "DomainUIExtensionsData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DomainUIContribution"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DomainUIExtensionsData",
+        "type": "object"
+      },
+      "DomainValidationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "domain_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Domain Ids",
+            "type": "array"
+          },
+          "selected_capabilities": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Selected Capabilities",
+            "type": "object"
+          }
+        },
+        "title": "DomainValidationRequest",
+        "type": "object"
+      },
       "EngineeringDimension": {
         "description": "FIX-02 frozen dimensions used by every normalized engineering value.",
         "enum": [
@@ -3166,6 +4033,7 @@
           "DOMAIN_COMPOSITION_CONFLICT",
           "DOMAIN_DEPENDENCY_MISSING",
           "DOMAIN_INCOMPATIBLE",
+          "DOMAIN_NOT_FOUND",
           "COMMISSIONING_REQUIRED",
           "COMMISSIONING_BLOCKED",
           "SAFETY_LIMIT_VIOLATION",
@@ -9670,6 +10538,522 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/domains": {
+      "get": {
+        "operationId": "list_domain_activations_api_v1_projects__project_id__domains_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainActivationListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Domain Activations",
+        "tags": [
+          "domains"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/domains/available": {
+      "get": {
+        "operationId": "list_available_domains_api_v1_projects__project_id__domains_available_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainAvailableListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Available Domains",
+        "tags": [
+          "domains"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/domains/resolve-composition": {
+      "post": {
+        "operationId": "resolve_domain_composition_api_v1_projects__project_id__domains_resolve_composition_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainValidationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainCompositionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Resolve Domain Composition",
+        "tags": [
+          "domains"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/domains/{domain_id}/activate": {
+      "post": {
+        "operationId": "activate_domain_api_v1_projects__project_id__domains__domain_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "domain_id",
+            "required": true,
+            "schema": {
+              "title": "Domain Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainActivationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainActivationData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Activate Domain",
+        "tags": [
+          "domains"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/domains/{domain_id}/artifacts": {
+      "get": {
+        "operationId": "list_domain_artifacts_api_v1_projects__project_id__domains__domain_id__artifacts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "domain_id",
+            "required": true,
+            "schema": {
+              "title": "Domain Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainArtifactsData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Domain Artifacts",
+        "tags": [
+          "domains"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/domains/{domain_id}/deactivate": {
+      "post": {
+        "operationId": "deactivate_domain_api_v1_projects__project_id__domains__domain_id__deactivate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "domain_id",
+            "required": true,
+            "schema": {
+              "title": "Domain Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainActivationData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Deactivate Domain",
+        "tags": [
+          "domains"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/domains/{domain_id}/schema": {
+      "get": {
+        "operationId": "get_domain_schema_api_v1_projects__project_id__domains__domain_id__schema_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "domain_id",
+            "required": true,
+            "schema": {
+              "title": "Domain Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainSchemaData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Domain Schema",
+        "tags": [
+          "domains"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/domains/{domain_id}/state": {
+      "get": {
+        "operationId": "get_domain_state_api_v1_projects__project_id__domains__domain_id__state_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "domain_id",
+            "required": true,
+            "schema": {
+              "title": "Domain Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainActivationData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Domain State",
+        "tags": [
+          "domains"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/domains/{domain_id}/validate": {
+      "post": {
+        "operationId": "validate_domain_composition_api_v1_projects__project_id__domains__domain_id__validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "domain_id",
+            "required": true,
+            "schema": {
+              "title": "Domain Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainValidationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainCompositionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Validate Domain Composition",
+        "tags": [
+          "domains"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/evidence": {
       "post": {
         "operationId": "register_evidence_api_v1_projects__project_id__evidence_post",
@@ -10665,6 +12049,54 @@
         "summary": "Validate Schematic",
         "tags": [
           "schematic"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/ui/extensions": {
+      "get": {
+        "operationId": "list_domain_ui_extensions_api_v1_projects__project_id__ui_extensions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainUIExtensionsData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Domain Ui Extensions",
+        "tags": [
+          "domains"
         ]
       }
     },

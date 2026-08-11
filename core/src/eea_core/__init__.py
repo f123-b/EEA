@@ -1,5 +1,21 @@
 """Framework-independent core domain for EEA."""
 
+from eea_core.domain_extensions import (
+    DomainActivation,
+    DomainCompositionPlan,
+    DomainDescriptor,
+    DomainIREnvelope,
+    DomainIRRef,
+)
+
+__all__ = [
+    "DomainActivation",
+    "DomainCompositionPlan",
+    "DomainDescriptor",
+    "DomainIREnvelope",
+    "DomainIRRef",
+]
+
 from eea_core.entities import (
     Artifact,
     EngineeringDecision,

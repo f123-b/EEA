@@ -12,6 +12,7 @@ from eea_application.ai import PromptRegistry, StructuredGenerationService
 from eea_application.architecture import ArchitectureService
 from eea_application.circuit import CircuitService
 from eea_application.components import ComponentMaterializer, ComponentRegistryService
+from eea_application.domains import DomainExtensionService
 from eea_application.firmware import FirmwareBuildService, FirmwareService
 from eea_application.intelligence import DocumentService, MultiSourceDeviceProvider
 from eea_application.mcu_config import MCUConfigService
@@ -43,6 +44,7 @@ from eea_core.enums import (
     DeviceMergeConflictType,
     DocumentParseStatus,
     DocumentType,
+    DomainActivationStatus,
     EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
@@ -82,6 +84,7 @@ from eea_backend.component_repositories import (
     SqlAlchemyDependencyLockRepository,
 )
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
+from eea_backend.domain_repositories import SqlAlchemyDomainActivationRepository
 from eea_backend.firmware_repositories import SqlAlchemyFirmwareRepository
 from eea_backend.mcu_config_repositories import SqlAlchemyMCUConfigRepository
 from eea_backend.pin_planner_repositories import SqlAlchemyPinPlanRepository
@@ -120,6 +123,17 @@ from eea_backend.schemas import (
     DevicePinQueryData,
     DocumentData,
     DocumentUploadRequest,
+    DomainActivationData,
+    DomainActivationListData,
+    DomainActivationRequest,
+    DomainArtifactsData,
+    DomainAvailableData,
+    DomainAvailableListData,
+    DomainCompositionData,
+    DomainDescriptorData,
+    DomainSchemaData,
+    DomainUIExtensionsData,
+    DomainValidationRequest,
     EnumCatalogData,
     EnumValues,
     ErcImportRequest,
@@ -259,6 +273,28 @@ def _materialization_data(
     materialization: ComponentMaterialization,
 ) -> ComponentMaterializationData:
     return ComponentMaterializationData.model_validate(materialization.model_dump(mode="json"))
+
+
+def _domain_service(request: Request, session: Session) -> DomainExtensionService:
+    return DomainExtensionService(
+        request.app.state.domain_registry,
+        SqlAlchemyDomainActivationRepository(session),
+        SqlAlchemyProjectRepository(session),
+    )
+
+
+def _domain_descriptor_data(descriptor: object) -> DomainDescriptorData:
+    return DomainDescriptorData.model_validate(
+        cast(Any, descriptor).model_dump(mode="json", by_alias=True)
+    )
+
+
+def _domain_activation_data(activation: object) -> DomainActivationData:
+    return DomainActivationData.model_validate(cast(Any, activation).model_dump(mode="json"))
+
+
+def _domain_composition_data(composition: object) -> DomainCompositionData:
+    return DomainCompositionData.model_validate(cast(Any, composition).model_dump(mode="json"))
 
 
 def _ensure_latest_hardware(session: Session, project_id: UUID, hardware_id: UUID) -> None:
@@ -1901,3 +1937,192 @@ def delete_project(
     project = _service(session).delete(project_id, expected_revision=revision)
     _set_etag(response, project.revision)
     return ApiEnvelope(data=_project_data(project), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/domains",
+    response_model=ApiEnvelope[DomainActivationListData],
+    tags=["domains"],
+)
+def list_domain_activations(
+    project_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[DomainActivationListData]:
+    items = [
+        _domain_activation_data(item)
+        for item in _domain_service(request, session).list_activations(project_id)
+    ]
+    return ApiEnvelope(data=DomainActivationListData(items=items), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/domains/available",
+    response_model=ApiEnvelope[DomainAvailableListData],
+    tags=["domains"],
+)
+def list_available_domains(
+    project_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[DomainAvailableListData]:
+    available = _domain_service(request, session).available(project_id)
+    items = [
+        DomainAvailableData(
+            descriptor=_domain_descriptor_data(descriptor),
+            active=active,
+        )
+        for descriptor, active in available
+    ]
+    return ApiEnvelope(data=DomainAvailableListData(items=items), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/domains/resolve-composition",
+    response_model=ApiEnvelope[DomainCompositionData],
+    tags=["domains"],
+)
+def resolve_domain_composition(
+    project_id: UUID,
+    payload: DomainValidationRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DomainCompositionData]:
+    composition = _domain_service(request, session).validate(
+        project_id,
+        payload.domain_ids,
+        selected_capabilities=payload.selected_capabilities,
+    )
+    return ApiEnvelope(data=_domain_composition_data(composition), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/domains/{domain_id}/activate",
+    response_model=ApiEnvelope[DomainActivationData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["domains"],
+)
+def activate_domain(
+    project_id: UUID,
+    domain_id: str,
+    payload: DomainActivationRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DomainActivationData]:
+    activation = _domain_service(request, session).activate(
+        project_id,
+        domain_id,
+        configuration=payload.configuration,
+        activated_by=payload.activated_by,
+    )
+    return ApiEnvelope(data=_domain_activation_data(activation), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/domains/{domain_id}/deactivate",
+    response_model=ApiEnvelope[DomainActivationData],
+    tags=["domains"],
+)
+def deactivate_domain(
+    project_id: UUID,
+    domain_id: str,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DomainActivationData]:
+    activation = _domain_service(request, session).deactivate(project_id, domain_id)
+    return ApiEnvelope(data=_domain_activation_data(activation), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/domains/{domain_id}/state",
+    response_model=ApiEnvelope[DomainActivationData],
+    tags=["domains"],
+)
+def get_domain_state(
+    project_id: UUID,
+    domain_id: str,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DomainActivationData]:
+    activation = _domain_service(request, session).state(project_id, domain_id)
+    return ApiEnvelope(data=_domain_activation_data(activation), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/domains/{domain_id}/schema",
+    response_model=ApiEnvelope[DomainSchemaData],
+    tags=["domains"],
+)
+def get_domain_schema(
+    project_id: UUID,
+    domain_id: str,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DomainSchemaData]:
+    service = _domain_service(request, session)
+    service.ensure_project(project_id)
+    descriptor = service.registry.get_descriptor(domain_id)
+    return ApiEnvelope(
+        data=DomainSchemaData(
+            domain_id=domain_id,
+            schema_version=descriptor.schema_version,
+            json_schema=service.registry.schema(domain_id),
+        ),
+        request_id=_request_id(request),
+    )
+
+
+@router.post(
+    "/projects/{project_id}/domains/{domain_id}/validate",
+    response_model=ApiEnvelope[DomainCompositionData],
+    tags=["domains"],
+)
+def validate_domain_composition(
+    project_id: UUID,
+    domain_id: str,
+    payload: DomainValidationRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DomainCompositionData]:
+    service = _domain_service(request, session)
+    composition = service.validate(
+        project_id,
+        [domain_id, *payload.domain_ids],
+        selected_capabilities=payload.selected_capabilities,
+    )
+    return ApiEnvelope(data=_domain_composition_data(composition), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/domains/{domain_id}/artifacts",
+    response_model=ApiEnvelope[DomainArtifactsData],
+    tags=["domains"],
+)
+def list_domain_artifacts(
+    project_id: UUID,
+    domain_id: str,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DomainArtifactsData]:
+    service = _domain_service(request, session)
+    service.ensure_project(project_id)
+    return ApiEnvelope(
+        data=DomainArtifactsData(items=service.registry.artifacts(domain_id)),
+        request_id=_request_id(request),
+    )
+
+
+@router.get(
+    "/projects/{project_id}/ui/extensions",
+    response_model=ApiEnvelope[DomainUIExtensionsData],
+    tags=["domains"],
+)
+def list_domain_ui_extensions(
+    project_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[DomainUIExtensionsData]:
+    service = _domain_service(request, session)
+    active = [
+        item.domain_id
+        for item in service.list_activations(project_id)
+        if item.status is DomainActivationStatus.ACTIVE
+    ]
+    return ApiEnvelope(
+        data=DomainUIExtensionsData(items=service.registry.ui_extensions(active)),
+        request_id=_request_id(request),
+    )
