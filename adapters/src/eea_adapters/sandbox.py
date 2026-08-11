@@ -266,6 +266,18 @@ class _JobHandle(Protocol):
     def close(self) -> None: ...
 
 
+def _posix_capabilities() -> SandboxCapabilities:
+    from eea_adapters.posix_process import PosixProcessController
+
+    return PosixProcessController.capabilities()
+
+
+def _create_posix_process_controller(policy: SandboxPolicy) -> _JobHandle:
+    from eea_adapters.posix_process import PosixProcessController
+
+    return PosixProcessController(policy)
+
+
 def _windows_job_supported() -> bool:
     if os.name != "nt":
         return False
@@ -290,6 +302,8 @@ class StructuredCommandExecutor:
 
     def capabilities(self) -> SandboxCapabilities:
         windows_job = _windows_job_supported()
+        if os.name != "nt":
+            return _posix_capabilities()
         return SandboxCapabilities(
             network_isolation=False,
             memory_limit=windows_job,
@@ -410,14 +424,17 @@ class StructuredCommandExecutor:
         missing: list[str] = []
         if not policy.network_access and not capabilities.network_isolation:
             missing.append("network_isolation")
-        if not capabilities.memory_limit:
-            missing.append("memory_limit")
-        if not capabilities.process_limit:
-            missing.append("process_limit")
-        if not capabilities.process_tree_kill:
-            missing.append("process_tree_kill")
-        if not capabilities.streaming_output_limit:
-            missing.append("streaming_output_limit")
+        # Trusted tools need enforceable resource and process-tree boundaries.
+        # Untrusted code additionally requires a stronger isolation backend;
+        # both trust levels fail closed when their required boundary is absent.
+        for capability in (
+            "memory_limit",
+            "process_limit",
+            "process_tree_kill",
+            "streaming_output_limit",
+        ):
+            if not getattr(capabilities, capability):
+                missing.append(capability)
         if spec.trust_level is SandboxExecutionTrust.UNTRUSTED_CODE:
             for capability in ("strong_isolation", "filesystem_isolation"):
                 if not getattr(capabilities, capability):
@@ -507,9 +524,13 @@ class StructuredCommandExecutor:
     ) -> tuple[subprocess.Popen[bytes], _JobHandle | None]:
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         job: _JobHandle | None = None
+        preexec_fn: Any = None
         if os.name == "nt":
             job = _create_windows_job(policy)
             creationflags |= getattr(subprocess, "CREATE_SUSPENDED", 0x00000004)
+        else:
+            job = _create_posix_process_controller(policy)
+            preexec_fn = cast(Any, job).preexec_fn()
         try:
             process = subprocess.Popen(
                 list(argv),
@@ -521,6 +542,7 @@ class StructuredCommandExecutor:
                 shell=False,
                 creationflags=creationflags,
                 start_new_session=os.name != "nt",
+                preexec_fn=preexec_fn,
             )
             if job is not None:
                 try:
@@ -536,6 +558,14 @@ class StructuredCommandExecutor:
                         details={"reason": type(exc).__name__},
                     ) from None
             return process, job
+        except subprocess.SubprocessError as exc:
+            if job is not None:
+                job.close()
+            raise EngineeringError(
+                EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+                "Sandbox resource limits could not be installed",
+                details={"reason": type(exc).__name__},
+            ) from None
         except OSError as exc:
             if job is not None:
                 job.close()
@@ -568,3 +598,4 @@ class StructuredCommandExecutor:
     @staticmethod
     def _bounded(value: bytes, limit: int = 4096) -> bytes:
         return value[:limit]
+
