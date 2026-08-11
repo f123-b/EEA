@@ -66,11 +66,14 @@ changed.
 
 ## Acceptance gate state
 
-This report records implementation only until the branch CI run completes:
+Final GitHub CI: Run `31507669491` for PR #3 — **PASS** (backend and desktop).
+
+This report records implementation and review readiness; it does not declare
+M16 accepted or authorize merge:
 
 ```text
 M16 = IMPLEMENTED
-READY_FOR_M16_REVIEW = NO (pending final local gate and GitHub CI)
+READY_FOR_M16_REVIEW = YES
 ```
 
 The report must not be interpreted as M16 acceptance or as permission to merge
