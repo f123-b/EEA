@@ -12,9 +12,15 @@ the frozen documentation changelogs under `docs/`.
 - M1 Core Domain entities, schema registry, SQL migration, Project application service, REST API,
   optimistic concurrency, soft deletion, and architecture tests.
 - Generated TypeScript contract and exhaustive frontend JobStatus handling.
+- M2 provider-neutral AI and Secret ports, LiteLLM/keyring adapters, versioned Prompt Registry,
+  structured Pydantic output validation, timeout and budget enforcement, and durable usage
+  accounting.
+- Alembic `0003_m2` migration for prompt definitions and AI usage records.
 
 ### Changed
 
 - Applied V1.3.1 FIX-01 to remove concrete MotorControl definitions from the Core boundary.
 - Applied the M1 portion of FIX-08 by synchronizing JobStatus, Permission, and engineering error
   codes across Core, database constraints, OpenAPI, TypeScript, and frontend state handling.
+- Extended architecture checks so provider SDKs remain confined to Adapters and Ports remain
+  independent of Core and frameworks.

@@ -9,7 +9,7 @@ Implementation advances one milestone at a time using the required sequence:
 
 ## Current milestone
 
-M1 Core Domain is implemented on the M0 foundation:
+M2 AI Provider Foundation is implemented on the accepted M1 Core Domain:
 
 - FastAPI backend with health and version endpoints;
 - SQLAlchemy 2.x and Alembic migration foundation;
@@ -22,6 +22,12 @@ M1 Core Domain is implemented on the M0 foundation:
 - Project lifecycle API with ETag/If-Match optimistic concurrency and soft deletion;
 - schema registry plus synchronized Python/OpenAPI/TypeScript Core enums;
 - V1.3.1 corrected JobStatus, Permission, and engineering error catalogs.
+- provider-neutral `AIProvider` and `SecretService` ports;
+- LiteLLM and OS keyring adapters behind optional `ai` dependencies;
+- versioned Prompt Registry and durable usage accounting;
+- `StructuredGenerationService` with exact output-schema checks, Pydantic validation, timeout,
+  token/cost budget gates, and secret-input rejection;
+- Alembic `0003_m2` migration for prompt definitions and AI usage records.
 
 ## Development
 
@@ -35,6 +41,12 @@ eea db upgrade
 eea serve
 ```
 
+Install real AI/keyring adapters only when required:
+
+```bash
+python -m pip install -e ".[ai,dev]"
+```
+
 In another terminal:
 
 ```bash
@@ -45,8 +57,8 @@ pnpm --filter @eea/desktop dev
 Quality checks:
 
 ```bash
-ruff check .
-mypy apps/backend/src apps/cli/src
+ruff check core/src ports/src application/src adapters/src apps/backend/src apps/cli/src migrations tests
+mypy
 pytest
 pnpm lint
 pnpm typecheck
