@@ -288,12 +288,70 @@ class PinPlanData(BaseModel):
     updated_at: datetime
     metadata: dict[str, object]
     project_id: UUID
+    analysis_id: UUID | None
     device_ref: str
     package: str | None
     requirements: list[dict[str, object]]
     candidates: list[dict[str, object]]
     assignments: list[dict[str, object]]
     locks: list[dict[str, object]]
+    rule_results: list[dict[str, object]]
+
+
+class PinAssignmentData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    requirement_id: UUID
+    device_ref: str
+    package: str | None
+    pin_name: str
+    function: dict[str, str]
+    locked: bool
+    score: float
+    claim_ids: list[UUID]
+    evidence_ids: list[UUID]
+
+
+class PinLockData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    assignment_id: UUID
+    locked_by: str
+    reason: str
+
+
+class PinAssignmentMutationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int | None = Field(default=None, ge=1)
+    actor: str = Field(min_length=1, max_length=200)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class PinAssignmentMutationData(BaseModel):
+    assignment: PinAssignmentData
+    lock: PinLockData | None = None
+
+
+class PinPlanValidationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    plan_id: UUID
+
+
+class PinPlanValidationData(BaseModel):
+    plan_id: UUID
+    plan_revision: int
     rule_results: list[dict[str, object]]
 
 

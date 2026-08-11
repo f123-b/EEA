@@ -315,6 +315,90 @@ class RequirementAnalysisRecord(CoreRecordMixin, Base):
     claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
 
 
+class PinPlanRecord(CoreRecordMixin, Base):
+    __tablename__ = "pin_plans"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    analysis_id: Mapped[str | None] = mapped_column(
+        ForeignKey("requirement_analyses.id"), index=True
+    )
+    device_ref: Mapped[str] = mapped_column(String(200), nullable=False)
+    package: Mapped[str | None] = mapped_column(String(100))
+    requirements: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    candidates: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+
+
+class PinAssignmentRecord(CoreRecordMixin, Base):
+    __tablename__ = "pin_assignments"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("score >= 0 AND score <= 1", name="score_range"),
+        UniqueConstraint("plan_id", "pin_name", name="uq_pin_assignments_plan_pin"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    plan_id: Mapped[str] = mapped_column(ForeignKey("pin_plans.id"), nullable=False, index=True)
+    requirement_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    device_ref: Mapped[str] = mapped_column(String(200), nullable=False)
+    package: Mapped[str | None] = mapped_column(String(100))
+    pin_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    function: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    locked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+
+class PinLockRecord(CoreRecordMixin, Base):
+    __tablename__ = "pin_locks"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    assignment_id: Mapped[str] = mapped_column(
+        ForeignKey("pin_assignments.id"), nullable=False, index=True
+    )
+    locked_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    released_by: Mapped[str | None] = mapped_column(String(200))
+    released_reason: Mapped[str | None] = mapped_column(Text)
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PinRuleResultRecord(CoreRecordMixin, Base):
+    __tablename__ = "pin_rule_results"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            "stage IN ("
+            "'PRE_GENERATION', 'POST_GENERATION', 'PRE_TOOL', 'POST_TOOL', 'RELEASE_GATE'"
+            ")",
+            name="stage",
+        ),
+        CheckConstraint(
+            "status IN ('PASS', 'FAIL', 'NOT_APPLICABLE', 'UNKNOWN')",
+            name="status",
+        ),
+        CheckConstraint(f"severity IN ({_enum_values(IssueSeverity)})", name="severity"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    plan_id: Mapped[str] = mapped_column(ForeignKey("pin_plans.id"), nullable=False, index=True)
+    rule_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    rule_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    stage: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    affected_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    measured: Mapped[object | None] = mapped_column(JSON)
+    threshold: Mapped[object | None] = mapped_column(JSON)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    recommendation: Mapped[str] = mapped_column(Text, nullable=False)
+    input_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+
+
 class PromptDefinitionRecord(CoreRecordMixin, Base):
     __tablename__ = "prompt_definitions"
     __table_args__ = (

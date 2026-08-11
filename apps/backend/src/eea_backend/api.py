@@ -46,7 +46,7 @@ from eea_core.enums import (
 )
 from eea_core.errors import EngineeringError
 from eea_core.intelligence import Device, DevicePin, Document
-from eea_core.pin_planner import PinRequirement
+from eea_core.pin_planner import PinAssignment, PinLock, PinPlan, PinRequirement
 from eea_core.requirements import RequirementProfile
 from eea_core.schema_registry import create_core_schema_registry
 from fastapi import APIRouter, Depends, Header, Request, Response, status
@@ -54,6 +54,7 @@ from sqlalchemy.orm import Session
 
 from eea_backend.claim_repositories import SqlAlchemyEngineeringClaimRepository
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
+from eea_backend.pin_planner_repositories import SqlAlchemyPinPlanRepository
 from eea_backend.repositories import (
     SqlAlchemyAIUsageRepository,
     SqlAlchemyEvidenceRepository,
@@ -77,8 +78,14 @@ from eea_backend.schemas import (
     EnumValues,
     EvidenceCreateRequest,
     EvidenceData,
+    PinAssignmentData,
+    PinAssignmentMutationData,
+    PinAssignmentMutationRequest,
+    PinLockData,
     PinPlanData,
     PinPlannerGenerateRequest,
+    PinPlanValidationData,
+    PinPlanValidationRequest,
     ProjectCreate,
     ProjectData,
     ProjectListData,
@@ -128,6 +135,20 @@ def _pin_data(pin: DevicePin) -> DevicePinData:
 
 def _device_data(device: Device) -> DeviceData:
     return DeviceData.model_validate(device.model_dump(mode="json"))
+
+
+def _pin_plan_data(plan: PinPlan) -> PinPlanData:
+    return PinPlanData.model_validate(plan.model_dump(mode="json"))
+
+
+def _pin_assignment_data(assignment: PinAssignment) -> PinAssignmentData:
+    return PinAssignmentData.model_validate(assignment.model_dump(mode="json"))
+
+
+def _pin_lock_data(lock: PinLock | None) -> PinLockData | None:
+    if lock is None:
+        return None
+    return PinLockData.model_validate(lock.model_dump(mode="json"))
 
 
 def _requirement_profile_repository(session: Session) -> SqlAlchemyRequirementProfileRepository:
@@ -267,6 +288,12 @@ def get_requirement_profile(
     status_code=status.HTTP_201_CREATED,
     tags=["pin-planner"],
 )
+@router.post(
+    "/projects/{project_id}/pin-planner/replan",
+    response_model=ApiEnvelope[PinPlanData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["pin-planner"],
+)
 def generate_pin_plan(
     project_id: UUID,
     payload: PinPlannerGenerateRequest,
@@ -310,8 +337,178 @@ def generate_pin_plan(
         requirements=pin_requirements,
         device_provider=device_provider,
     )
+    plan = SqlAlchemyPinPlanRepository(session).add(plan)
     return ApiEnvelope(
-        data=PinPlanData.model_validate(plan.model_dump(mode="json")),
+        data=_pin_plan_data(plan),
+        request_id=_request_id(request),
+    )
+
+
+@router.get(
+    "/projects/{project_id}/pin-planner/map",
+    response_model=ApiEnvelope[PinPlanData],
+    tags=["pin-planner"],
+)
+def get_pin_map(
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[PinPlanData]:
+    _service(session).get(project_id)
+    plan = SqlAlchemyPinPlanRepository(session).latest_for_project(project_id)
+    if plan is None:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "No pin plan has been generated for this project",
+            details={"project_id": str(project_id)},
+        )
+    return ApiEnvelope(data=_pin_plan_data(plan), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/pin-planner/validate",
+    response_model=ApiEnvelope[PinPlanValidationData],
+    tags=["pin-planner"],
+)
+def validate_pin_plan(
+    project_id: UUID,
+    payload: PinPlanValidationRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[PinPlanValidationData]:
+    _service(session).get(project_id)
+    plan = SqlAlchemyPinPlanRepository(session).get(payload.plan_id, project_id=project_id)
+    if plan is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Pin plan is not available for this project",
+            details={"plan_id": str(payload.plan_id), "project_id": str(project_id)},
+        )
+    results = PinPlannerService().validate(plan, device_provider)
+    data = PinPlanValidationData(
+        plan_id=plan.id,
+        plan_revision=plan.revision,
+        rule_results=[result.model_dump(mode="json") for result in results],
+    )
+    return ApiEnvelope(data=data, request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/pin-planner/assignments/{assignment_id}/lock",
+    response_model=ApiEnvelope[PinAssignmentMutationData],
+    tags=["pin-planner"],
+)
+def lock_pin_assignment(
+    project_id: UUID,
+    assignment_id: UUID,
+    payload: PinAssignmentMutationRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+) -> ApiEnvelope[PinAssignmentMutationData]:
+    _service(session).get(project_id)
+    repository = SqlAlchemyPinPlanRepository(session)
+    context = repository.get_assignment(assignment_id, project_id=project_id)
+    if context is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Pin assignment is not available for this project",
+            details={"assignment_id": str(assignment_id), "project_id": str(project_id)},
+        )
+    current, _ = context
+    expected_revision = _expected_revision(if_match, payload.expected_revision)
+    if current.revision != expected_revision:
+        raise EngineeringError(
+            EngineeringErrorCode.REVISION_CONFLICT,
+            "The pin assignment changed after it was read",
+            details={"entity_id": str(assignment_id), "expected_revision": expected_revision},
+        )
+    locked, lock = PinPlannerService().lock_assignment(
+        current, locked_by=payload.actor, reason=payload.reason
+    )
+    saved = repository.save_assignment(locked, expected_revision=expected_revision, commit=False)
+    if saved is None:
+        session.rollback()
+        raise EngineeringError(
+            EngineeringErrorCode.REVISION_CONFLICT,
+            "The pin assignment changed after it was read",
+            details={"entity_id": str(assignment_id), "expected_revision": expected_revision},
+        )
+    saved_lock = repository.add_lock(lock, commit=False)
+    session.commit()
+    _set_etag(response, saved.revision)
+    return ApiEnvelope(
+        data=PinAssignmentMutationData(
+            assignment=_pin_assignment_data(saved),
+            lock=_pin_lock_data(saved_lock),
+        ),
+        request_id=_request_id(request),
+    )
+
+
+@router.post(
+    "/projects/{project_id}/pin-planner/assignments/{assignment_id}/unlock",
+    response_model=ApiEnvelope[PinAssignmentMutationData],
+    tags=["pin-planner"],
+)
+def unlock_pin_assignment(
+    project_id: UUID,
+    assignment_id: UUID,
+    payload: PinAssignmentMutationRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+) -> ApiEnvelope[PinAssignmentMutationData]:
+    _service(session).get(project_id)
+    repository = SqlAlchemyPinPlanRepository(session)
+    context = repository.get_assignment(assignment_id, project_id=project_id)
+    if context is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Pin assignment is not available for this project",
+            details={"assignment_id": str(assignment_id), "project_id": str(project_id)},
+        )
+    current, _ = context
+    expected_revision = _expected_revision(if_match, payload.expected_revision)
+    if current.revision != expected_revision:
+        raise EngineeringError(
+            EngineeringErrorCode.REVISION_CONFLICT,
+            "The pin assignment changed after it was read",
+            details={"entity_id": str(assignment_id), "expected_revision": expected_revision},
+        )
+    unlocked = PinPlannerService().unlock_assignment(
+        current, unlocked_by=payload.actor, reason=payload.reason
+    )
+    saved = repository.save_assignment(unlocked, expected_revision=expected_revision, commit=False)
+    if saved is None:
+        session.rollback()
+        raise EngineeringError(
+            EngineeringErrorCode.REVISION_CONFLICT,
+            "The pin assignment changed after it was read",
+            details={"entity_id": str(assignment_id), "expected_revision": expected_revision},
+        )
+    if not repository.release_lock(
+        assignment_id,
+        project_id=project_id,
+        released_by=payload.actor,
+        reason=payload.reason,
+        commit=False,
+    ):
+        session.rollback()
+        raise EngineeringError(
+            EngineeringErrorCode.VALIDATION_ERROR,
+            "The active pin lock was not found",
+            details={"assignment_id": str(assignment_id)},
+        )
+    session.commit()
+    _set_etag(response, saved.revision)
+    return ApiEnvelope(
+        data=PinAssignmentMutationData(
+            assignment=_pin_assignment_data(saved),
+            lock=None,
+        ),
         request_id=_request_id(request),
     )
 

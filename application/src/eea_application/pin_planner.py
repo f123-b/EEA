@@ -53,7 +53,7 @@ class PinPlannerService:
                     "Pin requirement references a claim outside the selected analysis",
                     details={"signal_name": requirement.signal_name},
                 )
-        return self.plan(
+        plan = self.plan(
             project_id=analysis.project_id,
             device_ref=device_ref,
             package=package,
@@ -62,6 +62,7 @@ class PinPlannerService:
             locked_assignments=locked_assignments,
             locks=locks,
         )
+        return plan.model_copy(update={"analysis_id": analysis.id})
 
     def plan(
         self,
@@ -371,6 +372,12 @@ class PinPlannerService:
                 EngineeringErrorCode.VALIDATION_ERROR,
                 "A pin lock requires an actor and reason",
             )
+        if assignment.locked:
+            raise EngineeringError(
+                EngineeringErrorCode.VALIDATION_ERROR,
+                "The pin assignment is already locked",
+                details={"assignment_id": str(assignment.id)},
+            )
         locked = assignment.model_copy(
             update={"locked": True, "revision": assignment.revision + 1, "updated_at": utc_now()}
         )
@@ -381,6 +388,24 @@ class PinPlannerService:
             reason=reason,
         )
         return locked, lock
+
+    def unlock_assignment(
+        self, assignment: PinAssignment, *, unlocked_by: str, reason: str
+    ) -> PinAssignment:
+        if not unlocked_by.strip() or not reason.strip():
+            raise EngineeringError(
+                EngineeringErrorCode.VALIDATION_ERROR,
+                "An unlock requires an actor and reason",
+            )
+        if not assignment.locked:
+            raise EngineeringError(
+                EngineeringErrorCode.VALIDATION_ERROR,
+                "The pin assignment is not locked",
+                details={"assignment_id": str(assignment.id)},
+            )
+        return assignment.model_copy(
+            update={"locked": False, "revision": assignment.revision + 1, "updated_at": utc_now()}
+        )
 
     def _hard_constraint_outcome(
         self, requirement: PinRequirement, pin: DevicePin, device: Device

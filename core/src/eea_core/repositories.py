@@ -7,6 +7,7 @@ from eea_core.ai import AIUsageRecord, PromptDefinition
 from eea_core.claims import ClaimConflict, ClaimPredicateDefinition, EngineeringClaim
 from eea_core.entities import Evidence, Project
 from eea_core.intelligence import Document, DocumentIR
+from eea_core.pin_planner import PinAssignment, PinPlan
 from eea_core.requirements import Requirement, RequirementAnalysis, RequirementProfile
 
 
@@ -98,3 +99,15 @@ class RequirementAnalysisRepository(Protocol):
     def add(self, analysis: RequirementAnalysis) -> RequirementAnalysis: ...
 
     def get(self, analysis_id: UUID) -> RequirementAnalysis | None: ...
+
+
+class PinPlanRepository(Protocol):
+    def add(self, plan: PinPlan) -> PinPlan: ...
+
+    def get(self, plan_id: UUID, *, project_id: UUID | None = None) -> PinPlan | None: ...
+
+    def latest_for_project(self, project_id: UUID) -> PinPlan | None: ...
+
+    def get_assignment(
+        self, assignment_id: UUID, *, project_id: UUID
+    ) -> tuple[PinAssignment, UUID] | None: ...

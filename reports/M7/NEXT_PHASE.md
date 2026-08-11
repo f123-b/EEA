@@ -1,16 +1,18 @@
-# Next Phase — M7 Persistence and M8 System Architecture
+# Next Phase — M8 SystemArchitecture / HardwareIR
 
 ## Objective
 
-Complete the durable part of M7 and make M8 consume one authoritative pin-plan result.
+Build the first architecture IR over one authoritative, persisted M7 pin-plan result.
 
 ## Planned scope
 
-- Persist project-scoped pin assignments, locks, rule results, revisions, and traceability.
-- Add explicit lock, unlock, and re-plan APIs with deterministic stale-revision handling.
-- Preserve `UNKNOWN` and `FAIL` outcomes through persistence and downstream architecture generation.
-- Define the M8 HardwareIR/SystemArchitecture input boundary over M7 assignments only.
-- Add migration, repository, API, OpenAPI, and desktop contract coverage for the durable flow.
+- Define Core-neutral `SystemArchitectureIR` and `HardwareIR` contracts without concrete domain
+  plugin types.
+- Load the selected persisted M7 plan and reject missing, stale, unlocked, `UNKNOWN`, or `FAIL`
+  prerequisites according to the M8 gate contract.
+- Preserve M7 assignment, claim, evidence, lock, and rule-result traceability in architecture IR.
+- Add project-scoped persistence, API, OpenAPI, and desktop contract coverage for the architecture
+  boundary.
 
 ## Constraints
 

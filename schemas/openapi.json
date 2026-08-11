@@ -116,6 +116,29 @@
         "title": "ApiEnvelope[EvidenceData]",
         "type": "object"
       },
+      "ApiEnvelope_PinAssignmentMutationData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PinAssignmentMutationData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[PinAssignmentMutationData]",
+        "type": "object"
+      },
       "ApiEnvelope_PinPlanData_": {
         "properties": {
           "data": {
@@ -137,6 +160,29 @@
           "request_id"
         ],
         "title": "ApiEnvelope[PinPlanData]",
+        "type": "object"
+      },
+      "ApiEnvelope_PinPlanValidationData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PinPlanValidationData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[PinPlanValidationData]",
         "type": "object"
       },
       "ApiEnvelope_ProjectData_": {
@@ -1389,8 +1435,253 @@
         "title": "Permission",
         "type": "string"
       },
+      "PinAssignmentData": {
+        "properties": {
+          "claim_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Claim Ids",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_ref": {
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "function": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Function",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locked": {
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "package": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package"
+          },
+          "pin_name": {
+            "title": "Pin Name",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirement_id": {
+            "format": "uuid",
+            "title": "Requirement Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "requirement_id",
+          "device_ref",
+          "package",
+          "pin_name",
+          "function",
+          "locked",
+          "score",
+          "claim_ids",
+          "evidence_ids"
+        ],
+        "title": "PinAssignmentData",
+        "type": "object"
+      },
+      "PinAssignmentMutationData": {
+        "properties": {
+          "assignment": {
+            "$ref": "#/components/schemas/PinAssignmentData"
+          },
+          "lock": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PinLockData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "assignment"
+        ],
+        "title": "PinAssignmentMutationData",
+        "type": "object"
+      },
+      "PinAssignmentMutationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "reason"
+        ],
+        "title": "PinAssignmentMutationRequest",
+        "type": "object"
+      },
+      "PinLockData": {
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locked_by": {
+            "title": "Locked By",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "assignment_id",
+          "locked_by",
+          "reason"
+        ],
+        "title": "PinLockData",
+        "type": "object"
+      },
       "PinPlanData": {
         "properties": {
+          "analysis_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Id"
+          },
           "assignments": {
             "items": {
               "additionalProperties": true,
@@ -1488,6 +1779,7 @@
           "updated_at",
           "metadata",
           "project_id",
+          "analysis_id",
           "device_ref",
           "package",
           "requirements",
@@ -1497,6 +1789,49 @@
           "rule_results"
         ],
         "title": "PinPlanData",
+        "type": "object"
+      },
+      "PinPlanValidationData": {
+        "properties": {
+          "plan_id": {
+            "format": "uuid",
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "plan_revision": {
+            "title": "Plan Revision",
+            "type": "integer"
+          },
+          "rule_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rule Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plan_id",
+          "plan_revision",
+          "rule_results"
+        ],
+        "title": "PinPlanValidationData",
+        "type": "object"
+      },
+      "PinPlanValidationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "format": "uuid",
+            "title": "Plan Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "title": "PinPlanValidationRequest",
         "type": "object"
       },
       "PinPlannerGenerateRequest": {
@@ -3067,6 +3402,174 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/pin-planner/assignments/{assignment_id}/lock": {
+      "post": {
+        "operationId": "lock_pin_assignment_api_v1_projects__project_id__pin_planner_assignments__assignment_id__lock_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinAssignmentMutationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_PinAssignmentMutationData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Lock Pin Assignment",
+        "tags": [
+          "pin-planner"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/pin-planner/assignments/{assignment_id}/unlock": {
+      "post": {
+        "operationId": "unlock_pin_assignment_api_v1_projects__project_id__pin_planner_assignments__assignment_id__unlock_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinAssignmentMutationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_PinAssignmentMutationData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Unlock Pin Assignment",
+        "tags": [
+          "pin-planner"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/pin-planner/generate": {
       "post": {
         "operationId": "generate_pin_plan_api_v1_projects__project_id__pin_planner_generate_post",
@@ -3120,6 +3623,170 @@
           }
         ],
         "summary": "Generate Pin Plan",
+        "tags": [
+          "pin-planner"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/pin-planner/map": {
+      "get": {
+        "operationId": "get_pin_map_api_v1_projects__project_id__pin_planner_map_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_PinPlanData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Pin Map",
+        "tags": [
+          "pin-planner"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/pin-planner/replan": {
+      "post": {
+        "operationId": "generate_pin_plan_api_v1_projects__project_id__pin_planner_replan_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinPlannerGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_PinPlanData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Pin Plan",
+        "tags": [
+          "pin-planner"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/pin-planner/validate": {
+      "post": {
+        "operationId": "validate_pin_plan_api_v1_projects__project_id__pin_planner_validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinPlanValidationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_PinPlanValidationData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Validate Pin Plan",
         "tags": [
           "pin-planner"
         ]

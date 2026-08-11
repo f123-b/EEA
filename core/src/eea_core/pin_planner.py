@@ -103,9 +103,10 @@ class RuleResult(EntityBase):
 
 
 class PinPlan(EntityBase):
-    """An in-memory M7 planning result ready for a later durable adapter."""
+    """A traceable M7 planning result that can be persisted and reloaded."""
 
     project_id: UUID
+    analysis_id: UUID | None = None
     device_ref: str = Field(min_length=1, max_length=200)
     package: str | None = Field(default=None, max_length=100)
     requirements: list[PinRequirement] = Field(default_factory=list)

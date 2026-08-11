@@ -295,3 +295,110 @@ def test_pin_planner_api_requires_and_consumes_canonical_m6_refs(client: TestCli
     rejected = client.post(f"/api/v1/projects/{project_id}/pin-planner/generate", json=payload)
     assert rejected.status_code == 400
     assert rejected.json()["error"]["code"] == "INVALID_REQUIREMENT"
+
+
+def _create_pin_plan_payload(client: TestClient) -> tuple[UUID, dict[str, object]]:
+    project_response = client.post("/api/v1/projects", json={"name": "M7 durable API"})
+    project_id = UUID(project_response.json()["data"]["id"])
+    with Session(client.app.state.engine) as session:
+        profiles = SqlAlchemyRequirementProfileRepository(session)
+        profile = profiles.get("foc-benchmark", "1.0")
+        assert profile is not None
+        analysis = RequirementAnalysisService(
+            RequirementProfileRegistry(profiles),
+            evidence_repository=SqlAlchemyEvidenceRepository(session),
+        ).complete_draft(
+            project_id=project_id,
+            profile_name=profile.profile_name,
+            profile_version=profile.profile_version,
+            draft=RequirementAnalysisDraft(
+                profile_name=profile.profile_name,
+                profile_version=profile.profile_version,
+                requirements=[
+                    RequirementDraft(
+                        code="REQ-PIN-DURABLE",
+                        title="Durable PWM pin",
+                        statement="The PWM output shall remain traceable.",
+                    )
+                ],
+            ),
+        )
+        saved = persist_requirement_analysis_bundle(session, analysis)
+    return project_id, {
+        "analysis_id": str(saved.id),
+        "device_ref": "STM32G431",
+        "package": "UFQFPN48",
+        "requirements": [
+            {
+                "signal_name": "durable-pwm-output",
+                "required_peripheral": "TIM1",
+                "required_function": "CH1",
+                "requirement_ids": [str(saved.requirement_ids[0])],
+            }
+        ],
+    }
+
+
+def test_pin_plan_persistence_lock_unlock_validate_and_replan(client: TestClient) -> None:
+    project_id, payload = _create_pin_plan_payload(client)
+
+    generated = client.post(f"/api/v1/projects/{project_id}/pin-planner/generate", json=payload)
+    assert generated.status_code == 201
+    plan = generated.json()["data"]
+    assignment = plan["assignments"][0]
+    assert plan["analysis_id"] == payload["analysis_id"]
+
+    mapped = client.get(f"/api/v1/projects/{project_id}/pin-planner/map")
+    assert mapped.status_code == 200
+    assert mapped.json()["data"]["id"] == plan["id"]
+
+    validated = client.post(
+        f"/api/v1/projects/{project_id}/pin-planner/validate",
+        json={"plan_id": plan["id"]},
+    )
+    assert validated.status_code == 200
+    assert validated.json()["data"]["rule_results"][0]["status"] == "PASS"
+
+    missing_precondition = client.post(
+        f"/api/v1/projects/{project_id}/pin-planner/assignments/{assignment['id']}/lock",
+        json={"actor": "reviewer", "reason": "Route reservation"},
+    )
+    assert missing_precondition.status_code == 422
+
+    locked = client.post(
+        f"/api/v1/projects/{project_id}/pin-planner/assignments/{assignment['id']}/lock",
+        headers={"If-Match": 'W/"1"'},
+        json={"actor": "reviewer", "reason": "Route reservation"},
+    )
+    assert locked.status_code == 200
+    assert locked.headers["ETag"] == 'W/"2"'
+    assert locked.json()["data"]["assignment"]["locked"] is True
+    assert locked.json()["data"]["lock"]["locked_by"] == "reviewer"
+    locked_map = client.get(f"/api/v1/projects/{project_id}/pin-planner/map")
+    assert locked_map.json()["data"]["assignments"][0]["locked"] is True
+    assert locked_map.json()["data"]["locks"][0]["assignment_id"] == assignment["id"]
+
+    stale = client.post(
+        f"/api/v1/projects/{project_id}/pin-planner/assignments/{assignment['id']}/unlock",
+        headers={"If-Match": 'W/"1"'},
+        json={"actor": "reviewer", "reason": "Stale unlock"},
+    )
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "REVISION_CONFLICT"
+
+    unlocked = client.post(
+        f"/api/v1/projects/{project_id}/pin-planner/assignments/{assignment['id']}/unlock",
+        headers={"If-Match": 'W/"2"'},
+        json={"actor": "reviewer", "reason": "Route changed"},
+    )
+    assert unlocked.status_code == 200
+    assert unlocked.headers["ETag"] == 'W/"3"'
+    assert unlocked.json()["data"]["assignment"]["locked"] is False
+    assert unlocked.json()["data"]["lock"] is None
+    unlocked_map = client.get(f"/api/v1/projects/{project_id}/pin-planner/map")
+    assert unlocked_map.json()["data"]["assignments"][0]["locked"] is False
+    assert unlocked_map.json()["data"]["locks"] == []
+
+    replanned = client.post(f"/api/v1/projects/{project_id}/pin-planner/replan", json=payload)
+    assert replanned.status_code == 201
+    assert replanned.json()["data"]["id"] != plan["id"]
