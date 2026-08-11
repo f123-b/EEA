@@ -85,4 +85,3 @@ Final state: **LOCAL_VERIFIED**
 
 M14R: **LOCAL_VERIFIED, not ACCEPTED**
 READY_FOR_M15: **NO**
-
