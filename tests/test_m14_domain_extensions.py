@@ -555,4 +555,3 @@ def test_empty_domain_list_api_and_domain_contract_routes(tmp_path: Path) -> Non
             empty_client.get(f"/api/v1/projects/{plain_project_id}/domains").json()["data"]["items"]
             == []
         )
-
