@@ -5,6 +5,17 @@ from dataclasses import dataclass
 from pydantic import BaseModel
 
 from eea_core.ai import AIUsageRecord, PromptDefinition
+from eea_core.architecture import (
+    ArchitectureBlock,
+    ArchitectureDecision,
+    ArchitectureInterface,
+    HardwareDeviceInstance,
+    HardwareInterface,
+    HardwareIR,
+    HardwareModule,
+    PowerDomain,
+    SystemArchitectureIR,
+)
 from eea_core.claims import (
     ClaimConflict,
     ClaimPredicateDefinition,
@@ -100,6 +111,9 @@ def create_core_schema_registry() -> SchemaRegistry:
     for model in (
         AIUsageRecord,
         ArchiveExtractionReport,
+        ArchitectureBlock,
+        ArchitectureDecision,
+        ArchitectureInterface,
         Artifact,
         ClaimConflict,
         ClaimPredicateDefinition,
@@ -119,6 +133,10 @@ def create_core_schema_registry() -> SchemaRegistry:
         DocumentSection,
         DocumentTable,
         Evidence,
+        HardwareDeviceInstance,
+        HardwareIR,
+        HardwareInterface,
+        HardwareModule,
         Issue,
         Job,
         PermissionAuditRecord,
@@ -132,6 +150,7 @@ def create_core_schema_registry() -> SchemaRegistry:
         PinLock,
         PinPlan,
         PinRequirement,
+        PowerDomain,
         RuleResult,
         FollowUpQuestion,
         Requirement,
@@ -145,6 +164,7 @@ def create_core_schema_registry() -> SchemaRegistry:
         RequirementFieldSpec,
         RequirementIssueDraft,
         RequirementProfile,
+        SystemArchitectureIR,
     ):
         registry.register(SchemaRegistration(model.__name__, "1.0", model))
     return registry

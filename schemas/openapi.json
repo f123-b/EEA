@@ -1,6 +1,29 @@
 {
   "components": {
     "schemas": {
+      "ApiEnvelope_ArchitectureBundleData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ArchitectureBundleData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ArchitectureBundleData]",
+        "type": "object"
+      },
       "ApiEnvelope_DeviceData_": {
         "properties": {
           "data": {
@@ -344,6 +367,37 @@
           "request_id"
         ],
         "title": "ApiEnvelope[VersionData]",
+        "type": "object"
+      },
+      "ArchitectureBundleData": {
+        "properties": {
+          "hardware": {
+            "$ref": "#/components/schemas/HardwareIRData"
+          },
+          "system_architecture": {
+            "$ref": "#/components/schemas/SystemArchitectureData"
+          }
+        },
+        "required": [
+          "system_architecture",
+          "hardware"
+        ],
+        "title": "ArchitectureBundleData",
+        "type": "object"
+      },
+      "ArchitectureGenerateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "pin_plan_id": {
+            "format": "uuid",
+            "title": "Pin Plan Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pin_plan_id"
+        ],
+        "title": "ArchitectureGenerateRequest",
         "type": "object"
       },
       "ArtifactStatus": {
@@ -1351,6 +1405,151 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HardwareIRData": {
+        "properties": {
+          "architecture_id": {
+            "format": "uuid",
+            "title": "Architecture Id",
+            "type": "string"
+          },
+          "constraints": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Constraints",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_instances": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Device Instances",
+            "type": "array"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "interfaces": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Interfaces",
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "modules": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Modules",
+            "type": "array"
+          },
+          "pin_assignment_revisions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Pin Assignment Revisions",
+            "type": "object"
+          },
+          "pin_plan_id": {
+            "format": "uuid",
+            "title": "Pin Plan Id",
+            "type": "string"
+          },
+          "pin_plan_revision": {
+            "title": "Pin Plan Revision",
+            "type": "integer"
+          },
+          "pin_requirements": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Pin Requirements",
+            "type": "array"
+          },
+          "power_domains": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Power Domains",
+            "type": "array"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "architecture_id",
+          "pin_plan_id",
+          "pin_plan_revision",
+          "modules",
+          "device_instances",
+          "power_domains",
+          "interfaces",
+          "pin_requirements",
+          "constraints",
+          "requirement_ids",
+          "evidence_ids",
+          "pin_assignment_revisions"
+        ],
+        "title": "HardwareIRData",
         "type": "object"
       },
       "HealthResponse": {
@@ -2598,6 +2797,127 @@
         "title": "SchemaListData",
         "type": "object"
       },
+      "SystemArchitectureData": {
+        "properties": {
+          "blocks": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Blocks",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decisions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "interfaces": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Interfaces",
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "pin_assignment_revisions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Pin Assignment Revisions",
+            "type": "object"
+          },
+          "pin_plan_id": {
+            "format": "uuid",
+            "title": "Pin Plan Id",
+            "type": "string"
+          },
+          "pin_plan_revision": {
+            "title": "Pin Plan Revision",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_artifact_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Source Artifact Ids",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "pin_plan_id",
+          "pin_plan_revision",
+          "blocks",
+          "interfaces",
+          "decisions",
+          "requirement_ids",
+          "evidence_ids",
+          "source_artifact_ids",
+          "pin_assignment_revisions"
+        ],
+        "title": "SystemArchitectureData",
+        "type": "object"
+      },
       "TraceabilityRelation": {
         "enum": [
           "IMPLEMENTS",
@@ -3399,6 +3719,112 @@
         "summary": "Update Project",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/architecture": {
+      "get": {
+        "operationId": "get_architecture_api_v1_projects__project_id__architecture_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ArchitectureBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Architecture",
+        "tags": [
+          "architecture"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/architecture/generate": {
+      "post": {
+        "operationId": "generate_architecture_api_v1_projects__project_id__architecture_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchitectureGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ArchitectureBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Architecture",
+        "tags": [
+          "architecture"
         ]
       }
     },

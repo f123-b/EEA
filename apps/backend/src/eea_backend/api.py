@@ -9,6 +9,7 @@ from uuid import UUID
 
 from eea_adapters.devices import Stm32G431FixtureProvider
 from eea_application.ai import PromptRegistry, StructuredGenerationService
+from eea_application.architecture import ArchitectureService
 from eea_application.intelligence import DocumentService, MultiSourceDeviceProvider
 from eea_application.pin_planner import PinPlannerService
 from eea_application.projects import ProjectService
@@ -16,6 +17,7 @@ from eea_application.requirements import (
     RequirementAnalysisService,
     RequirementProfileRegistry,
 )
+from eea_core.architecture import ArchitectureBundle
 from eea_core.entities import Evidence, Project
 from eea_core.enums import (
     ArtifactStatus,
@@ -52,6 +54,7 @@ from eea_core.schema_registry import create_core_schema_registry
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.orm import Session
 
+from eea_backend.architecture_repositories import SqlAlchemyArchitectureRepository
 from eea_backend.claim_repositories import SqlAlchemyEngineeringClaimRepository
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
 from eea_backend.pin_planner_repositories import SqlAlchemyPinPlanRepository
@@ -69,6 +72,8 @@ from eea_backend.requirement_repositories import (
 )
 from eea_backend.schemas import (
     ApiEnvelope,
+    ArchitectureBundleData,
+    ArchitectureGenerateRequest,
     DeviceData,
     DevicePinData,
     DevicePinQueryData,
@@ -149,6 +154,10 @@ def _pin_lock_data(lock: PinLock | None) -> PinLockData | None:
     if lock is None:
         return None
     return PinLockData.model_validate(lock.model_dump(mode="json"))
+
+
+def _architecture_bundle_data(bundle: ArchitectureBundle) -> ArchitectureBundleData:
+    return ArchitectureBundleData.model_validate(bundle.model_dump(mode="json"))
 
 
 def _requirement_profile_repository(session: Session) -> SqlAlchemyRequirementProfileRepository:
@@ -511,6 +520,54 @@ def unlock_pin_assignment(
         ),
         request_id=_request_id(request),
     )
+
+
+@router.post(
+    "/projects/{project_id}/architecture/generate",
+    response_model=ApiEnvelope[ArchitectureBundleData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["architecture"],
+)
+def generate_architecture(
+    project_id: UUID,
+    payload: ArchitectureGenerateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[ArchitectureBundleData]:
+    _service(session).get(project_id)
+    pin_plans = SqlAlchemyPinPlanRepository(session)
+    plan = pin_plans.get(payload.pin_plan_id, project_id=project_id)
+    latest = pin_plans.latest_for_project(project_id)
+    if plan is None or latest is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Pin plan is not available for architecture generation",
+            details={"pin_plan_id": str(payload.pin_plan_id), "project_id": str(project_id)},
+        )
+    bundle = ArchitectureService().generate(plan, latest_plan_id=latest.id)
+    saved = SqlAlchemyArchitectureRepository(session).add(bundle)
+    return ApiEnvelope(data=_architecture_bundle_data(saved), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/architecture",
+    response_model=ApiEnvelope[ArchitectureBundleData],
+    tags=["architecture"],
+)
+def get_architecture(
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[ArchitectureBundleData]:
+    _service(session).get(project_id)
+    bundle = SqlAlchemyArchitectureRepository(session).latest_for_project(project_id)
+    if bundle is None:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "No architecture has been generated for this project",
+            details={"project_id": str(project_id)},
+        )
+    return ApiEnvelope(data=_architecture_bundle_data(bundle), request_id=_request_id(request))
 
 
 @router.post(

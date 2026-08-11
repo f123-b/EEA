@@ -355,6 +355,58 @@ class PinPlanValidationData(BaseModel):
     rule_results: list[dict[str, object]]
 
 
+class ArchitectureGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pin_plan_id: UUID
+
+
+class SystemArchitectureData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    pin_plan_id: UUID
+    pin_plan_revision: int
+    blocks: list[dict[str, object]]
+    interfaces: list[dict[str, object]]
+    decisions: list[dict[str, object]]
+    requirement_ids: list[UUID]
+    evidence_ids: list[UUID]
+    source_artifact_ids: list[UUID]
+    pin_assignment_revisions: dict[str, int]
+
+
+class HardwareIRData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    architecture_id: UUID
+    pin_plan_id: UUID
+    pin_plan_revision: int
+    modules: list[dict[str, object]]
+    device_instances: list[dict[str, object]]
+    power_domains: list[dict[str, object]]
+    interfaces: list[dict[str, object]]
+    pin_requirements: list[dict[str, object]]
+    constraints: list[dict[str, object]]
+    requirement_ids: list[UUID]
+    evidence_ids: list[UUID]
+    pin_assignment_revisions: dict[str, int]
+
+
+class ArchitectureBundleData(BaseModel):
+    system_architecture: SystemArchitectureData
+    hardware: HardwareIRData
+
+
 class SchemaData(BaseModel):
     name: str
     schema_version: str

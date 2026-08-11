@@ -29,6 +29,7 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
         "evidence",
         "issues",
         "jobs",
+        "hardware_irs",
         "permissions_audit",
         "pin_assignments",
         "pin_locks",
@@ -38,6 +39,7 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
         "projects",
         "schema_registry",
         "system_metadata",
+        "system_architectures",
         "traceability_edges",
     } <= table_names
     with engine.connect() as connection:
@@ -48,6 +50,16 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
             == "0001_m0"
         )
     engine.dispose()
+    command.downgrade(config, "0009_m7_pin_planner")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    assert not {"hardware_irs", "system_architectures"} & set(inspect(engine).get_table_names())
+    engine.dispose()
+
+    command.upgrade(config, "head")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    assert {"hardware_irs", "system_architectures"} <= set(inspect(engine).get_table_names())
+    engine.dispose()
+
     command.downgrade(config, "0008_m6_review_fixes")
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     assert not {

@@ -399,6 +399,43 @@ class PinRuleResultRecord(CoreRecordMixin, Base):
     input_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
 
 
+class SystemArchitectureRecord(CoreRecordMixin, Base):
+    __tablename__ = "system_architectures"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    pin_plan_id: Mapped[str] = mapped_column(ForeignKey("pin_plans.id"), nullable=False, index=True)
+    pin_plan_revision: Mapped[int] = mapped_column(nullable=False)
+    blocks: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    interfaces: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    decisions: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    source_artifact_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    pin_assignment_revisions: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+
+
+class HardwareIRRecord(CoreRecordMixin, Base):
+    __tablename__ = "hardware_irs"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    architecture_id: Mapped[str] = mapped_column(
+        ForeignKey("system_architectures.id"), nullable=False, index=True
+    )
+    pin_plan_id: Mapped[str] = mapped_column(ForeignKey("pin_plans.id"), nullable=False, index=True)
+    pin_plan_revision: Mapped[int] = mapped_column(nullable=False)
+    modules: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    device_instances: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    power_domains: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    interfaces: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    pin_requirements: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    constraints: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    pin_assignment_revisions: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+
+
 class PromptDefinitionRecord(CoreRecordMixin, Base):
     __tablename__ = "prompt_definitions"
     __table_args__ = (
