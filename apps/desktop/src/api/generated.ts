@@ -141,7 +141,12 @@ export const engineeringErrorCodeValues = [
   "RECOVERY_REQUIRED",
   "EVENT_DELIVERY_FAILED",
   "INDEX_REBUILD_REQUIRED",
-  "BUILD_INPUT_UNDECLARED"
+  "BUILD_INPUT_UNDECLARED",
+  "SANDBOX_VIOLATION",
+  "ARCHIVE_UNSAFE",
+  "COMMAND_NOT_ALLOWED",
+  "NETWORK_DENIED",
+  "RESOURCE_LIMIT_EXCEEDED"
 ] as const;
 export type EngineeringErrorCode = (typeof engineeringErrorCodeValues)[number];
 

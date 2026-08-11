@@ -34,6 +34,12 @@ from eea_core.intelligence import (
     DocumentTable,
     PinFunction,
 )
+from eea_core.sandbox import (
+    ArchiveExtractionReport,
+    CommandResult,
+    CommandSpec,
+    SandboxPolicy,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,9 +77,12 @@ def create_core_schema_registry() -> SchemaRegistry:
     registry = SchemaRegistry()
     for model in (
         AIUsageRecord,
+        ArchiveExtractionReport,
         Artifact,
         ClaimConflict,
         ClaimPredicateDefinition,
+        CommandResult,
+        CommandSpec,
         Device,
         DeviceMergeConflict,
         DeviceMergeResult,
@@ -93,6 +102,7 @@ def create_core_schema_registry() -> SchemaRegistry:
         PermissionAuditRecord,
         PromptDefinition,
         Project,
+        SandboxPolicy,
         TraceabilityEdge,
         PinFunction,
     ):
