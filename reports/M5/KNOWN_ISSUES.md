@@ -9,4 +9,4 @@ blocked until the operating-system hardening items below are closed.
 | Low | Windows symlink creation is unavailable in this environment | Re-run the SafePath symlink test with developer mode or an elevated CI worker. |
 | Low | Native Tauri build is not exercised | Install Rust/Cargo and run desktop-native checks before M21 packaging. |
 | Low | Starlette/httpx deprecation warning | Track the upstream dependency migration; it does not affect current assertions. |
-| Info | GitHub Actions has not run for the M5 push yet | Confirm remote CI after publication. |
+| Info | The original M5 stage report lacked hosted CI evidence | Hosted CI subsequently passed on current main; retain the historical wording only in the stage report. |
