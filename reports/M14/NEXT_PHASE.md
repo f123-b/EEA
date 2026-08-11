@@ -1,11 +1,11 @@
 # M15 Next Phase: First Built-in Domain Plugin
 
-M14/M14R infrastructure is locally verified. M14R is not remotely or human accepted yet; the next
-frozen phase is the first concrete built-in Domain plugin under `plugins/builtin/`, using the M14
-descriptor, schema, rule, generator, context, UI metadata, and activation contracts.
+M14/M14R infrastructure is accepted by the automated repository gate. The next frozen phase is the
+first concrete built-in Domain plugin under `plugins/builtin/`, using the M14 descriptor, schema,
+rule, generator, context, UI metadata, and activation contracts.
 
-M15 may begin only after the M14R acceptance report has an exact final commit SHA, remote CI
-evidence, and explicit human acceptance. Until then: `READY_FOR_M15 = NO`.
+M14R remote evidence: CI Run `31490343829`, backend and desktop GREEN. This report records
+`READY_FOR_M15 = YES` but does not begin M15; M15 requires its own inspect-and-plan step.
 
 M15 must preserve the M14 invariants: Core remains domain-neutral, ordinary projects may keep zero
 active Domains, plugin-owned IR is referenced through opaque envelopes, and plugin rules may only
