@@ -27,6 +27,11 @@ the frozen documentation changelogs under `docs/`.
   claim-extraction ports, STM32G431 provider fixture, and auditable multi-source device merge.
 - Document/device API routes, M4 enum catalogs, durable `0005_m4` persistence migration, and
   synchronized OpenAPI/TypeScript contracts.
+- M5 Sandbox Foundation: SafePath/workspace boundaries, ZIP/TAR traversal and symlink guards,
+  archive-size limits, shell-free allowlisted command execution, sanitized environments, network
+  denial, timeout/output budgets, and structured sandbox errors.
+- Alembic `0006_m5` migration extends the API error catalog for sandbox violations and resource
+  limits.
 
 ### Changed
 
@@ -37,3 +42,4 @@ the frozen documentation changelogs under `docs/`.
   independent of Core and frameworks.
 - Updated product and desktop version metadata to `1.3.1.dev3` / `1.3.1-dev.3` for M3.
 - Updated product and desktop version metadata to `1.3.1.dev4` / `1.3.1-dev.4` for M4.
+- Updated product and desktop version metadata to `1.3.1.dev5` / `1.3.1-dev.5` for M5.

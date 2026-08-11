@@ -9,8 +9,8 @@ Implementation advances one milestone at a time using the required sequence:
 
 ## Current milestone
 
-M4 Document + Device Intelligence is implemented on the accepted M3 Claim Core
-(implementation version `1.3.1.dev4`):
+M5 Sandbox Foundation is implemented on the accepted M4 Document + Device Intelligence
+(implementation version `1.3.1.dev5`):
 
 - FastAPI backend with health and version endpoints;
 - SQLAlchemy 2.x and Alembic migration foundation;
@@ -41,6 +41,11 @@ M4 Document + Device Intelligence is implemented on the accepted M3 Claim Core
   package-aware pin queries;
 - multi-source device merge that unions compatible facts and retains scalar/pin-function conflicts;
 - Alembic `0005_m4` migration and versioned document/device API contracts.
+- Core SafePath, SandboxPolicy, structured CommandSpec/CommandResult, and workspace contracts;
+- ZIP/TAR extraction with traversal, symlink, special-file, duplicate, and archive-bomb guards;
+- shell-free allowlisted command execution with sanitized environment, default network denial,
+  timeout/output budgets, secret argument rejection, and structured resource errors;
+- Alembic `0006_m5` error-catalog migration and synchronized sandbox error contracts.
 
 ## Development
 
