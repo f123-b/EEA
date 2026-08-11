@@ -4,7 +4,7 @@ Date: 2026-08-11
 Repository: `f123-b/EEA`
 Exact base SHA: `74671ff94366925851c85f42b04b98b5d20a7d06`
 Implementation commit SHA: `ade9da3`
-Documentation/report commit: **pending**
+Documentation/report evidence commit: `360f5ec`
 Python: `3.12.13`
 Node: `v24.14.0`
 pnpm: `11.16.0`
