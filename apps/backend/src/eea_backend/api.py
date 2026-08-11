@@ -10,6 +10,11 @@ from uuid import UUID
 from eea_adapters.devices import Stm32G431FixtureProvider
 from eea_application.intelligence import DocumentService, MultiSourceDeviceProvider
 from eea_application.projects import ProjectService
+from eea_application.requirements import (
+    RequirementAnalysisService,
+    RequirementProfileRegistry,
+    build_foc_benchmark_profile,
+)
 from eea_core.entities import Project
 from eea_core.enums import (
     ArtifactStatus,
@@ -30,17 +35,27 @@ from eea_core.enums import (
     JobStatus,
     Permission,
     ProjectStatus,
+    RequirementFieldStatus,
+    RequirementPriority,
+    RequirementStatus,
+    RequirementType,
+    RequirementValueType,
     TraceabilityRelation,
     VerificationLevel,
 )
 from eea_core.errors import EngineeringError
 from eea_core.intelligence import Device, DevicePin, Document
+from eea_core.requirements import RequirementProfile
 from eea_core.schema_registry import create_core_schema_registry
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.orm import Session
 
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
 from eea_backend.repositories import SqlAlchemyProjectRepository
+from eea_backend.requirement_repositories import (
+    SqlAlchemyRequirementAnalysisRepository,
+    SqlAlchemyRequirementProfileRepository,
+)
 from eea_backend.schemas import (
     ApiEnvelope,
     DeviceData,
@@ -54,6 +69,9 @@ from eea_backend.schemas import (
     ProjectData,
     ProjectListData,
     ProjectUpdate,
+    RequirementAnalysisData,
+    RequirementProfileData,
+    RequirementStructuredAnalysisRequest,
     SchemaData,
     SchemaDescriptorData,
     SchemaListData,
@@ -91,6 +109,25 @@ def _pin_data(pin: DevicePin) -> DevicePinData:
 
 def _device_data(device: Device) -> DeviceData:
     return DeviceData.model_validate(device.model_dump(mode="json"))
+
+
+def _requirement_profile_repository(session: Session) -> SqlAlchemyRequirementProfileRepository:
+    return SqlAlchemyRequirementProfileRepository(session)
+
+
+def _ensure_builtin_profile(
+    repository: SqlAlchemyRequirementProfileRepository,
+    profile_name: str,
+    profile_version: str,
+) -> RequirementProfile | None:
+    profile = repository.get(profile_name, profile_version)
+    if profile is None and (profile_name, profile_version) == ("foc-benchmark", "1.0"):
+        profile = repository.add(build_foc_benchmark_profile())
+    return profile
+
+
+def _requirement_profile_data(profile: RequirementProfile) -> RequirementProfileData:
+    return RequirementProfileData.model_validate(profile.model_dump(mode="json"))
 
 
 def _request_id(request: Request) -> str:
@@ -153,6 +190,11 @@ def enums(request: Request) -> ApiEnvelope[EnumCatalogData]:
             JobStatus,
             Permission,
             ProjectStatus,
+            RequirementFieldStatus,
+            RequirementPriority,
+            RequirementStatus,
+            RequirementType,
+            RequirementValueType,
             TraceabilityRelation,
             VerificationLevel,
         )
@@ -188,6 +230,59 @@ def schema(schema_name: str, request: Request) -> ApiEnvelope[SchemaData]:
         json_schema=json_schema,
     )
     return ApiEnvelope(data=data, request_id=_request_id(request))
+
+
+@router.get(
+    "/requirement-profiles/{profile_name}/{profile_version}",
+    response_model=ApiEnvelope[RequirementProfileData],
+    tags=["requirements"],
+)
+def get_requirement_profile(
+    profile_name: str,
+    profile_version: str,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[RequirementProfileData]:
+    profile = _ensure_builtin_profile(
+        _requirement_profile_repository(session), profile_name, profile_version
+    )
+    if profile is None:
+        raise EngineeringError(
+            EngineeringErrorCode.SCHEMA_VERSION_UNSUPPORTED,
+            "Requirement profile version is not registered",
+            details={"profile_name": profile_name, "profile_version": profile_version},
+        )
+    return ApiEnvelope(data=_requirement_profile_data(profile), request_id=_request_id(request))
+
+
+@router.post(
+    "/requirements/analyze/structured",
+    response_model=ApiEnvelope[RequirementAnalysisData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["requirements"],
+)
+def analyze_structured_requirements(
+    payload: RequirementStructuredAnalysisRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[RequirementAnalysisData]:
+    _service(session).get(payload.project_id)
+    repository = _requirement_profile_repository(session)
+    _ensure_builtin_profile(repository, payload.profile_name, payload.profile_version)
+    analysis = RequirementAnalysisService(
+        RequirementProfileRegistry(repository)
+    ).analyze_structured(
+        project_id=payload.project_id,
+        profile_name=payload.profile_name,
+        profile_version=payload.profile_version,
+        values=payload.values,
+        evidence_refs=payload.evidence_refs,
+    )
+    saved = SqlAlchemyRequirementAnalysisRepository(session).add(analysis)
+    return ApiEnvelope(
+        data=RequirementAnalysisData.model_validate(saved.model_dump(mode="json")),
+        request_id=_request_id(request),
+    )
 
 
 @router.post(

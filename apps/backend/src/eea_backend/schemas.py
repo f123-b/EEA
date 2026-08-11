@@ -23,6 +23,11 @@ from eea_core.enums import (
     JobStatus,
     Permission,
     ProjectStatus,
+    RequirementFieldStatus,
+    RequirementPriority,
+    RequirementStatus,
+    RequirementType,
+    RequirementValueType,
     TraceabilityRelation,
     VerificationLevel,
 )
@@ -126,6 +131,11 @@ class EnumValues(BaseModel):
     job_status: list[JobStatus] = Field(alias="JobStatus")
     permission: list[Permission] = Field(alias="Permission")
     project_status: list[ProjectStatus] = Field(alias="ProjectStatus")
+    requirement_field_status: list[RequirementFieldStatus] = Field(alias="RequirementFieldStatus")
+    requirement_priority: list[RequirementPriority] = Field(alias="RequirementPriority")
+    requirement_status: list[RequirementStatus] = Field(alias="RequirementStatus")
+    requirement_type: list[RequirementType] = Field(alias="RequirementType")
+    requirement_value_type: list[RequirementValueType] = Field(alias="RequirementValueType")
     traceability_relation: list[TraceabilityRelation] = Field(alias="TraceabilityRelation")
     verification_level: list[VerificationLevel] = Field(alias="VerificationLevel")
 
@@ -141,6 +151,58 @@ class SchemaDescriptorData(BaseModel):
 
 class SchemaListData(BaseModel):
     items: list[SchemaDescriptorData]
+
+
+class RequirementProfileData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    profile_name: str
+    profile_version: str
+    purpose: str
+    fields: list[dict[str, object]]
+    evidence_contracts: list[dict[str, object]]
+    active: bool
+
+
+class RequirementStructuredAnalysisRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID
+    profile_name: str = Field(min_length=1, max_length=120)
+    profile_version: str = Field(min_length=1, max_length=50)
+    values: dict[str, object] = Field(default_factory=dict)
+    evidence_refs: dict[str, UUID] = Field(default_factory=dict)
+
+
+class RequirementCompletenessData(BaseModel):
+    status: RequirementStatus
+    score: float
+    required_field_keys: list[str]
+    missing_field_keys: list[str]
+    ambiguous_field_keys: list[str]
+    missing_evidence_keys: list[str]
+
+
+class RequirementAnalysisData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    profile_name: str
+    profile_version: str
+    requirements: list[dict[str, object]]
+    field_observations: list[dict[str, object]]
+    claims: list[dict[str, object]]
+    issues: list[dict[str, object]]
+    follow_up_questions: list[dict[str, object]]
+    completeness: RequirementCompletenessData
 
 
 class SchemaData(BaseModel):

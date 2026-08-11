@@ -21,6 +21,11 @@ from eea_core.enums import (
     JobStatus,
     Permission,
     ProjectStatus,
+    RequirementFieldStatus,
+    RequirementPriority,
+    RequirementStatus,
+    RequirementType,
+    RequirementValueType,
     TraceabilityRelation,
 )
 
@@ -42,6 +47,11 @@ __all__ = [
     "PermissionAuditRecord",
     "Project",
     "ProjectStatus",
+    "RequirementFieldStatus",
+    "RequirementPriority",
+    "RequirementStatus",
+    "RequirementType",
+    "RequirementValueType",
     "TraceabilityEdge",
     "TraceabilityRelation",
 ]

@@ -34,6 +34,19 @@ from eea_core.intelligence import (
     DocumentTable,
     PinFunction,
 )
+from eea_core.requirements import (
+    FollowUpQuestion,
+    Requirement,
+    RequirementAnalysis,
+    RequirementAnalysisDraft,
+    RequirementClaimDraft,
+    RequirementCompleteness,
+    RequirementEvidenceContract,
+    RequirementFieldObservation,
+    RequirementFieldSpec,
+    RequirementIssueDraft,
+    RequirementProfile,
+)
 from eea_core.sandbox import (
     ArchiveExtractionReport,
     CommandResult,
@@ -105,6 +118,17 @@ def create_core_schema_registry() -> SchemaRegistry:
         SandboxPolicy,
         TraceabilityEdge,
         PinFunction,
+        FollowUpQuestion,
+        Requirement,
+        RequirementAnalysis,
+        RequirementAnalysisDraft,
+        RequirementClaimDraft,
+        RequirementCompleteness,
+        RequirementEvidenceContract,
+        RequirementFieldObservation,
+        RequirementFieldSpec,
+        RequirementIssueDraft,
+        RequirementProfile,
     ):
         registry.register(SchemaRegistration(model.__name__, "1.0", model))
     return registry

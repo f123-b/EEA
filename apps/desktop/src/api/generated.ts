@@ -216,6 +216,53 @@ export const projectStatusValues = [
 ] as const;
 export type ProjectStatus = (typeof projectStatusValues)[number];
 
+export const requirementFieldStatusValues = [
+  "PRESENT",
+  "MISSING",
+  "UNKNOWN",
+  "AMBIGUOUS"
+] as const;
+export type RequirementFieldStatus = (typeof requirementFieldStatusValues)[number];
+
+export const requirementPriorityValues = [
+  "MUST",
+  "SHOULD",
+  "COULD",
+  "UNKNOWN"
+] as const;
+export type RequirementPriority = (typeof requirementPriorityValues)[number];
+
+export const requirementStatusValues = [
+  "CANDIDATE",
+  "INCOMPLETE",
+  "AMBIGUOUS",
+  "COMPLETE",
+  "ACCEPTED",
+  "REJECTED"
+] as const;
+export type RequirementStatus = (typeof requirementStatusValues)[number];
+
+export const requirementTypeValues = [
+  "FUNCTIONAL",
+  "PERFORMANCE",
+  "INTERFACE",
+  "SAFETY",
+  "CONSTRAINT",
+  "UNKNOWN"
+] as const;
+export type RequirementType = (typeof requirementTypeValues)[number];
+
+export const requirementValueTypeValues = [
+  "TEXT",
+  "NUMBER",
+  "BOOLEAN",
+  "ENUM",
+  "ENGINEERING_VALUE",
+  "OBJECT",
+  "LIST"
+] as const;
+export type RequirementValueType = (typeof requirementValueTypeValues)[number];
+
 export const traceabilityRelationValues = [
   "IMPLEMENTS",
   "DERIVED_FROM",

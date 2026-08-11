@@ -9,6 +9,48 @@ class ProjectStatus(StrEnum):
     ARCHIVED = "ARCHIVED"
 
 
+class RequirementType(StrEnum):
+    FUNCTIONAL = "FUNCTIONAL"
+    PERFORMANCE = "PERFORMANCE"
+    INTERFACE = "INTERFACE"
+    SAFETY = "SAFETY"
+    CONSTRAINT = "CONSTRAINT"
+    UNKNOWN = "UNKNOWN"
+
+
+class RequirementPriority(StrEnum):
+    MUST = "MUST"
+    SHOULD = "SHOULD"
+    COULD = "COULD"
+    UNKNOWN = "UNKNOWN"
+
+
+class RequirementStatus(StrEnum):
+    CANDIDATE = "CANDIDATE"
+    INCOMPLETE = "INCOMPLETE"
+    AMBIGUOUS = "AMBIGUOUS"
+    COMPLETE = "COMPLETE"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+
+
+class RequirementValueType(StrEnum):
+    TEXT = "TEXT"
+    NUMBER = "NUMBER"
+    BOOLEAN = "BOOLEAN"
+    ENUM = "ENUM"
+    ENGINEERING_VALUE = "ENGINEERING_VALUE"
+    OBJECT = "OBJECT"
+    LIST = "LIST"
+
+
+class RequirementFieldStatus(StrEnum):
+    PRESENT = "PRESENT"
+    MISSING = "MISSING"
+    UNKNOWN = "UNKNOWN"
+    AMBIGUOUS = "AMBIGUOUS"
+
+
 class ArtifactStatus(StrEnum):
     CURRENT = "CURRENT"
     STALE = "STALE"

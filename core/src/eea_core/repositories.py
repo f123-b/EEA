@@ -7,6 +7,7 @@ from eea_core.ai import AIUsageRecord, PromptDefinition
 from eea_core.claims import ClaimConflict, ClaimPredicateDefinition, EngineeringClaim
 from eea_core.entities import Project
 from eea_core.intelligence import Document, DocumentIR
+from eea_core.requirements import Requirement, RequirementAnalysis, RequirementProfile
 
 
 class ProjectRepository(Protocol):
@@ -65,3 +66,23 @@ class DocumentIRRepository(Protocol):
     def add(self, document_ir: DocumentIR) -> DocumentIR: ...
 
     def get_for_document(self, document_id: UUID) -> DocumentIR | None: ...
+
+
+class RequirementProfileRepository(Protocol):
+    def add(self, profile: RequirementProfile) -> RequirementProfile: ...
+
+    def get(
+        self, profile_name: str, profile_version: str | None = None
+    ) -> RequirementProfile | None: ...
+
+
+class RequirementRepository(Protocol):
+    def add(self, requirement: Requirement) -> Requirement: ...
+
+    def list_for_project(self, project_id: UUID) -> list[Requirement]: ...
+
+
+class RequirementAnalysisRepository(Protocol):
+    def add(self, analysis: RequirementAnalysis) -> RequirementAnalysis: ...
+
+    def get(self, analysis_id: UUID) -> RequirementAnalysis | None: ...

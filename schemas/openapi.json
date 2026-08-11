@@ -139,6 +139,52 @@
         "title": "ApiEnvelope[ProjectListData]",
         "type": "object"
       },
+      "ApiEnvelope_RequirementAnalysisData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RequirementAnalysisData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[RequirementAnalysisData]",
+        "type": "object"
+      },
+      "ApiEnvelope_RequirementProfileData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RequirementProfileData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[RequirementProfileData]",
+        "type": "object"
+      },
       "ApiEnvelope_SchemaData_": {
         "properties": {
           "data": {
@@ -958,6 +1004,41 @@
             "title": "Projectstatus",
             "type": "array"
           },
+          "RequirementFieldStatus": {
+            "items": {
+              "$ref": "#/components/schemas/RequirementFieldStatus"
+            },
+            "title": "Requirementfieldstatus",
+            "type": "array"
+          },
+          "RequirementPriority": {
+            "items": {
+              "$ref": "#/components/schemas/RequirementPriority"
+            },
+            "title": "Requirementpriority",
+            "type": "array"
+          },
+          "RequirementStatus": {
+            "items": {
+              "$ref": "#/components/schemas/RequirementStatus"
+            },
+            "title": "Requirementstatus",
+            "type": "array"
+          },
+          "RequirementType": {
+            "items": {
+              "$ref": "#/components/schemas/RequirementType"
+            },
+            "title": "Requirementtype",
+            "type": "array"
+          },
+          "RequirementValueType": {
+            "items": {
+              "$ref": "#/components/schemas/RequirementValueType"
+            },
+            "title": "Requirementvaluetype",
+            "type": "array"
+          },
           "TraceabilityRelation": {
             "items": {
               "$ref": "#/components/schemas/TraceabilityRelation"
@@ -992,6 +1073,11 @@
           "JobStatus",
           "Permission",
           "ProjectStatus",
+          "RequirementFieldStatus",
+          "RequirementPriority",
+          "RequirementStatus",
+          "RequirementType",
+          "RequirementValueType",
           "TraceabilityRelation",
           "VerificationLevel"
         ],
@@ -1293,6 +1379,341 @@
         "title": "ProjectUpdate",
         "type": "object"
       },
+      "RequirementAnalysisData": {
+        "properties": {
+          "claims": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Claims",
+            "type": "array"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/RequirementCompletenessData"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "field_observations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Field Observations",
+            "type": "array"
+          },
+          "follow_up_questions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Follow Up Questions",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "profile_name": {
+            "title": "Profile Name",
+            "type": "string"
+          },
+          "profile_version": {
+            "title": "Profile Version",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirements": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Requirements",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "profile_name",
+          "profile_version",
+          "requirements",
+          "field_observations",
+          "claims",
+          "issues",
+          "follow_up_questions",
+          "completeness"
+        ],
+        "title": "RequirementAnalysisData",
+        "type": "object"
+      },
+      "RequirementCompletenessData": {
+        "properties": {
+          "ambiguous_field_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ambiguous Field Keys",
+            "type": "array"
+          },
+          "missing_evidence_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Evidence Keys",
+            "type": "array"
+          },
+          "missing_field_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Field Keys",
+            "type": "array"
+          },
+          "required_field_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Field Keys",
+            "type": "array"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RequirementStatus"
+          }
+        },
+        "required": [
+          "status",
+          "score",
+          "required_field_keys",
+          "missing_field_keys",
+          "ambiguous_field_keys",
+          "missing_evidence_keys"
+        ],
+        "title": "RequirementCompletenessData",
+        "type": "object"
+      },
+      "RequirementFieldStatus": {
+        "enum": [
+          "PRESENT",
+          "MISSING",
+          "UNKNOWN",
+          "AMBIGUOUS"
+        ],
+        "title": "RequirementFieldStatus",
+        "type": "string"
+      },
+      "RequirementPriority": {
+        "enum": [
+          "MUST",
+          "SHOULD",
+          "COULD",
+          "UNKNOWN"
+        ],
+        "title": "RequirementPriority",
+        "type": "string"
+      },
+      "RequirementProfileData": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_contracts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Evidence Contracts",
+            "type": "array"
+          },
+          "fields": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "profile_name": {
+            "title": "Profile Name",
+            "type": "string"
+          },
+          "profile_version": {
+            "title": "Profile Version",
+            "type": "string"
+          },
+          "purpose": {
+            "title": "Purpose",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "profile_name",
+          "profile_version",
+          "purpose",
+          "fields",
+          "evidence_contracts",
+          "active"
+        ],
+        "title": "RequirementProfileData",
+        "type": "object"
+      },
+      "RequirementStatus": {
+        "enum": [
+          "CANDIDATE",
+          "INCOMPLETE",
+          "AMBIGUOUS",
+          "COMPLETE",
+          "ACCEPTED",
+          "REJECTED"
+        ],
+        "title": "RequirementStatus",
+        "type": "string"
+      },
+      "RequirementStructuredAnalysisRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_refs": {
+            "additionalProperties": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "object"
+          },
+          "profile_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Profile Name",
+            "type": "string"
+          },
+          "profile_version": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Profile Version",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": true,
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "project_id",
+          "profile_name",
+          "profile_version"
+        ],
+        "title": "RequirementStructuredAnalysisRequest",
+        "type": "object"
+      },
+      "RequirementType": {
+        "enum": [
+          "FUNCTIONAL",
+          "PERFORMANCE",
+          "INTERFACE",
+          "SAFETY",
+          "CONSTRAINT",
+          "UNKNOWN"
+        ],
+        "title": "RequirementType",
+        "type": "string"
+      },
+      "RequirementValueType": {
+        "enum": [
+          "TEXT",
+          "NUMBER",
+          "BOOLEAN",
+          "ENUM",
+          "ENGINEERING_VALUE",
+          "OBJECT",
+          "LIST"
+        ],
+        "title": "RequirementValueType",
+        "type": "string"
+      },
       "SchemaData": {
         "properties": {
           "json_schema": {
@@ -1459,7 +1880,7 @@
   "info": {
     "description": "Versioned API for the Embedded Engineering Agent platform.",
     "title": "Embedded Engineering Agent API",
-    "version": "1.3.1.dev5"
+    "version": "1.3.1.dev6"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -2041,6 +2462,108 @@
         "summary": "Update Project",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/v1/requirement-profiles/{profile_name}/{profile_version}": {
+      "get": {
+        "operationId": "get_requirement_profile_api_v1_requirement_profiles__profile_name___profile_version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile_name",
+            "required": true,
+            "schema": {
+              "title": "Profile Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "profile_version",
+            "required": true,
+            "schema": {
+              "title": "Profile Version",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_RequirementProfileData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Requirement Profile",
+        "tags": [
+          "requirements"
+        ]
+      }
+    },
+    "/api/v1/requirements/analyze/structured": {
+      "post": {
+        "operationId": "analyze_structured_requirements_api_v1_requirements_analyze_structured_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementStructuredAnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_RequirementAnalysisData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Analyze Structured Requirements",
+        "tags": [
+          "requirements"
         ]
       }
     },

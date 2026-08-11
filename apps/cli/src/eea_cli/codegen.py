@@ -22,6 +22,11 @@ from eea_core.enums import (
     JobStatus,
     Permission,
     ProjectStatus,
+    RequirementFieldStatus,
+    RequirementPriority,
+    RequirementStatus,
+    RequirementType,
+    RequirementValueType,
     TraceabilityRelation,
     VerificationLevel,
 )
@@ -45,6 +50,11 @@ CORE_ENUMS: tuple[type[StrEnum], ...] = (
     JobStatus,
     Permission,
     ProjectStatus,
+    RequirementFieldStatus,
+    RequirementPriority,
+    RequirementStatus,
+    RequirementType,
+    RequirementValueType,
     TraceabilityRelation,
     VerificationLevel,
 )

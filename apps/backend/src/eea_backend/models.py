@@ -22,6 +22,9 @@ from eea_core.enums import (
     JobStatus,
     Permission,
     ProjectStatus,
+    RequirementPriority,
+    RequirementStatus,
+    RequirementType,
     TraceabilityRelation,
 )
 from sqlalchemy import (
@@ -254,6 +257,60 @@ class SchemaRegistryRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class RequirementProfileRecord(CoreRecordMixin, Base):
+    __tablename__ = "requirement_profiles"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        UniqueConstraint(
+            "profile_name", "profile_version", name="uq_requirement_profiles_name_version"
+        ),
+    )
+
+    profile_name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    profile_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    fields: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    evidence_contracts: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class RequirementRecord(CoreRecordMixin, Base):
+    __tablename__ = "requirements"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(f"requirement_type IN ({_enum_values(RequirementType)})", name="type"),
+        CheckConstraint(f"priority IN ({_enum_values(RequirementPriority)})", name="priority"),
+        CheckConstraint(f"status IN ({_enum_values(RequirementStatus)})", name="status"),
+        UniqueConstraint("project_id", "code", name="uq_requirements_project_code"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(120), nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    requirement_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    priority: Mapped[str] = mapped_column(String(20), nullable=False)
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    acceptance_criteria: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    source_evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class RequirementAnalysisRecord(CoreRecordMixin, Base):
+    __tablename__ = "requirement_analyses"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    profile_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    profile_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    requirements: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    field_observations: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    claims: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    issues: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    follow_up_questions: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    completeness: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
 class PromptDefinitionRecord(CoreRecordMixin, Base):
