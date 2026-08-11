@@ -15,6 +15,35 @@ export const artifactStatusValues = [
 ] as const;
 export type ArtifactStatus = (typeof artifactStatusValues)[number];
 
+export const claimConflictStatusValues = [
+  "OPEN",
+  "RESOLVED"
+] as const;
+export type ClaimConflictStatus = (typeof claimConflictStatusValues)[number];
+
+export const claimConflictStrategyValues = [
+  "SOURCE_PRIORITY",
+  "SOURCE_VERSION",
+  "MANUAL_REVIEW"
+] as const;
+export type ClaimConflictStrategy = (typeof claimConflictStrategyValues)[number];
+
+export const claimConflictTypeValues = [
+  "VALUE_MISMATCH"
+] as const;
+export type ClaimConflictType = (typeof claimConflictTypeValues)[number];
+
+export const claimLifecycleValues = [
+  "CANDIDATE",
+  "ACTIVE",
+  "SUPERSEDED",
+  "CONFLICTED",
+  "DEPRECATED",
+  "ARCHIVED",
+  "REJECTED"
+] as const;
+export type ClaimLifecycle = (typeof claimLifecycleValues)[number];
+
 export const decisionStatusValues = [
   "PROPOSED",
   "ACCEPTED",
@@ -22,6 +51,24 @@ export const decisionStatusValues = [
   "REJECTED"
 ] as const;
 export type DecisionStatus = (typeof decisionStatusValues)[number];
+
+export const engineeringDimensionValues = [
+  "VOLTAGE",
+  "CURRENT",
+  "RESISTANCE",
+  "CAPACITANCE",
+  "INDUCTANCE",
+  "FREQUENCY",
+  "TIME",
+  "TEMPERATURE",
+  "ANGLE",
+  "ANGULAR_VELOCITY",
+  "LENGTH",
+  "POWER",
+  "ENERGY",
+  "DIMENSIONLESS"
+] as const;
+export type EngineeringDimension = (typeof engineeringDimensionValues)[number];
 
 export const engineeringErrorCodeValues = [
   "VALIDATION_ERROR",
@@ -140,6 +187,19 @@ export const traceabilityRelationValues = [
   "INVALIDATES"
 ] as const;
 export type TraceabilityRelation = (typeof traceabilityRelationValues)[number];
+
+export const verificationLevelValues = [
+  "AI_INFERRED",
+  "REFERENCE_SUPPORTED",
+  "DOCUMENT_VERIFIED",
+  "RULE_VERIFIED",
+  "TOOL_VERIFIED",
+  "SIMULATION_VERIFIED",
+  "HARDWARE_VERIFIED",
+  "USER_CONFIRMED",
+  "IMPORT_VERIFIED"
+] as const;
+export type VerificationLevel = (typeof verificationLevelValues)[number];
 
 export interface ApiError {
   code: EngineeringErrorCode;

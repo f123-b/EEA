@@ -7,7 +7,12 @@ from typing import Any
 
 from eea_core.enums import (
     ArtifactStatus,
+    ClaimConflictStatus,
+    ClaimConflictStrategy,
+    ClaimConflictType,
+    ClaimLifecycle,
     DecisionStatus,
+    EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
     IssueSeverity,
@@ -303,3 +308,75 @@ class AIUsageRecordModel(CoreRecordMixin, Base):
     duration_ms: Mapped[int] = mapped_column(nullable=False)
     succeeded: Mapped[bool] = mapped_column(Boolean, nullable=False)
     error_code: Mapped[str | None] = mapped_column(String(80))
+
+
+class ClaimPredicateDefinitionRecord(CoreRecordMixin, Base):
+    __tablename__ = "claim_predicate_definitions"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            f"conflict_strategy IN ({_enum_values(ClaimConflictStrategy)})",
+            name="conflict_strategy",
+        ),
+        CheckConstraint(
+            f"unit_dimension IS NULL OR unit_dimension IN ({_enum_values(EngineeringDimension)})",
+            name="unit_dimension",
+        ),
+        UniqueConstraint(
+            "predicate", "schema_version", name="uq_claim_predicates_predicate_schema"
+        ),
+    )
+
+    predicate: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    value_schema_ref: Mapped[str] = mapped_column(String(200), nullable=False)
+    applicability_schema_ref: Mapped[str | None] = mapped_column(String(200))
+    unit_dimension: Mapped[str | None] = mapped_column(String(40))
+    conflict_strategy: Mapped[str] = mapped_column(String(40), nullable=False)
+    validator_ref: Mapped[str | None] = mapped_column(String(200))
+
+
+class EngineeringClaimRecord(CoreRecordMixin, Base):
+    __tablename__ = "engineering_claims"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("confidence >= 0 AND confidence <= 1", name="confidence_range"),
+        CheckConstraint(
+            "source_priority >= 0 AND source_priority <= 1000", name="source_priority_range"
+        ),
+        CheckConstraint(f"lifecycle IN ({_enum_values(ClaimLifecycle)})", name="lifecycle"),
+    )
+
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    subject_ref: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    predicate: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    value_schema_ref: Mapped[str] = mapped_column(String(200), nullable=False)
+    value_json: Mapped[object] = mapped_column("value", JSON, nullable=False)
+    applicability: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    verification_levels: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    source_priority: Mapped[int] = mapped_column(nullable=False)
+    source_version: Mapped[str | None] = mapped_column(String(200))
+    lifecycle: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class ClaimConflictRecord(CoreRecordMixin, Base):
+    __tablename__ = "claim_conflicts"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("claim_a_id <> claim_b_id", name="distinct_claims"),
+        CheckConstraint(
+            f"conflict_type IN ({_enum_values(ClaimConflictType)})", name="conflict_type"
+        ),
+        CheckConstraint(f"status IN ({_enum_values(ClaimConflictStatus)})", name="status"),
+    )
+
+    claim_a_id: Mapped[str] = mapped_column(ForeignKey("engineering_claims.id"), nullable=False)
+    claim_b_id: Mapped[str] = mapped_column(ForeignKey("engineering_claims.id"), nullable=False)
+    conflict_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    overlapping_applicability: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    resolver: Mapped[str] = mapped_column(String(100), nullable=False)
+    resolution: Mapped[str | None] = mapped_column(Text)
+    selected_claim_id: Mapped[str | None] = mapped_column(ForeignKey("engineering_claims.id"))
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)

@@ -20,7 +20,10 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
     assert {
         "ai_usage_records",
         "artifacts",
+        "claim_conflicts",
+        "claim_predicate_definitions",
         "engineering_decisions",
+        "engineering_claims",
         "evidence",
         "issues",
         "jobs",

@@ -9,7 +9,12 @@ from eea_application.projects import ProjectService
 from eea_core.entities import Project
 from eea_core.enums import (
     ArtifactStatus,
+    ClaimConflictStatus,
+    ClaimConflictStrategy,
+    ClaimConflictType,
+    ClaimLifecycle,
     DecisionStatus,
+    EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
     IssueSeverity,
@@ -18,6 +23,7 @@ from eea_core.enums import (
     Permission,
     ProjectStatus,
     TraceabilityRelation,
+    VerificationLevel,
 )
 from eea_core.errors import EngineeringError
 from eea_core.schema_registry import create_core_schema_registry
@@ -102,7 +108,12 @@ def enums(request: Request) -> ApiEnvelope[EnumCatalogData]:
         enum_type.__name__: [member.value for member in enum_type]
         for enum_type in (
             ArtifactStatus,
+            ClaimConflictStatus,
+            ClaimConflictStrategy,
+            ClaimConflictType,
+            ClaimLifecycle,
             DecisionStatus,
+            EngineeringDimension,
             EngineeringErrorCode,
             EvidenceType,
             IssueSeverity,
@@ -111,6 +122,7 @@ def enums(request: Request) -> ApiEnvelope[EnumCatalogData]:
             Permission,
             ProjectStatus,
             TraceabilityRelation,
+            VerificationLevel,
         )
     }
     return ApiEnvelope(

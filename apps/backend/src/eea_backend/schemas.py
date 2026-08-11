@@ -6,7 +6,12 @@ from uuid import UUID
 
 from eea_core.enums import (
     ArtifactStatus,
+    ClaimConflictStatus,
+    ClaimConflictStrategy,
+    ClaimConflictType,
+    ClaimLifecycle,
     DecisionStatus,
+    EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
     IssueSeverity,
@@ -15,6 +20,7 @@ from eea_core.enums import (
     Permission,
     ProjectStatus,
     TraceabilityRelation,
+    VerificationLevel,
 )
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -97,7 +103,12 @@ class EnumValues(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     artifact_status: list[ArtifactStatus] = Field(alias="ArtifactStatus")
+    claim_conflict_status: list[ClaimConflictStatus] = Field(alias="ClaimConflictStatus")
+    claim_conflict_strategy: list[ClaimConflictStrategy] = Field(alias="ClaimConflictStrategy")
+    claim_conflict_type: list[ClaimConflictType] = Field(alias="ClaimConflictType")
+    claim_lifecycle: list[ClaimLifecycle] = Field(alias="ClaimLifecycle")
     decision_status: list[DecisionStatus] = Field(alias="DecisionStatus")
+    engineering_dimension: list[EngineeringDimension] = Field(alias="EngineeringDimension")
     engineering_error_code: list[EngineeringErrorCode] = Field(alias="EngineeringErrorCode")
     evidence_type: list[EvidenceType] = Field(alias="EvidenceType")
     issue_severity: list[IssueSeverity] = Field(alias="IssueSeverity")
@@ -106,6 +117,7 @@ class EnumValues(BaseModel):
     permission: list[Permission] = Field(alias="Permission")
     project_status: list[ProjectStatus] = Field(alias="ProjectStatus")
     traceability_relation: list[TraceabilityRelation] = Field(alias="TraceabilityRelation")
+    verification_level: list[VerificationLevel] = Field(alias="VerificationLevel")
 
 
 class EnumCatalogData(BaseModel):

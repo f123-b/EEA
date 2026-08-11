@@ -3,7 +3,17 @@
 import json
 from pathlib import Path
 
-from eea_core.enums import EngineeringErrorCode, JobStatus, Permission
+from eea_core.enums import (
+    ClaimConflictStatus,
+    ClaimConflictStrategy,
+    ClaimConflictType,
+    ClaimLifecycle,
+    EngineeringDimension,
+    EngineeringErrorCode,
+    JobStatus,
+    Permission,
+    VerificationLevel,
+)
 from fastapi.testclient import TestClient
 from sqlalchemy import inspect
 
@@ -58,3 +68,24 @@ def test_api_error_enum_consistent(client: TestClient) -> None:
     assert meta_enums["EngineeringErrorCode"] == expected
     assert all(f'"{value}"' in generated for value in expected)
     assert all(f"'{value}'" in error_constraint for value in expected)
+
+
+def test_claim_core_enums_are_api_and_typescript_synchronized(client: TestClient) -> None:
+    """CLAIM_CORE_ENUMS_CONSISTENT."""
+
+    expected_enums = (
+        ClaimConflictStatus,
+        ClaimConflictStrategy,
+        ClaimConflictType,
+        ClaimLifecycle,
+        EngineeringDimension,
+        VerificationLevel,
+    )
+    catalog = client.get("/api/v1/meta/enums").json()["data"]["enums"]
+    generated = Path("apps/desktop/src/api/generated.ts").read_text(encoding="utf-8")
+
+    for enum_type in expected_enums:
+        expected = [item.value for item in enum_type]
+        assert _openapi_enum(enum_type.__name__) == expected
+        assert catalog[enum_type.__name__] == expected
+        assert all(f'"{value}"' in generated for value in expected)

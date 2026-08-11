@@ -5,7 +5,12 @@ from enum import StrEnum
 
 from eea_core.enums import (
     ArtifactStatus,
+    ClaimConflictStatus,
+    ClaimConflictStrategy,
+    ClaimConflictType,
+    ClaimLifecycle,
     DecisionStatus,
+    EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
     IssueSeverity,
@@ -14,11 +19,17 @@ from eea_core.enums import (
     Permission,
     ProjectStatus,
     TraceabilityRelation,
+    VerificationLevel,
 )
 
 CORE_ENUMS: tuple[type[StrEnum], ...] = (
     ArtifactStatus,
+    ClaimConflictStatus,
+    ClaimConflictStrategy,
+    ClaimConflictType,
+    ClaimLifecycle,
     DecisionStatus,
+    EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
     IssueSeverity,
@@ -27,6 +38,7 @@ CORE_ENUMS: tuple[type[StrEnum], ...] = (
     Permission,
     ProjectStatus,
     TraceabilityRelation,
+    VerificationLevel,
 )
 
 

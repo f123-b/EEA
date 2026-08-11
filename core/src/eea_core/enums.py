@@ -92,6 +92,62 @@ class TraceabilityRelation(StrEnum):
     INVALIDATES = "INVALIDATES"
 
 
+class EngineeringDimension(StrEnum):
+    """FIX-02 frozen dimensions used by every normalized engineering value."""
+
+    VOLTAGE = "VOLTAGE"
+    CURRENT = "CURRENT"
+    RESISTANCE = "RESISTANCE"
+    CAPACITANCE = "CAPACITANCE"
+    INDUCTANCE = "INDUCTANCE"
+    FREQUENCY = "FREQUENCY"
+    TIME = "TIME"
+    TEMPERATURE = "TEMPERATURE"
+    ANGLE = "ANGLE"
+    ANGULAR_VELOCITY = "ANGULAR_VELOCITY"
+    LENGTH = "LENGTH"
+    POWER = "POWER"
+    ENERGY = "ENERGY"
+    DIMENSIONLESS = "DIMENSIONLESS"
+
+
+class VerificationLevel(StrEnum):
+    AI_INFERRED = "AI_INFERRED"
+    REFERENCE_SUPPORTED = "REFERENCE_SUPPORTED"
+    DOCUMENT_VERIFIED = "DOCUMENT_VERIFIED"
+    RULE_VERIFIED = "RULE_VERIFIED"
+    TOOL_VERIFIED = "TOOL_VERIFIED"
+    SIMULATION_VERIFIED = "SIMULATION_VERIFIED"
+    HARDWARE_VERIFIED = "HARDWARE_VERIFIED"
+    USER_CONFIRMED = "USER_CONFIRMED"
+    IMPORT_VERIFIED = "IMPORT_VERIFIED"
+
+
+class ClaimLifecycle(StrEnum):
+    CANDIDATE = "CANDIDATE"
+    ACTIVE = "ACTIVE"
+    SUPERSEDED = "SUPERSEDED"
+    CONFLICTED = "CONFLICTED"
+    DEPRECATED = "DEPRECATED"
+    ARCHIVED = "ARCHIVED"
+    REJECTED = "REJECTED"
+
+
+class ClaimConflictType(StrEnum):
+    VALUE_MISMATCH = "VALUE_MISMATCH"
+
+
+class ClaimConflictStatus(StrEnum):
+    OPEN = "OPEN"
+    RESOLVED = "RESOLVED"
+
+
+class ClaimConflictStrategy(StrEnum):
+    SOURCE_PRIORITY = "SOURCE_PRIORITY"
+    SOURCE_VERSION = "SOURCE_VERSION"
+    MANUAL_REVIEW = "MANUAL_REVIEW"
+
+
 class EngineeringErrorCode(StrEnum):
     """Stable API error catalog, including the FIX-08 additions."""
 

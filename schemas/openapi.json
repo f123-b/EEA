@@ -150,6 +150,43 @@
         "title": "ArtifactStatus",
         "type": "string"
       },
+      "ClaimConflictStatus": {
+        "enum": [
+          "OPEN",
+          "RESOLVED"
+        ],
+        "title": "ClaimConflictStatus",
+        "type": "string"
+      },
+      "ClaimConflictStrategy": {
+        "enum": [
+          "SOURCE_PRIORITY",
+          "SOURCE_VERSION",
+          "MANUAL_REVIEW"
+        ],
+        "title": "ClaimConflictStrategy",
+        "type": "string"
+      },
+      "ClaimConflictType": {
+        "enum": [
+          "VALUE_MISMATCH"
+        ],
+        "title": "ClaimConflictType",
+        "type": "string"
+      },
+      "ClaimLifecycle": {
+        "enum": [
+          "CANDIDATE",
+          "ACTIVE",
+          "SUPERSEDED",
+          "CONFLICTED",
+          "DEPRECATED",
+          "ARCHIVED",
+          "REJECTED"
+        ],
+        "title": "ClaimLifecycle",
+        "type": "string"
+      },
       "DecisionStatus": {
         "enum": [
           "PROPOSED",
@@ -158,6 +195,27 @@
           "REJECTED"
         ],
         "title": "DecisionStatus",
+        "type": "string"
+      },
+      "EngineeringDimension": {
+        "description": "FIX-02 frozen dimensions used by every normalized engineering value.",
+        "enum": [
+          "VOLTAGE",
+          "CURRENT",
+          "RESISTANCE",
+          "CAPACITANCE",
+          "INDUCTANCE",
+          "FREQUENCY",
+          "TIME",
+          "TEMPERATURE",
+          "ANGLE",
+          "ANGULAR_VELOCITY",
+          "LENGTH",
+          "POWER",
+          "ENERGY",
+          "DIMENSIONLESS"
+        ],
+        "title": "EngineeringDimension",
         "type": "string"
       },
       "EngineeringErrorCode": {
@@ -225,11 +283,46 @@
             "title": "Artifactstatus",
             "type": "array"
           },
+          "ClaimConflictStatus": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimConflictStatus"
+            },
+            "title": "Claimconflictstatus",
+            "type": "array"
+          },
+          "ClaimConflictStrategy": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimConflictStrategy"
+            },
+            "title": "Claimconflictstrategy",
+            "type": "array"
+          },
+          "ClaimConflictType": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimConflictType"
+            },
+            "title": "Claimconflicttype",
+            "type": "array"
+          },
+          "ClaimLifecycle": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimLifecycle"
+            },
+            "title": "Claimlifecycle",
+            "type": "array"
+          },
           "DecisionStatus": {
             "items": {
               "$ref": "#/components/schemas/DecisionStatus"
             },
             "title": "Decisionstatus",
+            "type": "array"
+          },
+          "EngineeringDimension": {
+            "items": {
+              "$ref": "#/components/schemas/EngineeringDimension"
+            },
+            "title": "Engineeringdimension",
             "type": "array"
           },
           "EngineeringErrorCode": {
@@ -287,11 +380,23 @@
             },
             "title": "Traceabilityrelation",
             "type": "array"
+          },
+          "VerificationLevel": {
+            "items": {
+              "$ref": "#/components/schemas/VerificationLevel"
+            },
+            "title": "Verificationlevel",
+            "type": "array"
           }
         },
         "required": [
           "ArtifactStatus",
+          "ClaimConflictStatus",
+          "ClaimConflictStrategy",
+          "ClaimConflictType",
+          "ClaimLifecycle",
           "DecisionStatus",
+          "EngineeringDimension",
           "EngineeringErrorCode",
           "EvidenceType",
           "IssueSeverity",
@@ -299,7 +404,8 @@
           "JobStatus",
           "Permission",
           "ProjectStatus",
-          "TraceabilityRelation"
+          "TraceabilityRelation",
+          "VerificationLevel"
         ],
         "title": "EnumValues",
         "type": "object"
@@ -710,6 +816,21 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VerificationLevel": {
+        "enum": [
+          "AI_INFERRED",
+          "REFERENCE_SUPPORTED",
+          "DOCUMENT_VERIFIED",
+          "RULE_VERIFIED",
+          "TOOL_VERIFIED",
+          "SIMULATION_VERIFIED",
+          "HARDWARE_VERIFIED",
+          "USER_CONFIRMED",
+          "IMPORT_VERIFIED"
+        ],
+        "title": "VerificationLevel",
+        "type": "string"
+      },
       "VersionData": {
         "description": "Version and compatibility metadata.",
         "properties": {
@@ -750,7 +871,7 @@
   "info": {
     "description": "Versioned API for the Embedded Engineering Agent platform.",
     "title": "Embedded Engineering Agent API",
-    "version": "1.3.1.dev0"
+    "version": "1.3.1.dev3"
   },
   "openapi": "3.1.0",
   "paths": {

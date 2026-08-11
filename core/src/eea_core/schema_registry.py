@@ -5,6 +5,12 @@ from dataclasses import dataclass
 from pydantic import BaseModel
 
 from eea_core.ai import AIUsageRecord, PromptDefinition
+from eea_core.claims import (
+    ClaimConflict,
+    ClaimPredicateDefinition,
+    EngineeringClaim,
+    EngineeringValue,
+)
 from eea_core.entities import (
     Artifact,
     EngineeringDecision,
@@ -53,7 +59,11 @@ def create_core_schema_registry() -> SchemaRegistry:
     for model in (
         AIUsageRecord,
         Artifact,
+        ClaimConflict,
+        ClaimPredicateDefinition,
         EngineeringDecision,
+        EngineeringClaim,
+        EngineeringValue,
         Evidence,
         Issue,
         Job,
