@@ -60,7 +60,7 @@
 ## Remote GitHub Actions
 
 - run id: not run — GitHub CLI is not authenticated in this workspace
-- commit: `2141ed5` (local; not pushed)
+- commit: not applicable — local review-fix commits `2141ed5` plus report update, not pushed
 - backend: not run
 - desktop: not run
 - conclusion: unavailable
