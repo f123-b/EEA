@@ -75,8 +75,8 @@ Contracts and frontend:
 - Current local `.eea/eea.db` retains historical constraint/type drift; it is not the clean CI
   acceptance database and was not rewritten by this scoped correction.
 
-Remote acceptance head SHA: `2af2d603f56c441a266ad55ea3aa59a4a5fe573a`
-Remote CI Run ID: `31490343829`
+Remote acceptance head SHA: `c707b8d751424daeee2c9d44d5555cfa8892be6c`
+Remote CI Run ID: `31490663178`
 
 Remote CI result: **GREEN** — backend `178 passed`, coverage `83.84%`, OpenAPI and TypeScript
 contract checks passed; desktop lint, typecheck, and build passed.
