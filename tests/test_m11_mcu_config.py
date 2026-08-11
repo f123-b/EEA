@@ -399,3 +399,59 @@ def test_mcu_config_api_persists_and_validates_current_sources(client: TestClien
         result["rule_id"] == "ADC_TRIGGER_INVALID"
         for result in validated.json()["data"]["rule_results"]
     )
+
+
+def test_m12_firmware_and_build_api_binds_source_snapshots(client: TestClient) -> None:
+    project_id, hardware, circuit, schematic = _create_sources_for_api(client)
+    device_instance_id = hardware["device_instances"][0]["id"]
+    mcu = client.post(
+        f"/api/v1/projects/{project_id}/mcu-config/generate",
+        json={
+            "hardware_ir_id": hardware["id"],
+            "circuit_id": circuit["id"],
+            "schematic_id": schematic["id"],
+            "device_instance_id": device_instance_id,
+            "clock": {
+                "source": "HSE",
+                "target_frequency": {
+                    "unit": "MHz",
+                    "dimension": "FREQUENCY",
+                    "nominal": 170,
+                },
+            },
+        },
+    )
+    assert mcu.status_code == 201, mcu.text
+    mcu_data = mcu.json()["data"]["config"]
+
+    firmware = client.post(
+        f"/api/v1/projects/{project_id}/firmware/generate",
+        json={"mcu_config_id": mcu_data["id"]},
+    )
+    assert firmware.status_code == 201, firmware.text
+    firmware_data = firmware.json()["data"]
+    assert firmware_data["firmware"]["mcu_config_id"] == mcu_data["id"]
+    assert firmware_data["source_revision"]["dirty"] is True
+    assert firmware_data["files"]
+
+    fetched = client.get(f"/api/v1/projects/{project_id}/firmware")
+    assert fetched.status_code == 200
+    assert fetched.json()["data"]["firmware"]["id"] == firmware_data["firmware"]["id"]
+
+    build = client.post(
+        f"/api/v1/projects/{project_id}/build",
+        json={"firmware_id": firmware_data["firmware"]["id"]},
+    )
+    assert build.status_code == 201, build.text
+    build_data = build.json()["data"]
+    assert build_data["status"] == "BLOCKED"
+    assert build_data["source_revision_id"] == firmware_data["firmware"]["source_revision_id"]
+    assert build_data["build_input_snapshot_id"]
+
+    builds = client.get(f"/api/v1/projects/{project_id}/builds")
+    assert builds.status_code == 200
+    assert builds.json()["data"]["builds"][0]["id"] == build_data["id"]
+
+    fetched_build = client.get(f"/api/v1/projects/{project_id}/builds/{build_data['id']}")
+    assert fetched_build.status_code == 200
+    assert fetched_build.json()["data"]["build_input_hash"] == build_data["build_input_hash"]

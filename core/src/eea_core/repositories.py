@@ -4,14 +4,17 @@ from typing import Protocol
 from uuid import UUID
 
 from eea_core.ai import AIUsageRecord, PromptDefinition
+from eea_core.build import BuildRun
 from eea_core.circuit import CircuitBundle
 from eea_core.claims import ClaimConflict, ClaimPredicateDefinition, EngineeringClaim
 from eea_core.entities import Evidence, Project
+from eea_core.firmware import FirmwareBundle
 from eea_core.intelligence import Document, DocumentIR
 from eea_core.mcu_config import MCUConfigBundle
 from eea_core.pin_planner import PinAssignment, PinPlan
 from eea_core.requirements import Requirement, RequirementAnalysis, RequirementProfile
 from eea_core.schematic import SchematicBundle
+from eea_core.source import BuildInputSnapshot
 
 
 class ProjectRepository(Protocol):
@@ -140,3 +143,21 @@ class MCUConfigRepository(Protocol):
     def get(self, config_id: UUID, *, project_id: UUID | None = None) -> MCUConfigBundle | None: ...
 
     def latest_for_project(self, project_id: UUID) -> MCUConfigBundle | None: ...
+
+
+class FirmwareRepository(Protocol):
+    def add(self, bundle: FirmwareBundle) -> FirmwareBundle: ...
+
+    def get(
+        self, firmware_id: UUID, *, project_id: UUID | None = None
+    ) -> FirmwareBundle | None: ...
+
+    def latest_for_project(self, project_id: UUID) -> FirmwareBundle | None: ...
+
+
+class BuildRunRepository(Protocol):
+    def add(self, snapshot: BuildInputSnapshot, build: BuildRun) -> BuildRun: ...
+
+    def get(self, build_id: UUID, *, project_id: UUID | None = None) -> BuildRun | None: ...
+
+    def list_for_project(self, project_id: UUID) -> list[BuildRun]: ...

@@ -11,6 +11,7 @@ from eea_adapters.devices import Stm32G431FixtureProvider
 from eea_application.ai import PromptRegistry, StructuredGenerationService
 from eea_application.architecture import ArchitectureService
 from eea_application.circuit import CircuitService
+from eea_application.firmware import FirmwareBuildService, FirmwareService
 from eea_application.intelligence import DocumentService, MultiSourceDeviceProvider
 from eea_application.mcu_config import MCUConfigService
 from eea_application.pin_planner import PinPlannerService
@@ -21,6 +22,7 @@ from eea_application.requirements import (
 )
 from eea_application.schematic import SchematicService
 from eea_core.architecture import ArchitectureBundle
+from eea_core.build import BuildRun
 from eea_core.circuit import CircuitBundle
 from eea_core.entities import Evidence, Project
 from eea_core.enums import (
@@ -51,6 +53,7 @@ from eea_core.enums import (
     VerificationLevel,
 )
 from eea_core.errors import EngineeringError
+from eea_core.firmware import FirmwareBundle
 from eea_core.intelligence import Device, DevicePin, Document
 from eea_core.mcu_config import MCUConfigBundle
 from eea_core.pin_planner import PinAssignment, PinLock, PinPlan, PinRequirement
@@ -61,9 +64,11 @@ from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.orm import Session
 
 from eea_backend.architecture_repositories import SqlAlchemyArchitectureRepository
+from eea_backend.build_repositories import SqlAlchemyBuildRunRepository
 from eea_backend.circuit_repositories import SqlAlchemyCircuitRepository
 from eea_backend.claim_repositories import SqlAlchemyEngineeringClaimRepository
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
+from eea_backend.firmware_repositories import SqlAlchemyFirmwareRepository
 from eea_backend.mcu_config_repositories import SqlAlchemyMCUConfigRepository
 from eea_backend.pin_planner_repositories import SqlAlchemyPinPlanRepository
 from eea_backend.repositories import (
@@ -82,6 +87,9 @@ from eea_backend.schemas import (
     ApiEnvelope,
     ArchitectureBundleData,
     ArchitectureGenerateRequest,
+    BuildListData,
+    BuildRequest,
+    BuildRunData,
     CircuitBundleData,
     CircuitGenerateRequest,
     CircuitValidateRequest,
@@ -96,6 +104,8 @@ from eea_backend.schemas import (
     ErcImportRequest,
     EvidenceCreateRequest,
     EvidenceData,
+    FirmwareBundleData,
+    FirmwareGenerateRequest,
     MCUConfigBundleData,
     MCUConfigGenerateRequest,
     MCUConfigValidateRequest,
@@ -193,6 +203,14 @@ def _mcu_config_bundle_data(bundle: MCUConfigBundle) -> MCUConfigBundleData:
     return MCUConfigBundleData.model_validate(bundle.model_dump(mode="json"))
 
 
+def _firmware_bundle_data(bundle: FirmwareBundle) -> FirmwareBundleData:
+    return FirmwareBundleData.model_validate(bundle.model_dump(mode="json"))
+
+
+def _build_run_data(build: BuildRun) -> BuildRunData:
+    return BuildRunData.model_validate(build.model_dump(mode="json"))
+
+
 def _ensure_latest_hardware(session: Session, project_id: UUID, hardware_id: UUID) -> None:
     latest = SqlAlchemyArchitectureRepository(session).latest_for_project(project_id)
     if latest is None:
@@ -238,6 +256,31 @@ def _ensure_current_mcu_config_sources(
             EngineeringErrorCode.INVALID_REQUIREMENT,
             "MCUConfigIR source snapshot is stale",
             details={"reason": "STALE_MCU_CONFIG_SOURCE", "config_id": str(config.id)},
+        )
+
+
+def _ensure_current_firmware_mcu_config(
+    session: Session, project_id: UUID, bundle: FirmwareBundle
+) -> None:
+    latest = SqlAlchemyMCUConfigRepository(session).latest_for_project(project_id)
+    if latest is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "No current MCUConfigIR is available for firmware generation",
+            details={"project_id": str(project_id)},
+        )
+    if (
+        latest.config.id != bundle.firmware.mcu_config_id
+        or latest.config.revision != bundle.firmware.mcu_config_revision
+    ):
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Firmware source MCUConfigIR is stale",
+            details={
+                "reason": "STALE_MCU_CONFIG_IR",
+                "mcu_config_id": str(bundle.firmware.mcu_config_id),
+                "latest_mcu_config_id": str(latest.config.id),
+            },
         )
 
 
@@ -1095,6 +1138,151 @@ def validate_mcu_config(
         rule_results=[result.model_dump(mode="json") for result in results],
     )
     return ApiEnvelope(data=data, request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/firmware/generate",
+    response_model=ApiEnvelope[FirmwareBundleData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["firmware"],
+)
+def generate_firmware(
+    project_id: UUID,
+    payload: FirmwareGenerateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[FirmwareBundleData]:
+    _service(session).get(project_id)
+    configs = SqlAlchemyMCUConfigRepository(session)
+    selected = configs.get(payload.mcu_config_id, project_id=project_id)
+    latest = configs.latest_for_project(project_id)
+    if selected is None or latest is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "MCUConfigIR is not available for firmware generation",
+            details={"mcu_config_id": str(payload.mcu_config_id), "project_id": str(project_id)},
+        )
+    if selected.config.id != latest.config.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Selected MCUConfigIR is stale",
+            details={
+                "reason": "STALE_MCU_CONFIG_IR",
+                "mcu_config_id": str(payload.mcu_config_id),
+                "latest_mcu_config_id": str(latest.config.id),
+            },
+        )
+    _ensure_current_mcu_config_sources(session, project_id, selected)
+    bundle = FirmwareService().generate(
+        selected.config,
+        build_target=payload.build_target,
+        board_name=payload.board_name,
+    )
+    saved = SqlAlchemyFirmwareRepository(session).add(bundle)
+    return ApiEnvelope(data=_firmware_bundle_data(saved), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/firmware",
+    response_model=ApiEnvelope[FirmwareBundleData],
+    tags=["firmware"],
+)
+def get_firmware(
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[FirmwareBundleData]:
+    _service(session).get(project_id)
+    bundle = SqlAlchemyFirmwareRepository(session).latest_for_project(project_id)
+    if bundle is None:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "No current FirmwareIR has been generated for this project",
+            details={"project_id": str(project_id)},
+        )
+    _ensure_current_firmware_mcu_config(session, project_id, bundle)
+    return ApiEnvelope(data=_firmware_bundle_data(bundle), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/build",
+    response_model=ApiEnvelope[BuildRunData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["build"],
+)
+def build_firmware(
+    project_id: UUID,
+    payload: BuildRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[BuildRunData]:
+    _service(session).get(project_id)
+    firmwares = SqlAlchemyFirmwareRepository(session)
+    bundle = firmwares.get(payload.firmware_id, project_id=project_id)
+    latest = firmwares.latest_for_project(project_id)
+    if bundle is None or latest is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "FirmwareIR is not available for build",
+            details={"firmware_id": str(payload.firmware_id), "project_id": str(project_id)},
+        )
+    if bundle.firmware.id != latest.firmware.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Selected FirmwareIR is stale",
+            details={
+                "reason": "STALE_FIRMWARE_IR",
+                "firmware_id": str(payload.firmware_id),
+                "latest_firmware_id": str(latest.firmware.id),
+            },
+        )
+    _ensure_current_firmware_mcu_config(session, project_id, bundle)
+    snapshot, build = FirmwareBuildService().build(
+        bundle,
+        request.app.state.settings.data_dir / "m12-builds" / str(project_id),
+    )
+    saved = SqlAlchemyBuildRunRepository(session).add(snapshot, build)
+    return ApiEnvelope(data=_build_run_data(saved), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/builds",
+    response_model=ApiEnvelope[BuildListData],
+    tags=["build"],
+)
+def list_builds(
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[BuildListData]:
+    _service(session).get(project_id)
+    builds = SqlAlchemyBuildRunRepository(session).list_for_project(project_id)
+    return ApiEnvelope(
+        data=BuildListData(builds=[_build_run_data(build) for build in builds]),
+        request_id=_request_id(request),
+    )
+
+
+@router.get(
+    "/projects/{project_id}/builds/{build_id}",
+    response_model=ApiEnvelope[BuildRunData],
+    tags=["build"],
+)
+def get_build(
+    project_id: UUID,
+    build_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[BuildRunData]:
+    _service(session).get(project_id)
+    build = SqlAlchemyBuildRunRepository(session).get(build_id, project_id=project_id)
+    if build is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "BuildRun is not available for this project",
+            details={"build_id": str(build_id), "project_id": str(project_id)},
+        )
+    return ApiEnvelope(data=_build_run_data(build), request_id=_request_id(request))
 
 
 @router.post(

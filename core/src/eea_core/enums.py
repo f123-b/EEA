@@ -59,6 +59,15 @@ class ArtifactStatus(StrEnum):
     ARCHIVED = "ARCHIVED"
 
 
+class BuildStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    PASS = "PASS"
+    FAIL = "FAIL"
+    UNKNOWN = "UNKNOWN"
+    BLOCKED = "BLOCKED"
+
+
 class EvidenceType(StrEnum):
     DOCUMENT = "DOCUMENT"
     DEVICE_DB = "DEVICE_DB"

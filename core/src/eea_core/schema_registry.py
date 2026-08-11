@@ -16,6 +16,7 @@ from eea_core.architecture import (
     PowerDomain,
     SystemArchitectureIR,
 )
+from eea_core.build import BuildDiagnostic, BuildRun
 from eea_core.circuit import (
     CircuitBundle,
     CircuitComponent,
@@ -40,6 +41,20 @@ from eea_core.entities import (
     PermissionAuditRecord,
     Project,
     TraceabilityEdge,
+)
+from eea_core.firmware import (
+    BSPConfig,
+    FirmwareBuildTarget,
+    FirmwareBundle,
+    FirmwareInterrupt,
+    FirmwareIR,
+    FirmwareModule,
+    FirmwareSourceFile,
+    FirmwareTask,
+    MemoryLayout,
+    PeripheralDriverConfig,
+    SharedResource,
+    StartupConfig,
 )
 from eea_core.intelligence import (
     Device,
@@ -96,6 +111,7 @@ from eea_core.sandbox import (
     SandboxPolicy,
 )
 from eea_core.schematic import ErcIssue, ErcReport, SchematicBundle, SchematicIR
+from eea_core.source import BuildInputSnapshot, SourceRevision
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +154,9 @@ def create_core_schema_registry() -> SchemaRegistry:
         ArchitectureDecision,
         ArchitectureInterface,
         Artifact,
+        BuildDiagnostic,
+        BuildInputSnapshot,
+        BuildRun,
         ADCConfig,
         ClockIR,
         CircuitBundle,
@@ -161,6 +180,7 @@ def create_core_schema_registry() -> SchemaRegistry:
         EngineeringValue,
         ErcIssue,
         ErcReport,
+        BSPConfig,
         Document,
         DocumentFigure,
         DocumentIR,
@@ -172,6 +192,13 @@ def create_core_schema_registry() -> SchemaRegistry:
         HardwareIR,
         HardwareInterface,
         HardwareModule,
+        FirmwareBuildTarget,
+        FirmwareBundle,
+        FirmwareIR,
+        FirmwareInterrupt,
+        FirmwareModule,
+        FirmwareSourceFile,
+        FirmwareTask,
         GPIOConfig,
         InterruptConfigIR,
         Issue,
@@ -197,6 +224,11 @@ def create_core_schema_registry() -> SchemaRegistry:
         PowerNet,
         PowerDomain,
         RuleResult,
+        SharedResource,
+        SourceRevision,
+        StartupConfig,
+        MemoryLayout,
+        PeripheralDriverConfig,
         FollowUpQuestion,
         Requirement,
         RequirementAnalysis,

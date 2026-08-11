@@ -7,6 +7,7 @@ from typing import Any
 
 from eea_core.enums import (
     ArtifactStatus,
+    BuildStatus,
     ClaimConflictStatus,
     ClaimConflictStrategy,
     ClaimConflictType,
@@ -603,6 +604,136 @@ class MCUConfigRuleResultRecord(CoreRecordMixin, Base):
     claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     recommendation: Mapped[str] = mapped_column(Text, nullable=False)
     input_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+
+
+class SourceRevisionRecord(CoreRecordMixin, Base):
+    __tablename__ = "source_revisions"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    repository_id: Mapped[str] = mapped_column(String(300), nullable=False)
+    commit_sha: Mapped[str | None] = mapped_column(String(100))
+    tree_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    dirty: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    base_commit: Mapped[str | None] = mapped_column(String(100))
+    workspace_revision: Mapped[int] = mapped_column(nullable=False)
+    source_manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    file_manifest: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class FirmwareRecord(CoreRecordMixin, Base):
+    __tablename__ = "firmware_irs"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(f"status IN ({_enum_values(ArtifactStatus)})", name="status"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    mcu_config_id: Mapped[str] = mapped_column(
+        ForeignKey("mcu_configs.id"), nullable=False, index=True
+    )
+    mcu_config_revision: Mapped[int] = mapped_column(nullable=False)
+    hardware_ir_id: Mapped[str] = mapped_column(
+        ForeignKey("hardware_irs.id"), nullable=False, index=True
+    )
+    hardware_ir_revision: Mapped[int] = mapped_column(nullable=False)
+    circuit_id: Mapped[str] = mapped_column(ForeignKey("circuits.id"), nullable=False, index=True)
+    circuit_revision: Mapped[int] = mapped_column(nullable=False)
+    schematic_id: Mapped[str] = mapped_column(
+        ForeignKey("schematic_artifacts.id"), nullable=False, index=True
+    )
+    schematic_revision: Mapped[int] = mapped_column(nullable=False)
+    source_revision_id: Mapped[str] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=False, index=True
+    )
+    layers: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    modules: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    tasks: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    interrupts: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    shared_resources: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    startup: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    clock_tree: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    peripheral_drivers: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    memory_layout: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    bsp: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    build_target: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    rule_results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class FirmwareSourceFileRecord(CoreRecordMixin, Base):
+    __tablename__ = "firmware_source_files"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        UniqueConstraint("firmware_id", "path", name="uq_firmware_source_files_path"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    firmware_id: Mapped[str] = mapped_column(
+        ForeignKey("firmware_irs.id"), nullable=False, index=True
+    )
+    path: Mapped[str] = mapped_column(String(1000), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    generated_owned: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    generator_version: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
+class BuildInputSnapshotRecord(CoreRecordMixin, Base):
+    __tablename__ = "build_input_snapshots"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    source_revision_id: Mapped[str] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=False, index=True
+    )
+    tracked_file_manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    allowed_untracked_input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    generated_input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    submodule_commit_map: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    build_config_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    toolchain_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    toolchain_version: Mapped[str] = mapped_column(String(200), nullable=False)
+    environment_profile_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    build_input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class BuildRunRecord(CoreRecordMixin, Base):
+    __tablename__ = "build_runs"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(f"status IN ({_enum_values(BuildStatus)})", name="status"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    firmware_id: Mapped[str] = mapped_column(
+        ForeignKey("firmware_irs.id"), nullable=False, index=True
+    )
+    firmware_revision: Mapped[int] = mapped_column(nullable=False)
+    source_revision_id: Mapped[str] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=False, index=True
+    )
+    build_input_snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("build_input_snapshots.id"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    toolchain_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    toolchain_version: Mapped[str] = mapped_column(String(200), nullable=False)
+    environment_profile_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    build_input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    command: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    diagnostics: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    stdout: Mapped[str] = mapped_column(Text, nullable=False)
+    stderr: Mapped[str] = mapped_column(Text, nullable=False)
+    artifact_hash: Mapped[str | None] = mapped_column(String(64))
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    duration_ms: Mapped[int] = mapped_column(nullable=False)
 
 
 class PromptDefinitionRecord(CoreRecordMixin, Base):

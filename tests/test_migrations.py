@@ -47,6 +47,11 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
         "erc_reports",
         "mcu_configs",
         "mcu_config_rule_results",
+        "source_revisions",
+        "firmware_irs",
+        "firmware_source_files",
+        "build_input_snapshots",
+        "build_runs",
     } <= table_names
     with engine.connect() as connection:
         assert (
@@ -94,6 +99,28 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
     command.upgrade(config, "head")
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     assert {"mcu_configs", "mcu_config_rule_results"} <= set(inspect(engine).get_table_names())
+    engine.dispose()
+
+    command.downgrade(config, "0013_m11_mcu_config")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    assert not {
+        "source_revisions",
+        "firmware_irs",
+        "firmware_source_files",
+        "build_input_snapshots",
+        "build_runs",
+    } & set(inspect(engine).get_table_names())
+    engine.dispose()
+
+    command.upgrade(config, "head")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    assert {
+        "source_revisions",
+        "firmware_irs",
+        "firmware_source_files",
+        "build_input_snapshots",
+        "build_runs",
+    } <= set(inspect(engine).get_table_names())
     engine.dispose()
 
     command.downgrade(config, "0008_m6_review_fixes")

@@ -7,6 +7,7 @@ from uuid import UUID
 from eea_core.circuit import CircuitComponent, CircuitConstraint, CircuitNet, PowerNet
 from eea_core.enums import (
     ArtifactStatus,
+    BuildStatus,
     ClaimConflictStatus,
     ClaimConflictStrategy,
     ClaimConflictType,
@@ -31,6 +32,17 @@ from eea_core.enums import (
     RequirementValueType,
     TraceabilityRelation,
     VerificationLevel,
+)
+from eea_core.firmware import (
+    BSPConfig,
+    FirmwareBuildTarget,
+    FirmwareInterrupt,
+    FirmwareModule,
+    FirmwareTask,
+    MemoryLayout,
+    PeripheralDriverConfig,
+    SharedResource,
+    StartupConfig,
 )
 from eea_core.mcu_config import (
     DMAIR,
@@ -619,6 +631,163 @@ class MCUConfigValidationData(BaseModel):
     config_id: UUID
     config_revision: int
     rule_results: list[dict[str, object]]
+
+
+class FirmwareGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mcu_config_id: UUID
+    build_target: FirmwareBuildTarget = Field(default_factory=FirmwareBuildTarget)
+    board_name: str = Field(default="generic-stm32", min_length=1, max_length=100)
+
+
+class SourceRevisionData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    repository_id: str
+    commit_sha: str | None
+    tree_hash: str
+    dirty: bool
+    base_commit: str | None
+    workspace_revision: int
+    source_manifest_hash: str
+    file_manifest: dict[str, str]
+    created_by: str
+
+
+class FirmwareSourceFileData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    path: str
+    content: str
+    content_hash: str
+    input_hash: str
+    generated_owned: bool
+    generator_version: str
+
+
+class FirmwareData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    mcu_config_id: UUID
+    mcu_config_revision: int
+    hardware_ir_id: UUID
+    hardware_ir_revision: int
+    circuit_id: UUID
+    circuit_revision: int
+    schematic_id: UUID
+    schematic_revision: int
+    source_revision_id: UUID
+    layers: list[str]
+    modules: list[FirmwareModule]
+    tasks: list[FirmwareTask]
+    interrupts: list[FirmwareInterrupt]
+    shared_resources: list[SharedResource]
+    startup: StartupConfig
+    clock_tree: dict[str, object]
+    peripheral_drivers: list[PeripheralDriverConfig]
+    memory_layout: MemoryLayout
+    bsp: BSPConfig
+    build_target: FirmwareBuildTarget
+    rule_results: list[dict[str, object]]
+    requirement_ids: list[UUID]
+    evidence_ids: list[UUID]
+    input_hash: str
+    status: ArtifactStatus
+
+
+class FirmwareBundleData(BaseModel):
+    firmware: FirmwareData
+    source_revision: SourceRevisionData
+    files: list[FirmwareSourceFileData]
+
+
+class BuildRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    firmware_id: UUID
+
+
+class BuildInputSnapshotData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    source_revision_id: UUID
+    tracked_file_manifest_hash: str
+    allowed_untracked_input_hash: str
+    generated_input_hash: str
+    submodule_commit_map: dict[str, str]
+    build_config_hash: str
+    toolchain_id: str
+    toolchain_version: str
+    environment_profile_hash: str
+    source_manifest_hash: str
+    build_input_hash: str
+
+
+class BuildDiagnosticData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    severity: IssueSeverity
+    code: str
+    message: str
+    file: str | None
+    line: int | None
+    column: int | None
+    phase: str
+
+
+class BuildRunData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    firmware_id: UUID
+    firmware_revision: int
+    source_revision_id: UUID
+    build_input_snapshot_id: UUID
+    status: BuildStatus
+    toolchain_id: str
+    toolchain_version: str
+    environment_profile_hash: str
+    build_input_hash: str
+    command: list[str]
+    diagnostics: list[BuildDiagnosticData]
+    stdout: str
+    stderr: str
+    artifact_hash: str | None
+    error_code: EngineeringErrorCode | None
+    duration_ms: int
+
+
+class BuildListData(BaseModel):
+    builds: list[BuildRunData]
 
 
 class ErcImportRequest(BaseModel):

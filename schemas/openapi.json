@@ -141,6 +141,52 @@
         "title": "ApiEnvelope[ArchitectureBundleData]",
         "type": "object"
       },
+      "ApiEnvelope_BuildListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BuildListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[BuildListData]",
+        "type": "object"
+      },
+      "ApiEnvelope_BuildRunData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BuildRunData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[BuildRunData]",
+        "type": "object"
+      },
       "ApiEnvelope_CircuitBundleData_": {
         "properties": {
           "data": {
@@ -300,6 +346,29 @@
           "request_id"
         ],
         "title": "ApiEnvelope[EvidenceData]",
+        "type": "object"
+      },
+      "ApiEnvelope_FirmwareBundleData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FirmwareBundleData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[FirmwareBundleData]",
         "type": "object"
       },
       "ApiEnvelope_MCUConfigBundleData_": {
@@ -803,6 +872,343 @@
           "ARCHIVED"
         ],
         "title": "ArtifactStatus",
+        "type": "string"
+      },
+      "BSPConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "board_name": {
+            "default": "generic-stm32",
+            "title": "Board Name",
+            "type": "string"
+          },
+          "cmsis_device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cmsis Device"
+          },
+          "hal_family": {
+            "default": "STM32_HAL",
+            "title": "Hal Family",
+            "type": "string"
+          },
+          "include_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Include Paths",
+            "type": "array"
+          },
+          "source_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Paths",
+            "type": "array"
+          }
+        },
+        "title": "BSPConfig",
+        "type": "object"
+      },
+      "BuildDiagnosticData": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "column": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "phase": {
+            "title": "Phase",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/IssueSeverity"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "severity",
+          "code",
+          "message",
+          "file",
+          "line",
+          "column",
+          "phase"
+        ],
+        "title": "BuildDiagnosticData",
+        "type": "object"
+      },
+      "BuildListData": {
+        "properties": {
+          "builds": {
+            "items": {
+              "$ref": "#/components/schemas/BuildRunData"
+            },
+            "title": "Builds",
+            "type": "array"
+          }
+        },
+        "required": [
+          "builds"
+        ],
+        "title": "BuildListData",
+        "type": "object"
+      },
+      "BuildRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "firmware_id": {
+            "format": "uuid",
+            "title": "Firmware Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "firmware_id"
+        ],
+        "title": "BuildRequest",
+        "type": "object"
+      },
+      "BuildRunData": {
+        "properties": {
+          "artifact_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Hash"
+          },
+          "build_input_hash": {
+            "title": "Build Input Hash",
+            "type": "string"
+          },
+          "build_input_snapshot_id": {
+            "format": "uuid",
+            "title": "Build Input Snapshot Id",
+            "type": "string"
+          },
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Command",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/BuildDiagnosticData"
+            },
+            "title": "Diagnostics",
+            "type": "array"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "environment_profile_hash": {
+            "title": "Environment Profile Hash",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringErrorCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "firmware_id": {
+            "format": "uuid",
+            "title": "Firmware Id",
+            "type": "string"
+          },
+          "firmware_revision": {
+            "title": "Firmware Revision",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_revision_id": {
+            "format": "uuid",
+            "title": "Source Revision Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BuildStatus"
+          },
+          "stderr": {
+            "title": "Stderr",
+            "type": "string"
+          },
+          "stdout": {
+            "title": "Stdout",
+            "type": "string"
+          },
+          "toolchain_id": {
+            "title": "Toolchain Id",
+            "type": "string"
+          },
+          "toolchain_version": {
+            "title": "Toolchain Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "firmware_id",
+          "firmware_revision",
+          "source_revision_id",
+          "build_input_snapshot_id",
+          "status",
+          "toolchain_id",
+          "toolchain_version",
+          "environment_profile_hash",
+          "build_input_hash",
+          "command",
+          "diagnostics",
+          "stdout",
+          "stderr",
+          "artifact_hash",
+          "error_code",
+          "duration_ms"
+        ],
+        "title": "BuildRunData",
+        "type": "object"
+      },
+      "BuildStatus": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "PASS",
+          "FAIL",
+          "UNKNOWN",
+          "BLOCKED"
+        ],
+        "title": "BuildStatus",
         "type": "string"
       },
       "CircuitBundleData": {
@@ -2842,6 +3248,649 @@
         "title": "EvidenceType",
         "type": "string"
       },
+      "FirmwareBuildTarget": {
+        "additionalProperties": false,
+        "properties": {
+          "architecture": {
+            "default": "Cortex-M4",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Architecture",
+            "type": "string"
+          },
+          "build_system": {
+            "default": "CMAKE",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Build System",
+            "type": "string"
+          },
+          "compiler_flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Compiler Flags",
+            "type": "array"
+          },
+          "defines": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Defines",
+            "type": "object"
+          },
+          "family": {
+            "default": "STM32",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Family",
+            "type": "string"
+          },
+          "linker_flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Linker Flags",
+            "type": "array"
+          },
+          "name": {
+            "default": "host-skeleton",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "output_format": {
+            "default": "ELF",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Output Format",
+            "type": "string"
+          },
+          "output_name": {
+            "default": "eea_firmware",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Output Name",
+            "type": "string"
+          },
+          "toolchain_id": {
+            "default": "cmake-host",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Toolchain Id",
+            "type": "string"
+          }
+        },
+        "title": "FirmwareBuildTarget",
+        "type": "object"
+      },
+      "FirmwareBundleData": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FirmwareSourceFileData"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "firmware": {
+            "$ref": "#/components/schemas/FirmwareData"
+          },
+          "source_revision": {
+            "$ref": "#/components/schemas/SourceRevisionData"
+          }
+        },
+        "required": [
+          "firmware",
+          "source_revision",
+          "files"
+        ],
+        "title": "FirmwareBundleData",
+        "type": "object"
+      },
+      "FirmwareData": {
+        "properties": {
+          "bsp": {
+            "$ref": "#/components/schemas/BSPConfig"
+          },
+          "build_target": {
+            "$ref": "#/components/schemas/FirmwareBuildTarget"
+          },
+          "circuit_id": {
+            "format": "uuid",
+            "title": "Circuit Id",
+            "type": "string"
+          },
+          "circuit_revision": {
+            "title": "Circuit Revision",
+            "type": "integer"
+          },
+          "clock_tree": {
+            "additionalProperties": true,
+            "title": "Clock Tree",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "hardware_ir_id": {
+            "format": "uuid",
+            "title": "Hardware Ir Id",
+            "type": "string"
+          },
+          "hardware_ir_revision": {
+            "title": "Hardware Ir Revision",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_hash": {
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "interrupts": {
+            "items": {
+              "$ref": "#/components/schemas/FirmwareInterrupt"
+            },
+            "title": "Interrupts",
+            "type": "array"
+          },
+          "layers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Layers",
+            "type": "array"
+          },
+          "mcu_config_id": {
+            "format": "uuid",
+            "title": "Mcu Config Id",
+            "type": "string"
+          },
+          "mcu_config_revision": {
+            "title": "Mcu Config Revision",
+            "type": "integer"
+          },
+          "memory_layout": {
+            "$ref": "#/components/schemas/MemoryLayout"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/FirmwareModule"
+            },
+            "title": "Modules",
+            "type": "array"
+          },
+          "peripheral_drivers": {
+            "items": {
+              "$ref": "#/components/schemas/PeripheralDriverConfig"
+            },
+            "title": "Peripheral Drivers",
+            "type": "array"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "rule_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rule Results",
+            "type": "array"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "schematic_id": {
+            "format": "uuid",
+            "title": "Schematic Id",
+            "type": "string"
+          },
+          "schematic_revision": {
+            "title": "Schematic Revision",
+            "type": "integer"
+          },
+          "shared_resources": {
+            "items": {
+              "$ref": "#/components/schemas/SharedResource"
+            },
+            "title": "Shared Resources",
+            "type": "array"
+          },
+          "source_revision_id": {
+            "format": "uuid",
+            "title": "Source Revision Id",
+            "type": "string"
+          },
+          "startup": {
+            "$ref": "#/components/schemas/StartupConfig"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ArtifactStatus"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/FirmwareTask"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "mcu_config_id",
+          "mcu_config_revision",
+          "hardware_ir_id",
+          "hardware_ir_revision",
+          "circuit_id",
+          "circuit_revision",
+          "schematic_id",
+          "schematic_revision",
+          "source_revision_id",
+          "layers",
+          "modules",
+          "tasks",
+          "interrupts",
+          "shared_resources",
+          "startup",
+          "clock_tree",
+          "peripheral_drivers",
+          "memory_layout",
+          "bsp",
+          "build_target",
+          "rule_results",
+          "requirement_ids",
+          "evidence_ids",
+          "input_hash",
+          "status"
+        ],
+        "title": "FirmwareData",
+        "type": "object"
+      },
+      "FirmwareGenerateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "board_name": {
+            "default": "generic-stm32",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Board Name",
+            "type": "string"
+          },
+          "build_target": {
+            "$ref": "#/components/schemas/FirmwareBuildTarget"
+          },
+          "mcu_config_id": {
+            "format": "uuid",
+            "title": "Mcu Config Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mcu_config_id"
+        ],
+        "title": "FirmwareGenerateRequest",
+        "type": "object"
+      },
+      "FirmwareInterrupt": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_operations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Operations",
+            "type": "array"
+          },
+          "communicates_with_tasks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Communicates With Tasks",
+            "type": "array"
+          },
+          "handler": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Handler",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "priority": {
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "source": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "handler",
+          "priority"
+        ],
+        "title": "FirmwareInterrupt",
+        "type": "object"
+      },
+      "FirmwareModule": {
+        "additionalProperties": false,
+        "properties": {
+          "dependencies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "layer": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Layer",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "public_api": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Public Api",
+            "type": "array"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "responsibility": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Responsibility",
+            "type": "string"
+          },
+          "state": {
+            "items": {
+              "type": "string"
+            },
+            "title": "State",
+            "type": "array"
+          },
+          "testability": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Testability",
+            "type": "array"
+          },
+          "timing": {
+            "additionalProperties": true,
+            "title": "Timing",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "layer",
+          "responsibility"
+        ],
+        "title": "FirmwareModule",
+        "type": "object"
+      },
+      "FirmwareSourceFileData": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "generated_owned": {
+            "title": "Generated Owned",
+            "type": "boolean"
+          },
+          "generator_version": {
+            "title": "Generator Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_hash": {
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "path",
+          "content",
+          "content_hash",
+          "input_hash",
+          "generated_owned",
+          "generator_version"
+        ],
+        "title": "FirmwareSourceFileData",
+        "type": "object"
+      },
+      "FirmwareTask": {
+        "additionalProperties": false,
+        "properties": {
+          "deadline_us": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline Us"
+          },
+          "execution_budget_us": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Budget Us"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mutexes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Mutexes",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "period_us": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Us"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "queues": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Queues",
+            "type": "array"
+          },
+          "resources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Resources",
+            "type": "array"
+          },
+          "stack_bytes": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stack Bytes"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "FirmwareTask",
+        "type": "object"
+      },
       "GPIOConfig": {
         "additionalProperties": false,
         "properties": {
@@ -3661,6 +4710,29 @@
         "title": "MemoryConfigIR",
         "type": "object"
       },
+      "MemoryLayout": {
+        "additionalProperties": false,
+        "properties": {
+          "linker_script": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linker Script"
+          },
+          "sections": {
+            "additionalProperties": true,
+            "title": "Sections",
+            "type": "object"
+          }
+        },
+        "title": "MemoryLayout",
+        "type": "object"
+      },
       "PWMConfig": {
         "additionalProperties": false,
         "properties": {
@@ -3890,6 +4962,50 @@
           "mode"
         ],
         "title": "PeripheralConfigIR",
+        "type": "object"
+      },
+      "PeripheralDriverConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "config_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Config Refs",
+            "type": "array"
+          },
+          "dependencies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "driver_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Driver Name",
+            "type": "string"
+          },
+          "init_function": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Init Function",
+            "type": "string"
+          },
+          "peripheral": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Peripheral",
+            "type": "string"
+          }
+        },
+        "required": [
+          "peripheral",
+          "driver_name",
+          "init_function"
+        ],
+        "title": "PeripheralDriverConfig",
         "type": "object"
       },
       "Permission": {
@@ -5370,6 +6486,202 @@
         "title": "SchematicValidateRequest",
         "type": "object"
       },
+      "SharedResource": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "protection": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protection"
+          },
+          "users": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Users",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "SharedResource",
+        "type": "object"
+      },
+      "SourceRevisionData": {
+        "properties": {
+          "base_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Commit"
+          },
+          "commit_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Sha"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "dirty": {
+            "title": "Dirty",
+            "type": "boolean"
+          },
+          "file_manifest": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "File Manifest",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "repository_id": {
+            "title": "Repository Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_manifest_hash": {
+            "title": "Source Manifest Hash",
+            "type": "string"
+          },
+          "tree_hash": {
+            "title": "Tree Hash",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_revision": {
+            "title": "Workspace Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "repository_id",
+          "commit_sha",
+          "tree_hash",
+          "dirty",
+          "base_commit",
+          "workspace_revision",
+          "source_manifest_hash",
+          "file_manifest",
+          "created_by"
+        ],
+        "title": "SourceRevisionData",
+        "type": "object"
+      },
+      "StartupConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "entry_symbol": {
+            "default": "main",
+            "title": "Entry Symbol",
+            "type": "string"
+          },
+          "reset_handler": {
+            "default": "Reset_Handler",
+            "title": "Reset Handler",
+            "type": "string"
+          },
+          "system_init": {
+            "default": "SystemInit",
+            "title": "System Init",
+            "type": "string"
+          },
+          "vector_table": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vector Table"
+          },
+          "watchdog": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watchdog"
+          }
+        },
+        "title": "StartupConfig",
+        "type": "object"
+      },
       "SystemArchitectureData": {
         "properties": {
           "blocks": {
@@ -6401,6 +7713,170 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/build": {
+      "post": {
+        "operationId": "build_firmware_api_v1_projects__project_id__build_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_BuildRunData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Build Firmware",
+        "tags": [
+          "build"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/builds": {
+      "get": {
+        "operationId": "list_builds_api_v1_projects__project_id__builds_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_BuildListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Builds",
+        "tags": [
+          "build"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/builds/{build_id}": {
+      "get": {
+        "operationId": "get_build_api_v1_projects__project_id__builds__build_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "build_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Build Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_BuildRunData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Build",
+        "tags": [
+          "build"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/circuit": {
       "get": {
         "operationId": "get_circuit_api_v1_projects__project_id__circuit_get",
@@ -6562,6 +8038,112 @@
         "summary": "Validate Circuit",
         "tags": [
           "circuit"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/firmware": {
+      "get": {
+        "operationId": "get_firmware_api_v1_projects__project_id__firmware_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_FirmwareBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Firmware",
+        "tags": [
+          "firmware"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/firmware/generate": {
+      "post": {
+        "operationId": "generate_firmware_api_v1_projects__project_id__firmware_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirmwareGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_FirmwareBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Firmware",
+        "tags": [
+          "firmware"
         ]
       }
     },
