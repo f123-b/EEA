@@ -82,6 +82,7 @@ from eea_core.sandbox import (
     CommandSpec,
     SandboxPolicy,
 )
+from eea_core.schematic import ErcIssue, ErcReport, SchematicBundle, SchematicIR
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +142,8 @@ def create_core_schema_registry() -> SchemaRegistry:
         EngineeringDecision,
         EngineeringClaim,
         EngineeringValue,
+        ErcIssue,
+        ErcReport,
         Document,
         DocumentFigure,
         DocumentIR,
@@ -158,6 +161,8 @@ def create_core_schema_registry() -> SchemaRegistry:
         PromptDefinition,
         Project,
         SandboxPolicy,
+        SchematicBundle,
+        SchematicIR,
         TraceabilityEdge,
         PinFunction,
         PinAssignment,

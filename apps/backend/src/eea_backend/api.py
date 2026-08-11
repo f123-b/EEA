@@ -18,6 +18,7 @@ from eea_application.requirements import (
     RequirementAnalysisService,
     RequirementProfileRegistry,
 )
+from eea_application.schematic import SchematicService
 from eea_core.architecture import ArchitectureBundle
 from eea_core.circuit import CircuitBundle
 from eea_core.entities import Evidence, Project
@@ -53,6 +54,7 @@ from eea_core.intelligence import Device, DevicePin, Document
 from eea_core.pin_planner import PinAssignment, PinLock, PinPlan, PinRequirement
 from eea_core.requirements import RequirementProfile
 from eea_core.schema_registry import create_core_schema_registry
+from eea_core.schematic import SchematicBundle
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.orm import Session
 
@@ -88,6 +90,7 @@ from eea_backend.schemas import (
     DocumentUploadRequest,
     EnumCatalogData,
     EnumValues,
+    ErcImportRequest,
     EvidenceCreateRequest,
     EvidenceData,
     PinAssignmentData,
@@ -109,7 +112,11 @@ from eea_backend.schemas import (
     SchemaData,
     SchemaDescriptorData,
     SchemaListData,
+    SchematicBundleData,
+    SchematicGenerateRequest,
+    SchematicValidateRequest,
 )
+from eea_backend.schematic_repositories import SqlAlchemySchematicRepository
 
 router = APIRouter()
 schema_registry = create_core_schema_registry()
@@ -169,6 +176,30 @@ def _architecture_bundle_data(bundle: ArchitectureBundle) -> ArchitectureBundleD
 
 def _circuit_bundle_data(bundle: CircuitBundle) -> CircuitBundleData:
     return CircuitBundleData.model_validate(bundle.model_dump(mode="json"))
+
+
+def _schematic_bundle_data(bundle: SchematicBundle) -> SchematicBundleData:
+    return SchematicBundleData.model_validate(bundle.model_dump(mode="json"))
+
+
+def _ensure_latest_hardware(session: Session, project_id: UUID, hardware_id: UUID) -> None:
+    latest = SqlAlchemyArchitectureRepository(session).latest_for_project(project_id)
+    if latest is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "No current HardwareIR is available for schematic generation",
+            details={"project_id": str(project_id)},
+        )
+    if latest.hardware.id != hardware_id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Schematic source HardwareIR is stale",
+            details={
+                "reason": "STALE_HARDWARE_IR",
+                "hardware_ir_id": str(hardware_id),
+                "latest_hardware_ir_id": str(latest.hardware.id),
+            },
+        )
 
 
 def _requirement_profile_repository(session: Session) -> SqlAlchemyRequirementProfileRepository:
@@ -621,6 +652,7 @@ def generate_circuit(
         constraints=payload.constraints,
     )
     saved = SqlAlchemyCircuitRepository(session).add(bundle)
+    SqlAlchemySchematicRepository(session).mark_stale_for_circuit(project_id, saved.circuit.id)
     return ApiEnvelope(data=_circuit_bundle_data(saved), request_id=_request_id(request))
 
 
@@ -693,6 +725,155 @@ def validate_circuit(
         rule_results=[result.model_dump(mode="json") for result in results],
     )
     return ApiEnvelope(data=data, request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/schematic/generate",
+    response_model=ApiEnvelope[SchematicBundleData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["schematic"],
+)
+def generate_schematic(
+    project_id: UUID,
+    payload: SchematicGenerateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[SchematicBundleData]:
+    _service(session).get(project_id)
+    circuits = SqlAlchemyCircuitRepository(session)
+    selected = circuits.get(payload.circuit_id, project_id=project_id)
+    latest = circuits.latest_for_project(project_id)
+    if selected is None or latest is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Circuit is not available for schematic generation",
+            details={"circuit_id": str(payload.circuit_id), "project_id": str(project_id)},
+        )
+    if selected.circuit.id != latest.circuit.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Selected CircuitIR is stale",
+            details={
+                "reason": "STALE_CIRCUIT_IR",
+                "circuit_id": str(payload.circuit_id),
+                "latest_circuit_id": str(latest.circuit.id),
+            },
+        )
+    _ensure_latest_hardware(session, project_id, selected.circuit.hardware_ir_id)
+    bundle = SchematicService().generate(selected.circuit)
+    saved = SqlAlchemySchematicRepository(session).add(bundle)
+    return ApiEnvelope(data=_schematic_bundle_data(saved), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/schematic",
+    response_model=ApiEnvelope[SchematicBundleData],
+    tags=["schematic"],
+)
+def get_schematic(
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[SchematicBundleData]:
+    _service(session).get(project_id)
+    bundle = SqlAlchemySchematicRepository(session).latest_for_project(project_id)
+    if bundle is None:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "No current schematic has been generated for this project",
+            details={"project_id": str(project_id)},
+        )
+    return ApiEnvelope(data=_schematic_bundle_data(bundle), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/schematic/validate",
+    response_model=ApiEnvelope[SchematicBundleData],
+    tags=["schematic"],
+)
+def validate_schematic(
+    project_id: UUID,
+    payload: SchematicValidateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[SchematicBundleData]:
+    _service(session).get(project_id)
+    schematics = SqlAlchemySchematicRepository(session)
+    bundle = schematics.get(payload.schematic_id, project_id=project_id)
+    if bundle is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Schematic is not available for this project",
+            details={"schematic_id": str(payload.schematic_id), "project_id": str(project_id)},
+        )
+    circuits = SqlAlchemyCircuitRepository(session)
+    circuit_bundle = circuits.get(bundle.schematic.circuit_id, project_id=project_id)
+    latest = circuits.latest_for_project(project_id)
+    if circuit_bundle is None or latest is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Schematic source CircuitIR is not available",
+            details={"circuit_id": str(bundle.schematic.circuit_id)},
+        )
+    if circuit_bundle.circuit.id != latest.circuit.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Schematic source CircuitIR is stale",
+            details={
+                "reason": "STALE_CIRCUIT_IR",
+                "circuit_id": str(bundle.schematic.circuit_id),
+                "latest_circuit_id": str(latest.circuit.id),
+            },
+        )
+    _ensure_latest_hardware(session, project_id, circuit_bundle.circuit.hardware_ir_id)
+    report = SchematicService().validate(bundle.schematic, circuit_bundle.circuit)
+    schematics.save_erc_report(report)
+    refreshed = schematics.get(bundle.schematic.id, project_id=project_id) or bundle
+    return ApiEnvelope(data=_schematic_bundle_data(refreshed), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/schematic/erc/import",
+    response_model=ApiEnvelope[SchematicBundleData],
+    tags=["schematic"],
+)
+def import_schematic_erc(
+    project_id: UUID,
+    payload: ErcImportRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[SchematicBundleData]:
+    _service(session).get(project_id)
+    schematics = SqlAlchemySchematicRepository(session)
+    bundle = schematics.get(payload.schematic_id, project_id=project_id)
+    if bundle is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Schematic is not available for this project",
+            details={"schematic_id": str(payload.schematic_id), "project_id": str(project_id)},
+        )
+    circuits = SqlAlchemyCircuitRepository(session)
+    circuit_bundle = circuits.get(bundle.schematic.circuit_id, project_id=project_id)
+    latest = circuits.latest_for_project(project_id)
+    if circuit_bundle is None or latest is None or circuit_bundle.circuit.id != latest.circuit.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Schematic source CircuitIR is stale or unavailable",
+            details={"reason": "STALE_CIRCUIT_IR", "circuit_id": str(bundle.schematic.circuit_id)},
+        )
+    _ensure_latest_hardware(session, project_id, circuit_bundle.circuit.hardware_ir_id)
+    report = SchematicService().import_erc(
+        bundle.schematic,
+        circuit_bundle.circuit,
+        status=payload.status,
+        tool_name=payload.tool_name,
+        tool_version=payload.tool_version,
+        issues=payload.issues,
+        evidence_ids=payload.evidence_ids,
+    )
+    schematics.save_erc_report(report)
+    refreshed = schematics.get(bundle.schematic.id, project_id=project_id) or bundle
+    return ApiEnvelope(data=_schematic_bundle_data(refreshed), request_id=_request_id(request))
 
 
 @router.post(

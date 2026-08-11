@@ -10,6 +10,7 @@ from eea_core.entities import Evidence, Project
 from eea_core.intelligence import Document, DocumentIR
 from eea_core.pin_planner import PinAssignment, PinPlan
 from eea_core.requirements import Requirement, RequirementAnalysis, RequirementProfile
+from eea_core.schematic import SchematicBundle
 
 
 class ProjectRepository(Protocol):
@@ -120,3 +121,13 @@ class CircuitRepository(Protocol):
     def get(self, circuit_id: UUID, *, project_id: UUID | None = None) -> CircuitBundle | None: ...
 
     def latest_for_project(self, project_id: UUID) -> CircuitBundle | None: ...
+
+
+class SchematicRepository(Protocol):
+    def add(self, bundle: SchematicBundle) -> SchematicBundle: ...
+
+    def get(
+        self, schematic_id: UUID, *, project_id: UUID | None = None
+    ) -> SchematicBundle | None: ...
+
+    def latest_for_project(self, project_id: UUID) -> SchematicBundle | None: ...

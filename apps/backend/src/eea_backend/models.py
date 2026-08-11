@@ -486,6 +486,58 @@ class CircuitRuleResultRecord(CoreRecordMixin, Base):
     input_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
 
 
+class SchematicArtifactRecord(CoreRecordMixin, Base):
+    __tablename__ = "schematic_artifacts"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    artifact_id: Mapped[str] = mapped_column(
+        ForeignKey("artifacts.id"), nullable=False, unique=True
+    )
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    circuit_id: Mapped[str] = mapped_column(ForeignKey("circuits.id"), nullable=False, index=True)
+    circuit_revision: Mapped[int] = mapped_column(nullable=False)
+    hardware_ir_id: Mapped[str] = mapped_column(
+        ForeignKey("hardware_irs.id"), nullable=False, index=True
+    )
+    hardware_ir_revision: Mapped[int] = mapped_column(nullable=False)
+    format: Mapped[str] = mapped_column(String(50), nullable=False)
+    components: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    nets: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    power_nets: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    constraints: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    netlist_text: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    preflight_results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    pin_assignment_revisions: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+
+
+class ErcReportRecord(CoreRecordMixin, Base):
+    __tablename__ = "erc_reports"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("status IN ('PASS', 'FAIL', 'UNKNOWN')", name="status"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    schematic_id: Mapped[str] = mapped_column(
+        ForeignKey("schematic_artifacts.id"), nullable=False, index=True
+    )
+    schematic_revision: Mapped[int] = mapped_column(nullable=False)
+    circuit_id: Mapped[str] = mapped_column(ForeignKey("circuits.id"), nullable=False, index=True)
+    circuit_revision: Mapped[int] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    tool_name: Mapped[str | None] = mapped_column(String(100))
+    tool_version: Mapped[str | None] = mapped_column(String(100))
+    executed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    issues: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    source_revision_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    recommendation: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class PromptDefinitionRecord(CoreRecordMixin, Base):
     __tablename__ = "prompt_definitions"
     __table_args__ = (

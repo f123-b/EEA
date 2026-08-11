@@ -32,6 +32,7 @@ from eea_core.enums import (
     TraceabilityRelation,
     VerificationLevel,
 )
+from eea_core.schematic import ErcIssue
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -453,6 +454,109 @@ class CircuitValidationData(BaseModel):
     circuit_id: UUID
     circuit_revision: int
     rule_results: list[dict[str, object]]
+
+
+class SchematicGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    circuit_id: UUID
+
+
+class ArtifactData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    logical_name: str
+    artifact_type: str
+    version_label: str
+    content_hash: str
+    input_hash: str
+    storage_uri: str
+    parent_artifact_id: UUID | None
+    dependency_ids: list[UUID]
+    dependency_hashes: dict[str, str]
+    created_by: str
+    source_job_id: UUID | None
+    generator_version: str | None
+    tool_versions: dict[str, str]
+    knowledge_snapshot: str | None
+    status: ArtifactStatus
+
+
+class SchematicData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    artifact_id: UUID
+    circuit_id: UUID
+    circuit_revision: int
+    hardware_ir_id: UUID
+    hardware_ir_revision: int
+    format: str
+    components: list[dict[str, object]]
+    nets: list[dict[str, object]]
+    power_nets: list[dict[str, object]]
+    constraints: list[dict[str, object]]
+    netlist_text: str
+    content_hash: str
+    input_hash: str
+    preflight_results: list[dict[str, object]]
+    requirement_ids: list[UUID]
+    evidence_ids: list[UUID]
+    pin_assignment_revisions: dict[str, int]
+
+
+class ErcReportData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    schematic_id: UUID
+    schematic_revision: int
+    circuit_id: UUID
+    circuit_revision: int
+    status: Literal["PASS", "FAIL", "UNKNOWN"]
+    tool_name: str | None
+    tool_version: str | None
+    executed: bool
+    issues: list[dict[str, object]]
+    source_revision_snapshot: dict[str, object]
+    evidence_ids: list[UUID]
+    recommendation: str
+
+
+class SchematicBundleData(BaseModel):
+    artifact: ArtifactData
+    schematic: SchematicData
+    erc_report: ErcReportData
+
+
+class SchematicValidateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schematic_id: UUID
+
+
+class ErcImportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schematic_id: UUID
+    status: Literal["PASS", "FAIL"]
+    tool_name: str = Field(min_length=1, max_length=100)
+    tool_version: str = Field(min_length=1, max_length=100)
+    issues: list[ErcIssue] = Field(default_factory=list)
+    evidence_ids: list[UUID] = Field(default_factory=list)
 
 
 class SchemaData(BaseModel):

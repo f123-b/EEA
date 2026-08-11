@@ -392,6 +392,29 @@
         "title": "ApiEnvelope[SchemaListData]",
         "type": "object"
       },
+      "ApiEnvelope_SchematicBundleData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SchematicBundleData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[SchematicBundleData]",
+        "type": "object"
+      },
       "ApiEnvelope_VersionData_": {
         "properties": {
           "data": {
@@ -444,6 +467,168 @@
           "pin_plan_id"
         ],
         "title": "ArchitectureGenerateRequest",
+        "type": "object"
+      },
+      "ArtifactData": {
+        "properties": {
+          "artifact_type": {
+            "title": "Artifact Type",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "dependency_hashes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Dependency Hashes",
+            "type": "object"
+          },
+          "dependency_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Dependency Ids",
+            "type": "array"
+          },
+          "generator_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generator Version"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_hash": {
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "knowledge_snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Snapshot"
+          },
+          "logical_name": {
+            "title": "Logical Name",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "parent_artifact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Artifact Id"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Job Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ArtifactStatus"
+          },
+          "storage_uri": {
+            "title": "Storage Uri",
+            "type": "string"
+          },
+          "tool_versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Tool Versions",
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version_label": {
+            "title": "Version Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "logical_name",
+          "artifact_type",
+          "version_label",
+          "content_hash",
+          "input_hash",
+          "storage_uri",
+          "parent_artifact_id",
+          "dependency_ids",
+          "dependency_hashes",
+          "created_by",
+          "source_job_id",
+          "generator_version",
+          "tool_versions",
+          "knowledge_snapshot",
+          "status"
+        ],
+        "title": "ArtifactData",
         "type": "object"
       },
       "ArtifactStatus": {
@@ -1900,6 +2085,251 @@
           "VerificationLevel"
         ],
         "title": "EnumValues",
+        "type": "object"
+      },
+      "ErcImportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/ErcIssue"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "schematic_id": {
+            "format": "uuid",
+            "title": "Schematic Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tool_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Tool Name",
+            "type": "string"
+          },
+          "tool_version": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Tool Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schematic_id",
+          "status",
+          "tool_name",
+          "tool_version"
+        ],
+        "title": "ErcImportRequest",
+        "type": "object"
+      },
+      "ErcIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "affected_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Affected Refs",
+            "type": "array"
+          },
+          "code": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Z0-9_.-]*$",
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Description",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/IssueSeverity"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title",
+          "severity"
+        ],
+        "title": "ErcIssue",
+        "type": "object"
+      },
+      "ErcReportData": {
+        "properties": {
+          "circuit_id": {
+            "format": "uuid",
+            "title": "Circuit Id",
+            "type": "string"
+          },
+          "circuit_revision": {
+            "title": "Circuit Revision",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "executed": {
+            "title": "Executed",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "recommendation": {
+            "title": "Recommendation",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "schematic_id": {
+            "format": "uuid",
+            "title": "Schematic Id",
+            "type": "string"
+          },
+          "schematic_revision": {
+            "title": "Schematic Revision",
+            "type": "integer"
+          },
+          "source_revision_snapshot": {
+            "additionalProperties": true,
+            "title": "Source Revision Snapshot",
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "UNKNOWN"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tool_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Name"
+          },
+          "tool_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Version"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "schematic_id",
+          "schematic_revision",
+          "circuit_id",
+          "circuit_revision",
+          "status",
+          "tool_name",
+          "tool_version",
+          "executed",
+          "issues",
+          "source_revision_snapshot",
+          "evidence_ids",
+          "recommendation"
+        ],
+        "title": "ErcReportData",
         "type": "object"
       },
       "EvidenceCreateRequest": {
@@ -3547,6 +3977,223 @@
         "title": "SchemaListData",
         "type": "object"
       },
+      "SchematicBundleData": {
+        "properties": {
+          "artifact": {
+            "$ref": "#/components/schemas/ArtifactData"
+          },
+          "erc_report": {
+            "$ref": "#/components/schemas/ErcReportData"
+          },
+          "schematic": {
+            "$ref": "#/components/schemas/SchematicData"
+          }
+        },
+        "required": [
+          "artifact",
+          "schematic",
+          "erc_report"
+        ],
+        "title": "SchematicBundleData",
+        "type": "object"
+      },
+      "SchematicData": {
+        "properties": {
+          "artifact_id": {
+            "format": "uuid",
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "circuit_id": {
+            "format": "uuid",
+            "title": "Circuit Id",
+            "type": "string"
+          },
+          "circuit_revision": {
+            "title": "Circuit Revision",
+            "type": "integer"
+          },
+          "components": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "constraints": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Constraints",
+            "type": "array"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "hardware_ir_id": {
+            "format": "uuid",
+            "title": "Hardware Ir Id",
+            "type": "string"
+          },
+          "hardware_ir_revision": {
+            "title": "Hardware Ir Revision",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_hash": {
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "netlist_text": {
+            "title": "Netlist Text",
+            "type": "string"
+          },
+          "nets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Nets",
+            "type": "array"
+          },
+          "pin_assignment_revisions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Pin Assignment Revisions",
+            "type": "object"
+          },
+          "power_nets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Power Nets",
+            "type": "array"
+          },
+          "preflight_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Preflight Results",
+            "type": "array"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "artifact_id",
+          "circuit_id",
+          "circuit_revision",
+          "hardware_ir_id",
+          "hardware_ir_revision",
+          "format",
+          "components",
+          "nets",
+          "power_nets",
+          "constraints",
+          "netlist_text",
+          "content_hash",
+          "input_hash",
+          "preflight_results",
+          "requirement_ids",
+          "evidence_ids",
+          "pin_assignment_revisions"
+        ],
+        "title": "SchematicData",
+        "type": "object"
+      },
+      "SchematicGenerateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "circuit_id": {
+            "format": "uuid",
+            "title": "Circuit Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "circuit_id"
+        ],
+        "title": "SchematicGenerateRequest",
+        "type": "object"
+      },
+      "SchematicValidateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "schematic_id": {
+            "format": "uuid",
+            "title": "Schematic Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schematic_id"
+        ],
+        "title": "SchematicValidateRequest",
+        "type": "object"
+      },
       "SystemArchitectureData": {
         "properties": {
           "blocks": {
@@ -5129,6 +5776,228 @@
         "summary": "Validate Pin Plan",
         "tags": [
           "pin-planner"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/schematic": {
+      "get": {
+        "operationId": "get_schematic_api_v1_projects__project_id__schematic_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_SchematicBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Schematic",
+        "tags": [
+          "schematic"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/schematic/erc/import": {
+      "post": {
+        "operationId": "import_schematic_erc_api_v1_projects__project_id__schematic_erc_import_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErcImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_SchematicBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Schematic Erc",
+        "tags": [
+          "schematic"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/schematic/generate": {
+      "post": {
+        "operationId": "generate_schematic_api_v1_projects__project_id__schematic_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchematicGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_SchematicBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Schematic",
+        "tags": [
+          "schematic"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/schematic/validate": {
+      "post": {
+        "operationId": "validate_schematic_api_v1_projects__project_id__schematic_validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchematicValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_SchematicBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Validate Schematic",
+        "tags": [
+          "schematic"
         ]
       }
     },
