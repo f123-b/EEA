@@ -93,6 +93,29 @@
         "title": "ApiEnvelope[EnumCatalogData]",
         "type": "object"
       },
+      "ApiEnvelope_EvidenceData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EvidenceData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[EvidenceData]",
+        "type": "object"
+      },
       "ApiEnvelope_ProjectData_": {
         "properties": {
           "data": {
@@ -1082,6 +1105,155 @@
           "VerificationLevel"
         ],
         "title": "EnumValues",
+        "type": "object"
+      },
+      "EvidenceCreateRequest": {
+        "additionalProperties": false,
+        "description": "Minimal client registration bridge for evidence usable by M6 analysis.",
+        "properties": {
+          "content_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "evidence_type": {
+            "$ref": "#/components/schemas/EvidenceType"
+          },
+          "locator": {
+            "additionalProperties": true,
+            "title": "Locator",
+            "type": "object"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "source_uri": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Uri"
+          },
+          "summary": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "evidence_type"
+        ],
+        "title": "EvidenceCreateRequest",
+        "type": "object"
+      },
+      "EvidenceData": {
+        "properties": {
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_type": {
+            "$ref": "#/components/schemas/EvidenceType"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locator": {
+            "additionalProperties": true,
+            "title": "Locator",
+            "type": "object"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Uri"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "evidence_type",
+          "locator",
+          "source_uri",
+          "content_hash",
+          "summary"
+        ],
+        "title": "EvidenceData",
         "type": "object"
       },
       "EvidenceType": {
@@ -2204,6 +2376,117 @@
         "summary": "Get Document",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/evidence": {
+      "post": {
+        "operationId": "register_evidence_api_v1_evidence_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_EvidenceData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Register Evidence",
+        "tags": [
+          "evidence"
+        ]
+      }
+    },
+    "/api/v1/evidence/{evidence_id}": {
+      "get": {
+        "operationId": "get_evidence_api_v1_evidence__evidence_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "evidence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Evidence Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_EvidenceData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Evidence",
+        "tags": [
+          "evidence"
         ]
       }
     },

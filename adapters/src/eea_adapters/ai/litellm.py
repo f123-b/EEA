@@ -23,18 +23,21 @@ class LiteLLMProvider:
         secret_service: SecretService,
         api_key_reference: SecretReference,
         *,
+        model_map: Mapping[str, str] | None = None,
         completion: CompletionCallable | None = None,
     ) -> None:
         self._secret_service = secret_service
         self._api_key_reference = api_key_reference
+        self._model_map = dict(model_map or {})
         self._completion = completion
 
     async def generate(self, request: AIProviderRequest) -> AIProviderResponse:
-        completion = self._completion or self._load_completion()
+        concrete_model = self._resolve_model(request.model)
         try:
+            completion = self._completion or self._load_completion()
             secret = self._secret_service.get(self._api_key_reference)
             raw_response = await completion(
-                model=request.model,
+                model=concrete_model,
                 messages=[
                     {"role": message.role, "content": message.content}
                     for message in request.messages
@@ -52,7 +55,7 @@ class LiteLLMProvider:
                 timeout=request.timeout_seconds,
                 api_key=secret.reveal(),
             )
-            return self._translate(raw_response, fallback_model=request.model)
+            return self._translate(raw_response, fallback_model=concrete_model)
         except EngineeringError:
             raise
         except Exception as exc:
@@ -61,6 +64,16 @@ class LiteLLMProvider:
                 "LiteLLM provider request failed",
                 details={"provider": self.name, "reason": type(exc).__name__},
             ) from None
+
+    def _resolve_model(self, alias: str) -> str:
+        concrete_model = self._model_map.get(alias)
+        if concrete_model is None or not concrete_model.strip():
+            raise EngineeringError(
+                EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+                "AI model alias is not configured",
+                details={"model_alias": alias},
+            )
+        return concrete_model
 
     @staticmethod
     def _load_completion() -> CompletionCallable:

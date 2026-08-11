@@ -3,8 +3,13 @@
 from typing import Any, cast
 from uuid import UUID
 
+from eea_core.claims import EngineeringClaim
+from eea_core.entities import utc_now
+from eea_core.enums import EngineeringErrorCode
+from eea_core.errors import EngineeringError
 from eea_core.requirements import Requirement, RequirementAnalysis, RequirementProfile
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -147,6 +152,55 @@ class SqlAlchemyRequirementRepository:
         )
         return [_to_requirement(record) for record in self._session.scalars(statement)]
 
+    def get_by_code(self, project_id: UUID, code: str) -> Requirement | None:
+        statement = select(RequirementRecord).where(
+            RequirementRecord.project_id == str(project_id),
+            RequirementRecord.code == code,
+        )
+        record = self._session.scalar(statement.limit(1))
+        return _to_requirement(record) if record else None
+
+    def save(
+        self,
+        requirement: Requirement,
+        *,
+        expected_revision: int,
+        commit: bool = True,
+    ) -> Requirement | None:
+        statement = (
+            update(RequirementRecord)
+            .where(
+                RequirementRecord.id == str(requirement.id),
+                RequirementRecord.revision == expected_revision,
+            )
+            .values(
+                schema_version=requirement.schema_version,
+                revision=requirement.revision,
+                updated_at=requirement.updated_at,
+                entity_metadata=requirement.metadata,
+                project_id=str(requirement.project_id),
+                code=requirement.code,
+                title=requirement.title,
+                requirement_type=requirement.requirement_type.value,
+                priority=requirement.priority.value,
+                statement=requirement.statement,
+                rationale=requirement.rationale,
+                acceptance_criteria=requirement.acceptance_criteria,
+                source_evidence_ids=[str(value) for value in requirement.source_evidence_ids],
+                status=requirement.status.value,
+            )
+        )
+        result = cast(CursorResult[Any], self._session.execute(statement))
+        if result.rowcount != 1:
+            if commit:
+                self._session.rollback()
+            return None
+        if commit:
+            self._session.commit()
+        else:
+            self._session.flush()
+        return self.get_by_code(requirement.project_id, requirement.code)
+
 
 def _to_analysis(record: RequirementAnalysisRecord) -> RequirementAnalysis:
     return RequirementAnalysis.model_validate(
@@ -210,18 +264,71 @@ def persist_requirement_analysis_bundle(
 ) -> RequirementAnalysis:
     """Persist the canonical requirements, claims, and analysis atomically."""
 
-    from eea_backend.claim_repositories import SqlAlchemyEngineeringClaimRepository
+    from eea_application.claims import ClaimPredicateRegistry, ClaimResolver, ClaimService
+
+    from eea_backend.claim_repositories import (
+        SqlAlchemyClaimConflictRepository,
+        SqlAlchemyClaimPredicateRepository,
+        SqlAlchemyEngineeringClaimRepository,
+    )
 
     requirements = SqlAlchemyRequirementRepository(session)
     claims = SqlAlchemyEngineeringClaimRepository(session)
+    conflicts = SqlAlchemyClaimConflictRepository(session)
+    predicates = SqlAlchemyClaimPredicateRepository(session)
     analyses = SqlAlchemyRequirementAnalysisRepository(session)
     try:
-        saved_requirements = [
-            requirements.add(value, commit=False) for value in analysis.requirements
-        ]
-        saved_claims = [claims.add(value, commit=False) for value in analysis.claims]
+        codes = [value.code for value in analysis.requirements]
+        if len(codes) != len(set(codes)):
+            raise EngineeringError(
+                EngineeringErrorCode.INVALID_REQUIREMENT,
+                "One requirement analysis cannot contain duplicate requirement codes",
+                details={
+                    "duplicate_codes": sorted(code for code in set(codes) if codes.count(code) > 1)
+                },
+            )
+
+        saved_requirements: list[Requirement] = []
+        for candidate in analysis.requirements:
+            existing = requirements.get_by_code(candidate.project_id, candidate.code)
+            if existing is None:
+                saved_requirements.append(requirements.add(candidate, commit=False))
+                continue
+            updated = candidate.model_copy(
+                update={
+                    "id": existing.id,
+                    "created_at": existing.created_at,
+                    "revision": existing.revision + 1,
+                    "updated_at": utc_now(),
+                }
+            )
+            saved = requirements.save(
+                updated,
+                expected_revision=existing.revision,
+                commit=False,
+            )
+            if saved is None:
+                raise EngineeringError(
+                    EngineeringErrorCode.REVISION_CONFLICT,
+                    "Requirement changed during analysis reconciliation",
+                    details={"requirement_id": str(existing.id), "code": existing.code},
+                )
+            saved_requirements.append(saved)
+
+        claim_service = ClaimService(
+            claims, conflicts, ClaimPredicateRegistry(predicates), ClaimResolver()
+        )
+        saved_claims: list[EngineeringClaim] = []
+        for claim_candidate in analysis.claims:
+            prepared = claim_service.prepare(claim_candidate)
+            saved_claim = claims.add(prepared.claim, commit=False)
+            for conflict in prepared.conflicts:
+                conflicts.add(conflict, commit=False)
+            saved_claims.append(saved_claim)
         canonical = analysis.model_copy(
             update={
+                "requirements": saved_requirements,
+                "claims": saved_claims,
                 "requirement_ids": [item.id for item in saved_requirements],
                 "claim_ids": [item.id for item in saved_claims],
             }

@@ -96,9 +96,7 @@ class ClaimPredicateRegistry:
                         "actual_dimension": value.dimension.value,
                     },
                 )
-            normalized = EngineeringClaim.model_validate(
-                {**claim.model_dump(), "value": value.model_dump(mode="json")}
-            )
+            normalized = claim.model_copy(update={"value": value})
         else:
             normalized = claim
         return normalized, definition
@@ -212,6 +210,14 @@ class ClaimSubmission:
     conflicts: tuple[ClaimConflict, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class PreparedClaimSubmission:
+    """Normalized claim and conflicts ready for one caller-owned transaction."""
+
+    claim: EngineeringClaim
+    conflicts: tuple[ClaimConflict, ...]
+
+
 class ClaimService:
     """Persist a validated Claim and retain every deterministic conflict record."""
 
@@ -227,17 +233,26 @@ class ClaimService:
         self._predicate_registry = predicate_registry
         self._resolver = resolver or ClaimResolver()
 
-    def create(self, claim: EngineeringClaim) -> ClaimSubmission:
+    def prepare(self, claim: EngineeringClaim) -> PreparedClaimSubmission:
+        """Run the canonical M3 semantic phase without committing anything."""
+
         normalized, definition = self._predicate_registry.normalize(claim)
         existing = self._claim_repository.list_for_subject_predicate(
             project_id=normalized.project_id,
             subject_ref=normalized.subject_ref,
             predicate=normalized.predicate,
         )
-        saved = self._claim_repository.add(normalized)
         conflicts = tuple(
-            self._conflict_repository.add(conflict)
+            conflict
             for current in existing
-            if (conflict := self._resolver.resolve(current, saved, definition)) is not None
+            if (conflict := self._resolver.resolve(current, normalized, definition)) is not None
+        )
+        return PreparedClaimSubmission(claim=normalized, conflicts=conflicts)
+
+    def create(self, claim: EngineeringClaim) -> ClaimSubmission:
+        prepared = self.prepare(claim)
+        saved = self._claim_repository.add(prepared.claim)
+        conflicts = tuple(
+            self._conflict_repository.add(conflict) for conflict in prepared.conflicts
         )
         return ClaimSubmission(claim=saved, conflicts=conflicts)

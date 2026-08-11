@@ -44,7 +44,6 @@ from eea_core.requirements import (
 from eea_ports.ai import AIProviderResponse, ProviderUsage
 from fastapi.testclient import TestClient
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 
@@ -727,8 +726,9 @@ def test_analysis_bundle_rolls_back_atomically_on_failure(settings: Settings) ->
                     ],
                 ),
             )
-            with pytest.raises(IntegrityError):
+            with pytest.raises(EngineeringError) as captured:
                 persist_requirement_analysis_bundle(session, analysis)
+            assert captured.value.code is EngineeringErrorCode.INVALID_REQUIREMENT
             assert SqlAlchemyRequirementRepository(session).list_for_project(project_id) == []
             assert SqlAlchemyRequirementAnalysisRepository(session).get(analysis.id) is None
     finally:

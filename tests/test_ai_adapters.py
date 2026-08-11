@@ -67,7 +67,12 @@ def test_litellm_adapter_injects_secret_only_in_sdk_argument() -> None:
             },
         }
 
-    provider = LiteLLMProvider(secrets, reference, completion=completion)
+    provider = LiteLLMProvider(
+        secrets,
+        reference,
+        model_map={"requested-model": "concrete-model"},
+        completion=completion,
+    )
     response = asyncio.run(
         provider.generate(
             AIProviderRequest(
@@ -102,7 +107,12 @@ def test_litellm_adapter_sanitizes_provider_exceptions() -> None:
     async def completion(**_: object) -> object:
         raise RuntimeError("provider echoed sk-private-value")
 
-    provider = LiteLLMProvider(secrets, reference, completion=completion)
+    provider = LiteLLMProvider(
+        secrets,
+        reference,
+        model_map={"model": "concrete-model"},
+        completion=completion,
+    )
     request = AIProviderRequest(
         model="model",
         messages=(AIMessage(role="user", content="safe"),),

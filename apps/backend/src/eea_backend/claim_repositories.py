@@ -209,7 +209,7 @@ class SqlAlchemyClaimConflictRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def add(self, conflict: ClaimConflict) -> ClaimConflict:
+    def add(self, conflict: ClaimConflict, *, commit: bool = True) -> ClaimConflict:
         record = ClaimConflictRecord(
             id=str(conflict.id),
             schema_version=conflict.schema_version,
@@ -230,8 +230,11 @@ class SqlAlchemyClaimConflictRepository:
             status=conflict.status.value,
         )
         self._session.add(record)
-        self._session.commit()
-        self._session.refresh(record)
+        if commit:
+            self._session.commit()
+            self._session.refresh(record)
+        else:
+            self._session.flush()
         return _to_conflict(record)
 
     def list_for_claim(self, claim_id: UUID) -> list[ClaimConflict]:

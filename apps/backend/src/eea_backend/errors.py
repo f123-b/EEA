@@ -1,5 +1,7 @@
 """Map deterministic engineering errors to the V1 API envelope."""
 
+from collections.abc import Mapping
+
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from fastapi import Request, status
@@ -28,6 +30,16 @@ HTTP_STATUS_BY_CODE = {
 }
 
 
+def _json_safe(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, BaseException):
+        return str(value)
+    return value
+
+
 def _request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "req_unknown")
 
@@ -48,7 +60,7 @@ def validation_error_handler(request: Request, exc: RequestValidationError) -> J
         error=ErrorData(
             code=EngineeringErrorCode.VALIDATION_ERROR,
             message="Request validation failed",
-            details={"errors": exc.errors()},
+            details={"errors": _json_safe(exc.errors())},
         ),
         request_id=_request_id(request),
     )

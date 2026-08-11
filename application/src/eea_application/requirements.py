@@ -10,9 +10,15 @@ from collections.abc import Mapping
 from typing import cast
 from uuid import UUID
 
-from eea_core.claims import EngineeringClaim, EngineeringValue, JsonValue
+from eea_core.claims import (
+    ClaimPredicateDefinition,
+    EngineeringClaim,
+    EngineeringValue,
+    JsonValue,
+)
 from eea_core.entities import Issue
 from eea_core.enums import (
+    ClaimConflictStrategy,
     EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
@@ -40,6 +46,7 @@ from eea_core.requirements import (
 )
 
 from eea_application.ai import StructuredGenerationService
+from eea_application.claims import ENGINEERING_VALUE_SCHEMA_REF, JSON_VALUE_SCHEMA_REF
 
 REQUIREMENT_ANALYSIS_PROMPT_NAME = "requirements.analyze"
 REQUIREMENT_ANALYSIS_PROMPT_VERSION = "1.0"
@@ -360,15 +367,18 @@ class RequirementAnalysisService:
                 or observation.value is None
             ):
                 continue
-            value: object = observation.value
+            value: EngineeringValue | JsonValue = cast(JsonValue, observation.value)
+            value_schema_ref = JSON_VALUE_SCHEMA_REF
             if spec.value_type is RequirementValueType.ENGINEERING_VALUE:
                 value = EngineeringValue.model_validate(value)
+                value_schema_ref = ENGINEERING_VALUE_SCHEMA_REF
             claims.append(
                 EngineeringClaim(
                     project_id=project_id,
                     subject_ref=f"project:{project_id}",
                     predicate=spec.claim_predicate,
-                    value=cast(JsonValue, value),
+                    value_schema_ref=value_schema_ref,
+                    value=value,
                     evidence_ids=self._resolve_evidence_refs(
                         observation.evidence_refs, evidence_ids_by_ref, project_id=project_id
                     ),
@@ -712,7 +722,7 @@ def build_requirement_analysis_prompt_definition() -> object:
             "marked UNKNOWN or MISSING; never invent engineering values or evidence."
         ),
         user_template="Analyze this requirement input: {input_json}",
-        model_policy=ModelPolicy(model="configured-by-deployment", temperature=0),
+        model_policy=ModelPolicy(model="requirements-default", temperature=0),
         allowed_tools=[],
         input_schema={"type": "object"},
         output_schema=RequirementAnalysisDraft.model_json_schema(),
@@ -761,10 +771,44 @@ __all__ = [
     "REQUIREMENT_ANALYSIS_PROMPT_VERSION",
     "RequirementAnalysisService",
     "RequirementProfileRegistry",
+    "build_claim_predicate_definitions",
     "build_foc_benchmark_profile",
     "build_requirement_analysis_prompt_definition",
     "ensure_requirement_prompt_registered",
 ]
+
+
+def build_claim_predicate_definitions(
+    profile: RequirementProfile,
+) -> list[ClaimPredicateDefinition]:
+    """Derive durable Claim contracts from the selected generic profile."""
+
+    definitions: dict[str, ClaimPredicateDefinition] = {}
+    comparable = {"id", "revision", "created_at", "updated_at", "metadata"}
+    for field in profile.fields:
+        if field.claim_predicate is None:
+            continue
+        is_engineering_value = field.value_type is RequirementValueType.ENGINEERING_VALUE
+        definition = ClaimPredicateDefinition(
+            schema_version=profile.schema_version,
+            predicate=field.claim_predicate,
+            value_schema_ref=(
+                ENGINEERING_VALUE_SCHEMA_REF if is_engineering_value else JSON_VALUE_SCHEMA_REF
+            ),
+            unit_dimension=field.engineering_dimension if is_engineering_value else None,
+            conflict_strategy=ClaimConflictStrategy.SOURCE_PRIORITY,
+        )
+        existing = definitions.get(definition.predicate)
+        if existing is not None and existing.model_dump(
+            mode="json", exclude=comparable
+        ) != definition.model_dump(mode="json", exclude=comparable):
+            raise EngineeringError(
+                EngineeringErrorCode.SCHEMA_VERSION_UNSUPPORTED,
+                "Requirement profile maps one predicate to conflicting Claim contracts",
+                details={"predicate": definition.predicate},
+            )
+        definitions[definition.predicate] = definition
+    return list(definitions.values())
 
 
 def build_foc_benchmark_profile() -> RequirementProfile:

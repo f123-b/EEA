@@ -31,7 +31,7 @@ from eea_core.enums import (
     TraceabilityRelation,
     VerificationLevel,
 )
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ApiEnvelope[DataT](BaseModel):
@@ -71,6 +71,44 @@ class ErrorEnvelope(BaseModel):
     success: Literal[False] = False
     error: ErrorData
     request_id: str
+
+
+class EvidenceCreateRequest(BaseModel):
+    """Minimal client registration bridge for evidence usable by M6 analysis."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID
+    evidence_type: EvidenceType
+    locator: dict[str, object] = Field(default_factory=dict)
+    source_uri: str | None = Field(default=None, max_length=2000)
+    content_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    summary: str = Field(default="", max_length=4000)
+
+    @model_validator(mode="after")
+    def enforce_client_allowlist(self) -> "EvidenceCreateRequest":
+        if self.evidence_type not in {
+            EvidenceType.DOCUMENT,
+            EvidenceType.USER_CONFIRMATION,
+            EvidenceType.DEVICE_DB,
+        }:
+            raise ValueError("this evidence type must be produced by a trusted execution path")
+        return self
+
+
+class EvidenceData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID | None
+    evidence_type: EvidenceType
+    locator: dict[str, object]
+    source_uri: str | None
+    content_hash: str | None
+    summary: str
 
 
 class ProjectCreate(BaseModel):

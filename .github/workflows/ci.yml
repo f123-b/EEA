@@ -18,8 +18,10 @@ jobs:
           cache: pip
       - run: python -m pip install -e ".[dev]"
       - run: ruff check .
-      - run: mypy apps/backend/src apps/cli/src
+      - run: ruff format --check .
+      - run: mypy
       - run: python -m eea_cli db upgrade
+      - run: alembic check
       - run: pytest
       - run: eea openapi export --check
       - run: eea openapi typescript --check

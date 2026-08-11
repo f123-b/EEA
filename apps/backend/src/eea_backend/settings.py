@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     data_dir: Path = Path(".eea")
     db_url: str | None = None
     session_token: SecretStr | None = None
+    ai_provider_enabled: bool = False
+    requirements_model: str | None = None
+    ai_api_key_reference: str | None = None
 
     @cached_property
     def database_url(self) -> str:

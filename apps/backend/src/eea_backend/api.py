@@ -15,7 +15,7 @@ from eea_application.requirements import (
     RequirementAnalysisService,
     RequirementProfileRegistry,
 )
-from eea_core.entities import Project
+from eea_core.entities import Evidence, Project
 from eea_core.enums import (
     ArtifactStatus,
     ClaimConflictStatus,
@@ -70,6 +70,8 @@ from eea_backend.schemas import (
     DocumentUploadRequest,
     EnumCatalogData,
     EnumValues,
+    EvidenceCreateRequest,
+    EvidenceData,
     ProjectCreate,
     ProjectData,
     ProjectListData,
@@ -107,6 +109,10 @@ def _project_data(project: Project) -> ProjectData:
 
 def _document_data(document: Document) -> DocumentData:
     return DocumentData.model_validate(document.model_dump(mode="json"))
+
+
+def _evidence_data(evidence: Evidence) -> EvidenceData:
+    return EvidenceData.model_validate(evidence.model_dump(mode="json"))
 
 
 def _pin_data(pin: DevicePin) -> DevicePinData:
@@ -246,6 +252,54 @@ def get_requirement_profile(
             details={"profile_name": profile_name, "profile_version": profile_version},
         )
     return ApiEnvelope(data=_requirement_profile_data(profile), request_id=_request_id(request))
+
+
+@router.post(
+    "/evidence",
+    response_model=ApiEnvelope[EvidenceData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["evidence"],
+)
+def register_evidence(
+    payload: EvidenceCreateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[EvidenceData]:
+    _service(session).get(payload.project_id)
+    evidence = SqlAlchemyEvidenceRepository(session).add(
+        Evidence(
+            project_id=payload.project_id,
+            evidence_type=payload.evidence_type,
+            locator=payload.locator,
+            source_uri=payload.source_uri,
+            content_hash=payload.content_hash,
+            summary=payload.summary,
+        )
+    )
+    return ApiEnvelope(data=_evidence_data(evidence), request_id=_request_id(request))
+
+
+@router.get("/evidence/{evidence_id}", response_model=ApiEnvelope[EvidenceData], tags=["evidence"])
+def get_evidence(
+    evidence_id: UUID,
+    request: Request,
+    session: SessionDependency,
+    project_id: UUID | None = None,
+) -> ApiEnvelope[EvidenceData]:
+    evidence = SqlAlchemyEvidenceRepository(session).get(evidence_id)
+    if evidence is None:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Evidence was not found",
+            details={"evidence_id": str(evidence_id)},
+        )
+    if project_id is not None and evidence.project_id != project_id:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Evidence belongs to a different project",
+            details={"evidence_id": str(evidence_id), "project_id": str(project_id)},
+        )
+    return ApiEnvelope(data=_evidence_data(evidence), request_id=_request_id(request))
 
 
 @router.post(
