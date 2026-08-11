@@ -1,9 +1,10 @@
-# Next Phase — M7 Pin Planner + Core Rule Engine
+# Next Phase — M7 Pin Planner + Core Rule Engine (not started)
 
 ## Objective
 
 Consume M6 requirements, M3 canonical units, and M4 device facts to produce deterministic pin
-requirements, candidate assignments, locks, and pre-generation rule results.
+requirements, candidate assignments, locks, and pre-generation rule results. M7 remains gated on
+green remote CI for the M6 review-fix commit.
 
 ## Planned scope
 
@@ -17,6 +18,9 @@ requirements, candidate assignments, locks, and pre-generation rule results.
 ## M7 acceptance focus
 
 - M6 requirement claims are consumed without duplicating device facts or canonical units.
+- M7 consumes `RequirementAnalysis.requirement_ids` / `claim_ids` and the canonical repositories.
+- M7 MUST NOT treat embedded `RequirementAnalysis.requirements` / `claims` snapshots as the
+  authoritative source of truth.
 - Invalid AF, package, voltage, PWM, and ADC conditions are rejected deterministically.
 - Missing device facts produce `UNKNOWN`, not an inferred assignment.
 - Core remains usable without loading any concrete domain plugin.
