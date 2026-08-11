@@ -24,6 +24,52 @@
         "title": "ApiEnvelope[ArchitectureBundleData]",
         "type": "object"
       },
+      "ApiEnvelope_CircuitBundleData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CircuitBundleData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[CircuitBundleData]",
+        "type": "object"
+      },
+      "ApiEnvelope_CircuitValidationData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CircuitValidationData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[CircuitValidationData]",
+        "type": "object"
+      },
       "ApiEnvelope_DeviceData_": {
         "properties": {
           "data": {
@@ -410,6 +456,486 @@
         ],
         "title": "ArtifactStatus",
         "type": "string"
+      },
+      "CircuitBundleData": {
+        "properties": {
+          "circuit": {
+            "$ref": "#/components/schemas/CircuitData"
+          },
+          "rule_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rule Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "circuit",
+          "rule_results"
+        ],
+        "title": "CircuitBundleData",
+        "type": "object"
+      },
+      "CircuitComponent": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "title": "Attributes",
+            "type": "object"
+          },
+          "claim_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Claim Ids",
+            "type": "array"
+          },
+          "device_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Ref"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "package": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package"
+          },
+          "ratings": {
+            "additionalProperties": true,
+            "title": "Ratings",
+            "type": "object"
+          },
+          "reference": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "kind"
+        ],
+        "title": "CircuitComponent",
+        "type": "object"
+      },
+      "CircuitConstraint": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "title": "Parameters",
+            "type": "object"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "rule_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Z0-9_.-]*$",
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "target_ref": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Target Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule_id",
+          "target_ref"
+        ],
+        "title": "CircuitConstraint",
+        "type": "object"
+      },
+      "CircuitData": {
+        "properties": {
+          "components": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "constraints": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Constraints",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "hardware_ir_id": {
+            "format": "uuid",
+            "title": "Hardware Ir Id",
+            "type": "string"
+          },
+          "hardware_ir_revision": {
+            "title": "Hardware Ir Revision",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "nets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Nets",
+            "type": "array"
+          },
+          "pin_assignment_revisions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Pin Assignment Revisions",
+            "type": "object"
+          },
+          "power_nets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Power Nets",
+            "type": "array"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "rule_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rule Results",
+            "type": "array"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "hardware_ir_id",
+          "hardware_ir_revision",
+          "components",
+          "nets",
+          "power_nets",
+          "constraints",
+          "rule_results",
+          "requirement_ids",
+          "evidence_ids",
+          "pin_assignment_revisions"
+        ],
+        "title": "CircuitData",
+        "type": "object"
+      },
+      "CircuitEndpoint": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "title": "Attributes",
+            "type": "object"
+          },
+          "component_ref": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Component Ref",
+            "type": "string"
+          },
+          "pin_assignment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pin Assignment Id"
+          },
+          "pin_ref": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Pin Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "component_ref",
+          "pin_ref"
+        ],
+        "title": "CircuitEndpoint",
+        "type": "object"
+      },
+      "CircuitGenerateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/CircuitComponent"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "constraints": {
+            "items": {
+              "$ref": "#/components/schemas/CircuitConstraint"
+            },
+            "title": "Constraints",
+            "type": "array"
+          },
+          "hardware_ir_id": {
+            "format": "uuid",
+            "title": "Hardware Ir Id",
+            "type": "string"
+          },
+          "nets": {
+            "items": {
+              "$ref": "#/components/schemas/CircuitNet"
+            },
+            "title": "Nets",
+            "type": "array"
+          },
+          "power_nets": {
+            "items": {
+              "$ref": "#/components/schemas/PowerNet"
+            },
+            "title": "Power Nets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hardware_ir_id"
+        ],
+        "title": "CircuitGenerateRequest",
+        "type": "object"
+      },
+      "CircuitNet": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "title": "Attributes",
+            "type": "object"
+          },
+          "criticality": {
+            "default": "UNKNOWN",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Criticality",
+            "type": "string"
+          },
+          "endpoints": {
+            "items": {
+              "$ref": "#/components/schemas/CircuitEndpoint"
+            },
+            "title": "Endpoints",
+            "type": "array"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "signal_type": {
+            "default": "UNKNOWN",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Signal Type",
+            "type": "string"
+          },
+          "voltage_domain": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voltage Domain"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CircuitNet",
+        "type": "object"
+      },
+      "CircuitValidateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "circuit_id": {
+            "format": "uuid",
+            "title": "Circuit Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "circuit_id"
+        ],
+        "title": "CircuitValidateRequest",
+        "type": "object"
+      },
+      "CircuitValidationData": {
+        "properties": {
+          "circuit_id": {
+            "format": "uuid",
+            "title": "Circuit Id",
+            "type": "string"
+          },
+          "circuit_revision": {
+            "title": "Circuit Revision",
+            "type": "integer"
+          },
+          "rule_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rule Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "circuit_id",
+          "circuit_revision",
+          "rule_results"
+        ],
+        "title": "CircuitValidationData",
+        "type": "object"
       },
       "ClaimConflictStatus": {
         "enum": [
@@ -1009,6 +1535,152 @@
         ],
         "title": "EngineeringErrorCode",
         "type": "string"
+      },
+      "EngineeringValue": {
+        "additionalProperties": false,
+        "description": "A display value plus its immutable canonical-unit representation.",
+        "properties": {
+          "canonical_unit": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Unit"
+          },
+          "condition": {
+            "additionalProperties": true,
+            "title": "Condition",
+            "type": "object"
+          },
+          "dimension": {
+            "$ref": "#/components/schemas/EngineeringDimension"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "nominal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nominal"
+          },
+          "normalized_maximum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Maximum"
+          },
+          "normalized_minimum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Minimum"
+          },
+          "normalized_nominal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Nominal"
+          },
+          "normalized_typical": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Typical"
+          },
+          "tolerance_percent": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tolerance Percent"
+          },
+          "typical": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typical"
+          },
+          "unit": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit",
+          "dimension"
+        ],
+        "title": "EngineeringValue",
+        "type": "object"
       },
       "EnumCatalogData": {
         "properties": {
@@ -2155,6 +2827,84 @@
           "required_function"
         ],
         "title": "PinRequirementCreate",
+        "type": "object"
+      },
+      "PowerNet": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "title": "Attributes",
+            "type": "object"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "net_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Net Ids",
+            "type": "array"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "source_component_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Source Component Ids",
+            "type": "array"
+          },
+          "voltage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "PowerNet",
         "type": "object"
       },
       "ProjectCreate": {
@@ -3825,6 +4575,170 @@
         "summary": "Generate Architecture",
         "tags": [
           "architecture"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/circuit": {
+      "get": {
+        "operationId": "get_circuit_api_v1_projects__project_id__circuit_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CircuitBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Circuit",
+        "tags": [
+          "circuit"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/circuit/generate": {
+      "post": {
+        "operationId": "generate_circuit_api_v1_projects__project_id__circuit_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircuitGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CircuitBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Circuit",
+        "tags": [
+          "circuit"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/circuit/validate": {
+      "post": {
+        "operationId": "validate_circuit_api_v1_projects__project_id__circuit_validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircuitValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CircuitValidationData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Validate Circuit",
+        "tags": [
+          "circuit"
         ]
       }
     },

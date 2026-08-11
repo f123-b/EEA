@@ -10,6 +10,7 @@ from uuid import UUID
 from eea_adapters.devices import Stm32G431FixtureProvider
 from eea_application.ai import PromptRegistry, StructuredGenerationService
 from eea_application.architecture import ArchitectureService
+from eea_application.circuit import CircuitService
 from eea_application.intelligence import DocumentService, MultiSourceDeviceProvider
 from eea_application.pin_planner import PinPlannerService
 from eea_application.projects import ProjectService
@@ -18,6 +19,7 @@ from eea_application.requirements import (
     RequirementProfileRegistry,
 )
 from eea_core.architecture import ArchitectureBundle
+from eea_core.circuit import CircuitBundle
 from eea_core.entities import Evidence, Project
 from eea_core.enums import (
     ArtifactStatus,
@@ -55,6 +57,7 @@ from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.orm import Session
 
 from eea_backend.architecture_repositories import SqlAlchemyArchitectureRepository
+from eea_backend.circuit_repositories import SqlAlchemyCircuitRepository
 from eea_backend.claim_repositories import SqlAlchemyEngineeringClaimRepository
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
 from eea_backend.pin_planner_repositories import SqlAlchemyPinPlanRepository
@@ -74,6 +77,10 @@ from eea_backend.schemas import (
     ApiEnvelope,
     ArchitectureBundleData,
     ArchitectureGenerateRequest,
+    CircuitBundleData,
+    CircuitGenerateRequest,
+    CircuitValidateRequest,
+    CircuitValidationData,
     DeviceData,
     DevicePinData,
     DevicePinQueryData,
@@ -158,6 +165,10 @@ def _pin_lock_data(lock: PinLock | None) -> PinLockData | None:
 
 def _architecture_bundle_data(bundle: ArchitectureBundle) -> ArchitectureBundleData:
     return ArchitectureBundleData.model_validate(bundle.model_dump(mode="json"))
+
+
+def _circuit_bundle_data(bundle: CircuitBundle) -> CircuitBundleData:
+    return CircuitBundleData.model_validate(bundle.model_dump(mode="json"))
 
 
 def _requirement_profile_repository(session: Session) -> SqlAlchemyRequirementProfileRepository:
@@ -568,6 +579,120 @@ def get_architecture(
             details={"project_id": str(project_id)},
         )
     return ApiEnvelope(data=_architecture_bundle_data(bundle), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/circuit/generate",
+    response_model=ApiEnvelope[CircuitBundleData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["circuit"],
+)
+def generate_circuit(
+    project_id: UUID,
+    payload: CircuitGenerateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[CircuitBundleData]:
+    _service(session).get(project_id)
+    architectures = SqlAlchemyArchitectureRepository(session)
+    selected = architectures.get_by_hardware_id(payload.hardware_ir_id, project_id=project_id)
+    latest = architectures.latest_for_project(project_id)
+    if selected is None or latest is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "HardwareIR is not available for circuit generation",
+            details={"hardware_ir_id": str(payload.hardware_ir_id), "project_id": str(project_id)},
+        )
+    if selected.hardware.id != latest.hardware.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Selected HardwareIR is stale",
+            details={
+                "reason": "STALE_HARDWARE_IR",
+                "hardware_ir_id": str(payload.hardware_ir_id),
+                "latest_hardware_ir_id": str(latest.hardware.id),
+            },
+        )
+    bundle = CircuitService().generate(
+        selected.hardware,
+        components=payload.components,
+        nets=payload.nets,
+        power_nets=payload.power_nets,
+        constraints=payload.constraints,
+    )
+    saved = SqlAlchemyCircuitRepository(session).add(bundle)
+    return ApiEnvelope(data=_circuit_bundle_data(saved), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/circuit",
+    response_model=ApiEnvelope[CircuitBundleData],
+    tags=["circuit"],
+)
+def get_circuit(
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[CircuitBundleData]:
+    _service(session).get(project_id)
+    bundle = SqlAlchemyCircuitRepository(session).latest_for_project(project_id)
+    if bundle is None:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "No circuit has been generated for this project",
+            details={"project_id": str(project_id)},
+        )
+    return ApiEnvelope(data=_circuit_bundle_data(bundle), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/circuit/validate",
+    response_model=ApiEnvelope[CircuitValidationData],
+    tags=["circuit"],
+)
+def validate_circuit(
+    project_id: UUID,
+    payload: CircuitValidateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[CircuitValidationData]:
+    _service(session).get(project_id)
+    circuits = SqlAlchemyCircuitRepository(session)
+    bundle = circuits.get(payload.circuit_id, project_id=project_id)
+    if bundle is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Circuit is not available for this project",
+            details={"circuit_id": str(payload.circuit_id), "project_id": str(project_id)},
+        )
+    architectures = SqlAlchemyArchitectureRepository(session)
+    hardware_bundle = architectures.get_by_hardware_id(
+        bundle.circuit.hardware_ir_id, project_id=project_id
+    )
+    latest = architectures.latest_for_project(project_id)
+    if hardware_bundle is None or latest is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Circuit source HardwareIR is not available",
+            details={"hardware_ir_id": str(bundle.circuit.hardware_ir_id)},
+        )
+    if hardware_bundle.hardware.id != latest.hardware.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Circuit source HardwareIR is stale",
+            details={
+                "reason": "STALE_HARDWARE_IR",
+                "hardware_ir_id": str(bundle.circuit.hardware_ir_id),
+                "latest_hardware_ir_id": str(latest.hardware.id),
+            },
+        )
+    results = CircuitService().validate(bundle.circuit, hardware_bundle.hardware)
+    data = CircuitValidationData(
+        circuit_id=bundle.circuit.id,
+        circuit_revision=bundle.circuit.revision,
+        rule_results=[result.model_dump(mode="json") for result in results],
+    )
+    return ApiEnvelope(data=data, request_id=_request_id(request))
 
 
 @router.post(

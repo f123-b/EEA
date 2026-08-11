@@ -4,6 +4,7 @@ from typing import Protocol
 from uuid import UUID
 
 from eea_core.ai import AIUsageRecord, PromptDefinition
+from eea_core.circuit import CircuitBundle
 from eea_core.claims import ClaimConflict, ClaimPredicateDefinition, EngineeringClaim
 from eea_core.entities import Evidence, Project
 from eea_core.intelligence import Document, DocumentIR
@@ -111,3 +112,11 @@ class PinPlanRepository(Protocol):
     def get_assignment(
         self, assignment_id: UUID, *, project_id: UUID
     ) -> tuple[PinAssignment, UUID] | None: ...
+
+
+class CircuitRepository(Protocol):
+    def add(self, bundle: CircuitBundle) -> CircuitBundle: ...
+
+    def get(self, circuit_id: UUID, *, project_id: UUID | None = None) -> CircuitBundle | None: ...
+
+    def latest_for_project(self, project_id: UUID) -> CircuitBundle | None: ...

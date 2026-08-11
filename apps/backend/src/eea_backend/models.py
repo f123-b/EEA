@@ -436,6 +436,56 @@ class HardwareIRRecord(CoreRecordMixin, Base):
     pin_assignment_revisions: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
 
 
+class CircuitRecord(CoreRecordMixin, Base):
+    __tablename__ = "circuits"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    hardware_ir_id: Mapped[str] = mapped_column(
+        ForeignKey("hardware_irs.id"), nullable=False, index=True
+    )
+    hardware_ir_revision: Mapped[int] = mapped_column(nullable=False)
+    components: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    nets: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    power_nets: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    constraints: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    pin_assignment_revisions: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+
+
+class CircuitRuleResultRecord(CoreRecordMixin, Base):
+    __tablename__ = "circuit_rule_results"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            "stage IN ('PRE_GENERATION', 'POST_GENERATION', 'PRE_TOOL', 'POST_TOOL', "
+            "'RELEASE_GATE')",
+            name="stage",
+        ),
+        CheckConstraint(
+            "status IN ('PASS', 'FAIL', 'NOT_APPLICABLE', 'UNKNOWN')",
+            name="status",
+        ),
+        CheckConstraint(f"severity IN ({_enum_values(IssueSeverity)})", name="severity"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    circuit_id: Mapped[str] = mapped_column(ForeignKey("circuits.id"), nullable=False, index=True)
+    rule_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    rule_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    stage: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    affected_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    measured: Mapped[object | None] = mapped_column(JSON)
+    threshold: Mapped[object | None] = mapped_column(JSON)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    recommendation: Mapped[str] = mapped_column(Text, nullable=False)
+    input_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+
+
 class PromptDefinitionRecord(CoreRecordMixin, Base):
     __tablename__ = "prompt_definitions"
     __table_args__ = (

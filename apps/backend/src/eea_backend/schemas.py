@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
+from eea_core.circuit import CircuitComponent, CircuitConstraint, CircuitNet, PowerNet
 from eea_core.enums import (
     ArtifactStatus,
     ClaimConflictStatus,
@@ -405,6 +406,53 @@ class HardwareIRData(BaseModel):
 class ArchitectureBundleData(BaseModel):
     system_architecture: SystemArchitectureData
     hardware: HardwareIRData
+
+
+class CircuitGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hardware_ir_id: UUID
+    components: list[CircuitComponent] = Field(default_factory=list)
+    nets: list[CircuitNet] = Field(default_factory=list)
+    power_nets: list[PowerNet] = Field(default_factory=list)
+    constraints: list[CircuitConstraint] = Field(default_factory=list)
+
+
+class CircuitData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    hardware_ir_id: UUID
+    hardware_ir_revision: int
+    components: list[dict[str, object]]
+    nets: list[dict[str, object]]
+    power_nets: list[dict[str, object]]
+    constraints: list[dict[str, object]]
+    rule_results: list[dict[str, object]]
+    requirement_ids: list[UUID]
+    evidence_ids: list[UUID]
+    pin_assignment_revisions: dict[str, int]
+
+
+class CircuitBundleData(BaseModel):
+    circuit: CircuitData
+    rule_results: list[dict[str, object]]
+
+
+class CircuitValidateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    circuit_id: UUID
+
+
+class CircuitValidationData(BaseModel):
+    circuit_id: UUID
+    circuit_revision: int
+    rule_results: list[dict[str, object]]
 
 
 class SchemaData(BaseModel):

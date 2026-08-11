@@ -155,5 +155,16 @@ class SqlAlchemyArchitectureRepository:
         record = self._session.scalar(statement)
         return self.get(UUID(record.id), project_id=project_id) if record else None
 
+    def get_by_hardware_id(
+        self, hardware_id: UUID, *, project_id: UUID | None = None
+    ) -> ArchitectureBundle | None:
+        statement = select(HardwareIRRecord).where(HardwareIRRecord.id == str(hardware_id))
+        if project_id is not None:
+            statement = statement.where(HardwareIRRecord.project_id == str(project_id))
+        hardware_record = self._session.scalar(statement)
+        if hardware_record is None:
+            return None
+        return self.get(UUID(hardware_record.architecture_id), project_id=project_id)
+
 
 __all__ = ["SqlAlchemyArchitectureRepository"]

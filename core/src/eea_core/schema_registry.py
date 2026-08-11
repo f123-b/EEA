@@ -16,6 +16,15 @@ from eea_core.architecture import (
     PowerDomain,
     SystemArchitectureIR,
 )
+from eea_core.circuit import (
+    CircuitBundle,
+    CircuitComponent,
+    CircuitConstraint,
+    CircuitEndpoint,
+    CircuitIR,
+    CircuitNet,
+    PowerNet,
+)
 from eea_core.claims import (
     ClaimConflict,
     ClaimPredicateDefinition,
@@ -115,6 +124,12 @@ def create_core_schema_registry() -> SchemaRegistry:
         ArchitectureDecision,
         ArchitectureInterface,
         Artifact,
+        CircuitBundle,
+        CircuitComponent,
+        CircuitConstraint,
+        CircuitEndpoint,
+        CircuitIR,
+        CircuitNet,
         ClaimConflict,
         ClaimPredicateDefinition,
         CommandResult,
@@ -150,6 +165,7 @@ def create_core_schema_registry() -> SchemaRegistry:
         PinLock,
         PinPlan,
         PinRequirement,
+        PowerNet,
         PowerDomain,
         RuleResult,
         FollowUpQuestion,
