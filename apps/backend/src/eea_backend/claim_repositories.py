@@ -161,6 +161,10 @@ class SqlAlchemyEngineeringClaimRepository:
             self._session.flush()
         return _to_claim(record)
 
+    def get(self, claim_id: UUID) -> EngineeringClaim | None:
+        record = self._session.get(EngineeringClaimRecord, str(claim_id))
+        return _to_claim(record) if record else None
+
     def list_for_subject_predicate(
         self,
         *,

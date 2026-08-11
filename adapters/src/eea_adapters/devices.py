@@ -2,7 +2,8 @@
 
 from collections.abc import Iterable
 
-from eea_core.enums import EngineeringErrorCode
+from eea_core.claims import EngineeringValue
+from eea_core.enums import EngineeringDimension, EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from eea_core.intelligence import Device, DevicePin, PinFunction
 
@@ -80,7 +81,15 @@ class Stm32G431FixtureProvider:
             ],
             dma={"DMA1": {"request_generators": ["ADC1", "TIM1_UP"]}},
             interrupts={"vectors": ["FDCAN1_IT0", "ADC1_1", "TIM1_BRK_TIM15"]},
-            electrical={"max_vdd": "3.6 V", "io_voltage": "3.3 V"},
+            electrical={
+                "max_vdd": EngineeringValue(
+                    unit="V", dimension=EngineeringDimension.VOLTAGE, nominal=3.6
+                ),
+                "io_voltage": EngineeringValue(
+                    unit="V", dimension=EngineeringDimension.VOLTAGE, nominal=3.3
+                ),
+                "debug_pins": ["PA13", "PA14"],
+            },
             source_refs=[self.name],
         )
 

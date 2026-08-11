@@ -255,6 +255,48 @@ class RequirementAnalysisData(BaseModel):
     claim_ids: list[UUID]
 
 
+class PinRequirementCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    signal_name: str = Field(min_length=1, max_length=200)
+    required_peripheral: str = Field(min_length=1, max_length=100)
+    required_function: str = Field(min_length=1, max_length=100)
+    direction: str = Field(default="UNKNOWN", min_length=1, max_length=30)
+    electrical_requirements: dict[str, object] = Field(default_factory=dict)
+    hard_constraints: dict[str, object] = Field(default_factory=dict)
+    preferred_constraints: dict[str, object] = Field(default_factory=dict)
+    timing_constraints: dict[str, object] = Field(default_factory=dict)
+    requirement_ids: list[UUID] = Field(default_factory=list)
+    claim_ids: list[UUID] = Field(default_factory=list)
+    evidence_ids: list[UUID] = Field(default_factory=list)
+
+
+class PinPlannerGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    analysis_id: UUID
+    device_ref: str = Field(min_length=1, max_length=200)
+    package: str | None = Field(default=None, max_length=100)
+    requirements: list[PinRequirementCreate] = Field(min_length=1)
+
+
+class PinPlanData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    device_ref: str
+    package: str | None
+    requirements: list[dict[str, object]]
+    candidates: list[dict[str, object]]
+    assignments: list[dict[str, object]]
+    locks: list[dict[str, object]]
+    rule_results: list[dict[str, object]]
+
+
 class SchemaData(BaseModel):
     name: str
     schema_version: str

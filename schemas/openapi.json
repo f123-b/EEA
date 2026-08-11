@@ -116,6 +116,29 @@
         "title": "ApiEnvelope[EvidenceData]",
         "type": "object"
       },
+      "ApiEnvelope_PinPlanData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PinPlanData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[PinPlanData]",
+        "type": "object"
+      },
       "ApiEnvelope_ProjectData_": {
         "properties": {
           "data": {
@@ -1365,6 +1388,240 @@
         ],
         "title": "Permission",
         "type": "string"
+      },
+      "PinPlanData": {
+        "properties": {
+          "assignments": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Assignments",
+            "type": "array"
+          },
+          "candidates": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_ref": {
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locks": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Locks",
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "package": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirements": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Requirements",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "rule_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rule Results",
+            "type": "array"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "device_ref",
+          "package",
+          "requirements",
+          "candidates",
+          "assignments",
+          "locks",
+          "rule_results"
+        ],
+        "title": "PinPlanData",
+        "type": "object"
+      },
+      "PinPlannerGenerateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "analysis_id": {
+            "format": "uuid",
+            "title": "Analysis Id",
+            "type": "string"
+          },
+          "device_ref": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "package": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/PinRequirementCreate"
+            },
+            "minItems": 1,
+            "title": "Requirements",
+            "type": "array"
+          }
+        },
+        "required": [
+          "analysis_id",
+          "device_ref",
+          "requirements"
+        ],
+        "title": "PinPlannerGenerateRequest",
+        "type": "object"
+      },
+      "PinRequirementCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "claim_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Claim Ids",
+            "type": "array"
+          },
+          "direction": {
+            "default": "UNKNOWN",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Direction",
+            "type": "string"
+          },
+          "electrical_requirements": {
+            "additionalProperties": true,
+            "title": "Electrical Requirements",
+            "type": "object"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "hard_constraints": {
+            "additionalProperties": true,
+            "title": "Hard Constraints",
+            "type": "object"
+          },
+          "preferred_constraints": {
+            "additionalProperties": true,
+            "title": "Preferred Constraints",
+            "type": "object"
+          },
+          "required_function": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Required Function",
+            "type": "string"
+          },
+          "required_peripheral": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Required Peripheral",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "signal_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Signal Name",
+            "type": "string"
+          },
+          "timing_constraints": {
+            "additionalProperties": true,
+            "title": "Timing Constraints",
+            "type": "object"
+          }
+        },
+        "required": [
+          "signal_name",
+          "required_peripheral",
+          "required_function"
+        ],
+        "title": "PinRequirementCreate",
+        "type": "object"
       },
       "ProjectCreate": {
         "additionalProperties": false,
@@ -2807,6 +3064,64 @@
         "summary": "Update Project",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/pin-planner/generate": {
+      "post": {
+        "operationId": "generate_pin_plan_api_v1_projects__project_id__pin_planner_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinPlannerGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_PinPlanData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Pin Plan",
+        "tags": [
+          "pin-planner"
         ]
       }
     },

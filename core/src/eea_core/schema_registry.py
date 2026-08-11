@@ -34,6 +34,14 @@ from eea_core.intelligence import (
     DocumentTable,
     PinFunction,
 )
+from eea_core.pin_planner import (
+    PinAssignment,
+    PinCandidate,
+    PinLock,
+    PinPlan,
+    PinRequirement,
+    RuleResult,
+)
 from eea_core.requirements import (
     FollowUpQuestion,
     Requirement,
@@ -119,6 +127,12 @@ def create_core_schema_registry() -> SchemaRegistry:
         SandboxPolicy,
         TraceabilityEdge,
         PinFunction,
+        PinAssignment,
+        PinCandidate,
+        PinLock,
+        PinPlan,
+        PinRequirement,
+        RuleResult,
         FollowUpQuestion,
         Requirement,
         RequirementAnalysis,

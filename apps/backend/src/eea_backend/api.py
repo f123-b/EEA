@@ -10,6 +10,7 @@ from uuid import UUID
 from eea_adapters.devices import Stm32G431FixtureProvider
 from eea_application.ai import PromptRegistry, StructuredGenerationService
 from eea_application.intelligence import DocumentService, MultiSourceDeviceProvider
+from eea_application.pin_planner import PinPlannerService
 from eea_application.projects import ProjectService
 from eea_application.requirements import (
     RequirementAnalysisService,
@@ -45,11 +46,13 @@ from eea_core.enums import (
 )
 from eea_core.errors import EngineeringError
 from eea_core.intelligence import Device, DevicePin, Document
+from eea_core.pin_planner import PinRequirement
 from eea_core.requirements import RequirementProfile
 from eea_core.schema_registry import create_core_schema_registry
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.orm import Session
 
+from eea_backend.claim_repositories import SqlAlchemyEngineeringClaimRepository
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
 from eea_backend.repositories import (
     SqlAlchemyAIUsageRepository,
@@ -58,7 +61,9 @@ from eea_backend.repositories import (
     SqlAlchemyPromptRepository,
 )
 from eea_backend.requirement_repositories import (
+    SqlAlchemyRequirementAnalysisRepository,
     SqlAlchemyRequirementProfileRepository,
+    SqlAlchemyRequirementRepository,
     persist_requirement_analysis_bundle,
 )
 from eea_backend.schemas import (
@@ -72,6 +77,8 @@ from eea_backend.schemas import (
     EnumValues,
     EvidenceCreateRequest,
     EvidenceData,
+    PinPlanData,
+    PinPlannerGenerateRequest,
     ProjectCreate,
     ProjectData,
     ProjectListData,
@@ -252,6 +259,61 @@ def get_requirement_profile(
             details={"profile_name": profile_name, "profile_version": profile_version},
         )
     return ApiEnvelope(data=_requirement_profile_data(profile), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/pin-planner/generate",
+    response_model=ApiEnvelope[PinPlanData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["pin-planner"],
+)
+def generate_pin_plan(
+    project_id: UUID,
+    payload: PinPlannerGenerateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[PinPlanData]:
+    _service(session).get(project_id)
+    analysis = SqlAlchemyRequirementAnalysisRepository(session).get(payload.analysis_id)
+    if analysis is None or analysis.project_id != project_id:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Requirement analysis is not available for this project",
+            details={"analysis_id": str(payload.analysis_id), "project_id": str(project_id)},
+        )
+    canonical_requirement_ids = {
+        item.id for item in SqlAlchemyRequirementRepository(session).list_for_project(project_id)
+    }
+    canonical_claims = SqlAlchemyEngineeringClaimRepository(session)
+    for requirement in payload.requirements:
+        if not set(requirement.requirement_ids) <= canonical_requirement_ids:
+            raise EngineeringError(
+                EngineeringErrorCode.INVALID_REQUIREMENT,
+                "Pin requirement references a non-canonical requirement",
+                details={"signal_name": requirement.signal_name},
+            )
+        for claim_id in requirement.claim_ids:
+            claim = canonical_claims.get(claim_id)
+            if claim is None or (claim.project_id is not None and claim.project_id != project_id):
+                raise EngineeringError(
+                    EngineeringErrorCode.INVALID_REQUIREMENT,
+                    "Pin requirement references a non-canonical claim",
+                    details={"signal_name": requirement.signal_name},
+                )
+    pin_requirements = [
+        PinRequirement(project_id=project_id, **item.model_dump()) for item in payload.requirements
+    ]
+    plan = PinPlannerService().plan_from_analysis(
+        analysis=analysis,
+        device_ref=payload.device_ref,
+        package=payload.package,
+        requirements=pin_requirements,
+        device_provider=device_provider,
+    )
+    return ApiEnvelope(
+        data=PinPlanData.model_validate(plan.model_dump(mode="json")),
+        request_id=_request_id(request),
+    )
 
 
 @router.post(

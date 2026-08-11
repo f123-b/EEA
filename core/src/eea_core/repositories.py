@@ -47,6 +47,8 @@ class ClaimPredicateRepository(Protocol):
 class EngineeringClaimRepository(Protocol):
     def add(self, claim: EngineeringClaim) -> EngineeringClaim: ...
 
+    def get(self, claim_id: UUID) -> EngineeringClaim | None: ...
+
     def list_for_subject_predicate(
         self,
         *,
