@@ -290,4 +290,3 @@ def test_posix_process_spawn_limit_is_enforced_by_child_resource_boundary(
     )
     assert result.returncode == 0
     assert "spawn-denied" in result.stdout
-
