@@ -495,54 +495,7 @@ class DomainExtensionRegistry:
                 domain_id,
                 "Domain configuration does not satisfy the plugin schema",
                 schema_version=descriptor.schema_version,
-                details={"validation_errors": errors[:20]},
-            )
-
-    def artifacts(self, domain_id: str) -> list[dict[str, Any]]:
-        self.get_descriptor(domain_id)
-        value = _plugin_value(self._plugins[domain_id], "artifacts", ())
-        if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
-            raise EngineeringError(
-                "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
-                "Domain artifact contribution must be a sequence",
-                details={"domain_id": domain_id},
-            )
-        artifacts: list[dict[str, Any]] = []
-        for item in value:
-            if not isinstance(item, dict):
-                raise EngineeringError(
-                    "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
-                    "Domain artifact metadata must be an object",
-                    details={"domain_id": domain_id},
-                )
-            artifacts.append(dict(item))
-        return artifacts
-
-    def resolve_composition(
-        self,
-        domain_ids: Iterable[str],
-        *,
-        selected_capabilities: Mapping[str, str] | None = None,
-    ) -> DomainCompositionPlan:
-        requested = sorted(set(domain_ids))
-        for domain_id in requested:
-            self.get_descriptor(domain_id)
-        included = set(requested)
-        dependency_edges: set[tuple[str, str]] = set()
-        pending = list(requested)
-        while pending:
-            domain_id = pending.pop(0)
-            descriptor = self.get_descriptor(domain_id)
-            for required in sorted(descriptor.requires_domains):
-                if required not in self._descriptors:
-                    raise EngineeringError(
-                        "DOMAIN_DEPENDENCY_MISSING",  # type: ignore[arg-type]
-                        "Required Domain is not registered",
-                        details={"domain_id": domain_id, "required_domain": required},
-                    )
-                dependency_edges.add((domain_id, required))
-                if required not in included:
-                    included.add(required)
+        …514 tokens truncated…               included.add(required)
                     pending.append(required)
 
         for domain_id in sorted(included):
@@ -791,37 +744,6 @@ class DomainExtensionService:
         pending: list[tuple[DomainActivation, DomainActivation | None]] = []
         for resolved_domain_id in plan.ordered_domain_ids:
             existing = self._activations.get(project_id, resolved_domain_id)
-            if existing is not None and existing.status is DomainActivationStatus.ACTIVE:
-                if resolved_domain_id != domain_id:
-                    continue
-                chosen_configuration = (
-                    existing.configuration if configuration is None else configuration
-                )
-                self.registry.validate_configuration(resolved_domain_id, chosen_configuration)
-                if (
-                    chosen_configuration == existing.configuration
-                    and existing.configuration_schema_version
-                    == self.registry.get_descriptor(resolved_domain_id).schema_version
-                    and existing.configuration_schema_hash
-                    == self.registry.configuration_schema_hash(resolved_domain_id)
-                ):
-                    requested_activation = existing
-                    continue
-                activation = self._build_activation(
-                    project_id,
-                    resolved_domain_id,
-                    self.registry.get_descriptor(resolved_domain_id),
-                    plan,
-                    existing=existing,
-                    configuration=chosen_configuration,
-                    configuration_schema_hash=self.registry.configuration_schema_hash(
-                        resolved_domain_id
-                    ),
-                    activated_by=activated_by,
-                )
-                pending.append((activation, existing))
-                requested_activation = activation
-                continue
             descriptor = self.registry.get_descriptor(resolved_domain_id)
             chosen_configuration = (
                 configuration
@@ -831,6 +753,19 @@ class DomainExtensionService:
                 else {}
             )
             self.registry.validate_configuration(resolved_domain_id, chosen_configuration)
+            configuration_schema_hash = self.registry.configuration_schema_hash(resolved_domain_id)
+            if existing is not None:
+                self._assert_upgrade_compatible(existing, descriptor, configuration_schema_hash)
+                if existing.status is DomainActivationStatus.ACTIVE and self._activation_matches(
+                    existing,
+                    descriptor,
+                    plan,
+                    chosen_configuration,
+                    configuration_schema_hash,
+                ):
+                    if resolved_domain_id == domain_id:
+                        requested_activation = existing
+                    continue
             activation = self._build_activation(
                 project_id,
                 resolved_domain_id,
@@ -838,9 +773,7 @@ class DomainExtensionService:
                 plan,
                 existing=existing,
                 configuration=chosen_configuration,
-                configuration_schema_hash=self.registry.configuration_schema_hash(
-                    resolved_domain_id
-                ),
+                configuration_schema_hash=configuration_schema_hash,
                 activated_by=activated_by,
             )
             pending.append((activation, existing))
@@ -867,6 +800,71 @@ class DomainExtensionService:
                 details={"domain_id": domain_id},
             )
         return requested_activation
+
+    @staticmethod
+    def _assert_upgrade_compatible(
+        existing: DomainActivation,
+        descriptor: DomainDescriptor,
+        configuration_schema_hash: str,
+    ) -> None:
+        incompatible: dict[str, object] = {}
+        if existing.plugin_id != descriptor.plugin_id:
+            incompatible.update(
+                {
+                    "previous_plugin_id": existing.plugin_id,
+                    "current_plugin_id": descriptor.plugin_id,
+                }
+            )
+        if existing.domain_schema_version != descriptor.schema_version:
+            incompatible.update(
+                {
+                    "previous_domain_schema_version": existing.domain_schema_version,
+                    "current_domain_schema_version": descriptor.schema_version,
+                }
+            )
+        if (
+            existing.configuration_schema_hash is not None
+            and existing.configuration_schema_hash != configuration_schema_hash
+        ):
+            incompatible.update(
+                {
+                    "previous_configuration_schema_hash": existing.configuration_schema_hash,
+                    "current_configuration_schema_hash": configuration_schema_hash,
+                }
+            )
+        if incompatible:
+            raise EngineeringError(
+                EngineeringErrorCode.DOMAIN_INCOMPATIBLE,
+                "Registered Domain plugin is incompatible with the persisted activation",
+                details={
+                    "domain_id": existing.domain_id,
+                    "plugin_version": existing.plugin_version,
+                    **incompatible,
+                },
+            )
+
+    @staticmethod
+    def _activation_matches(
+        existing: DomainActivation,
+        descriptor: DomainDescriptor,
+        plan: DomainCompositionPlan,
+        configuration: dict[str, object],
+        configuration_schema_hash: str,
+    ) -> bool:
+        return (
+            existing.plugin_id == descriptor.plugin_id
+            and existing.plugin_version == descriptor.version
+            and existing.domain_schema_version == descriptor.schema_version
+            and existing.configuration_schema_version == descriptor.schema_version
+            and existing.configuration_schema_hash == configuration_schema_hash
+            and existing.configuration == configuration
+            and existing.capability_snapshot == dict(plan.capability_routes)
+            and existing.dependency_snapshot
+            == {
+                "domain_ids": plan.active_domain_ids,
+                "edges": plan.dependency_edges,
+            }
+        )
 
     @staticmethod
     def _build_activation(
@@ -953,3 +951,4 @@ class DomainExtensionService:
         selected_capabilities: Mapping[str, str] | None = None,
     ) -> DomainCompositionPlan:
         return self.resolve(project_id, domain_ids, selected_capabilities=selected_capabilities)
+
