@@ -108,6 +108,16 @@ _register(
     {"rad/s": _linear(1), "deg/s": _linear(pi / 180), "rpm": _linear(2 * pi / 60)},
 )
 _register(
+    EngineeringDimension.ANGULAR_ACCELERATION,
+    "rad/s²",
+    {
+        "rad/s²": _linear(1),
+        "rad/s2": _linear(1),
+        "deg/s²": _linear(pi / 180),
+        "deg/s2": _linear(pi / 180),
+    },
+)
+_register(
     EngineeringDimension.LENGTH,
     "m",
     {

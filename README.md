@@ -9,8 +9,8 @@ Implementation advances one milestone at a time using the required sequence:
 
 ## Current milestone
 
-M14 Domain Extension Infrastructure and M14R Repository Acceptance Hardening are implemented
-(development version `1.3.1.dev14`):
+M15 MotorControl Built-in Domain Plugin is implemented on top of the accepted M14 Domain
+Extension Infrastructure (development version `1.3.1.dev15`):
 
 - FastAPI backend with health and version endpoints;
 - SQLAlchemy 2.x and Alembic migration foundation;
@@ -55,6 +55,9 @@ M14 Domain Extension Infrastructure and M14R Repository Acceptance Hardening are
   project-scoped activation, and bundled-only trust enforcement;
 - M14R fail-closed configuration Schema validation, configuration lifecycle reconciliation,
   schema compatibility snapshots, and Windows-only Sandbox Job Object platform isolation.
+- Bundled MotorControl Domain Plugin with plugin-owned MotorControlIR requirements/references,
+  deterministic additive rules, declarative generators, context/UI metadata, and MCUConfigIR
+  cross-validation.
 
 ## Development
 

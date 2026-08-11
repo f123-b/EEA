@@ -1,7 +1,24 @@
 """Framework-neutral plugin contracts for Domain Extension Infrastructure."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Protocol
+from uuid import UUID
+
+
+@dataclass(frozen=True, slots=True)
+class DomainValidationContext:
+    """Opaque inputs supplied to a plugin-owned executable validator."""
+
+    project_id: UUID
+    domain_id: str
+    inputs: Mapping[str, object]
+
+
+class DomainExecutableValidator(Protocol):
+    """Callable contract for deterministic, plugin-owned Domain validation."""
+
+    def __call__(self, context: DomainValidationContext) -> Sequence[object]: ...
 
 
 class DomainPlugin(Protocol):
@@ -21,5 +38,7 @@ class DomainPlugin(Protocol):
 
     def artifacts(self) -> Sequence[dict[str, Any]]: ...
 
+    def executable_validator(self) -> DomainExecutableValidator | None: ...
 
-__all__ = ["DomainPlugin"]
+
+__all__ = ["DomainExecutableValidator", "DomainPlugin", "DomainValidationContext"]

@@ -7,6 +7,10 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M15 MotorControl Built-in Domain Plugin: added the bundled `org.eea.motor_control` manifest,
+  plugin-owned MotorControlIR requirements/references, deterministic additive rule catalog,
+  declarative generator/context/UI contributions, fail-closed MCUConfigIR cross-validation, and
+  default Domain Registry integration without adding MotorControl concepts to Core.
 - M0 repository skeleton with FastAPI, SQLAlchemy/Alembic, CLI, React/Tauri placeholder, CI,
   health checks, and deterministic OpenAPI export.
 - M1 Core Domain entities, schema registry, SQL migration, Project application service, REST API,
@@ -55,6 +59,16 @@ the frozen documentation changelogs under `docs/`.
 
 ### Changed
 
+- M15R.1 closes fail-closed validation semantics: declaration-only startup/calibration `PASS` now
+  returns `UNKNOWN` without trusted execution evidence, ADC expected range alone returns `UNKNOWN`
+  until current-sense range evidence exists, and composition preview no longer executes Domain
+  validators or emits validation diagnostics.
+- M15R closes the MotorControl executable validation contract: the Domain Validate action now invokes
+  plugin-owned deterministic validation, returns per-rule PASS/FAIL/UNKNOWN/BLOCKED diagnostics,
+  synchronizes project-scoped MCUConfigIR inputs, and keeps Core/Application MotorControl-neutral.
+- M15R aligns MotorControlIR 1.0.0 with the frozen loop, startup/calibration, and EngineeringValue
+  dimension semantics, adds manifest/descriptor/config/UI parity tests, and synchronizes OpenAPI and
+  TypeScript contracts without adding a migration.
 - Applied V1.3.1 FIX-01 to remove concrete MotorControl definitions from the Core boundary.
 - Applied the M1 portion of FIX-08 by synchronizing JobStatus, Permission, and engineering error
   codes across Core, database constraints, OpenAPI, TypeScript, and frontend state handling.

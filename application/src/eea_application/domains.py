@@ -19,6 +19,8 @@ from eea_core.domain_extensions import (
     DomainGeneratorContribution,
     DomainRuleContribution,
     DomainUIContribution,
+    DomainValidationDiagnostic,
+    DomainValidationResult,
 )
 from eea_core.enums import (
     DomainActivationStatus,
@@ -28,7 +30,7 @@ from eea_core.enums import (
 )
 from eea_core.errors import EngineeringError, ProjectNotFoundError
 from eea_core.repositories import DomainActivationRepository, ProjectRepository
-from eea_ports.domain_extensions import DomainPlugin
+from eea_ports.domain_extensions import DomainPlugin, DomainValidationContext
 from pydantic import BaseModel, ValidationError
 
 SUPPORTED_DOMAIN_API_VERSION = "1"
@@ -518,6 +520,33 @@ class DomainExtensionRegistry:
             artifacts.append(dict(item))
         return artifacts
 
+    def execute_validation(
+        self, domain_id: str, context: DomainValidationContext
+    ) -> DomainValidationResult:
+        """Execute only the validator owned by the selected Domain plugin."""
+
+        self.get_descriptor(domain_id)
+        validator = _plugin_value(self._plugins[domain_id], "executable_validator", None)
+        if validator is None:
+            return DomainValidationResult(domain_id=domain_id, diagnostics=[])
+        if not callable(validator):
+            raise EngineeringError(
+                "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
+                "Domain executable validator is not callable",
+                details={"domain_id": domain_id},
+            )
+        raw_diagnostics = validator(context)
+        if not isinstance(raw_diagnostics, Sequence) or isinstance(raw_diagnostics, (str, bytes)):
+            raise EngineeringError(
+                "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
+                "Domain executable validator must return a sequence",
+                details={"domain_id": domain_id},
+            )
+        diagnostics: list[DomainValidationDiagnostic] = []
+        for item in raw_diagnostics:
+            diagnostics.append(_parse_model(item, DomainValidationDiagnostic, domain_id=domain_id))
+        return DomainValidationResult(domain_id=domain_id, diagnostics=diagnostics)
+
     def resolve_composition(
         self,
         domain_ids: Iterable[str],
@@ -791,37 +820,6 @@ class DomainExtensionService:
         pending: list[tuple[DomainActivation, DomainActivation | None]] = []
         for resolved_domain_id in plan.ordered_domain_ids:
             existing = self._activations.get(project_id, resolved_domain_id)
-            if existing is not None and existing.status is DomainActivationStatus.ACTIVE:
-                if resolved_domain_id != domain_id:
-                    continue
-                chosen_configuration = (
-                    existing.configuration if configuration is None else configuration
-                )
-                self.registry.validate_configuration(resolved_domain_id, chosen_configuration)
-                if (
-                    chosen_configuration == existing.configuration
-                    and existing.configuration_schema_version
-                    == self.registry.get_descriptor(resolved_domain_id).schema_version
-                    and existing.configuration_schema_hash
-                    == self.registry.configuration_schema_hash(resolved_domain_id)
-                ):
-                    requested_activation = existing
-                    continue
-                activation = self._build_activation(
-                    project_id,
-                    resolved_domain_id,
-                    self.registry.get_descriptor(resolved_domain_id),
-                    plan,
-                    existing=existing,
-                    configuration=chosen_configuration,
-                    configuration_schema_hash=self.registry.configuration_schema_hash(
-                        resolved_domain_id
-                    ),
-                    activated_by=activated_by,
-                )
-                pending.append((activation, existing))
-                requested_activation = activation
-                continue
             descriptor = self.registry.get_descriptor(resolved_domain_id)
             chosen_configuration = (
                 configuration
@@ -831,6 +829,19 @@ class DomainExtensionService:
                 else {}
             )
             self.registry.validate_configuration(resolved_domain_id, chosen_configuration)
+            configuration_schema_hash = self.registry.configuration_schema_hash(resolved_domain_id)
+            if existing is not None:
+                self._assert_upgrade_compatible(existing, descriptor, configuration_schema_hash)
+                if existing.status is DomainActivationStatus.ACTIVE and self._activation_matches(
+                    existing,
+                    descriptor,
+                    plan,
+                    chosen_configuration,
+                    configuration_schema_hash,
+                ):
+                    if resolved_domain_id == domain_id:
+                        requested_activation = existing
+                    continue
             activation = self._build_activation(
                 project_id,
                 resolved_domain_id,
@@ -838,9 +849,7 @@ class DomainExtensionService:
                 plan,
                 existing=existing,
                 configuration=chosen_configuration,
-                configuration_schema_hash=self.registry.configuration_schema_hash(
-                    resolved_domain_id
-                ),
+                configuration_schema_hash=configuration_schema_hash,
                 activated_by=activated_by,
             )
             pending.append((activation, existing))
@@ -867,6 +876,71 @@ class DomainExtensionService:
                 details={"domain_id": domain_id},
             )
         return requested_activation
+
+    @staticmethod
+    def _assert_upgrade_compatible(
+        existing: DomainActivation,
+        descriptor: DomainDescriptor,
+        configuration_schema_hash: str,
+    ) -> None:
+        incompatible: dict[str, object] = {}
+        if existing.plugin_id != descriptor.plugin_id:
+            incompatible.update(
+                {
+                    "previous_plugin_id": existing.plugin_id,
+                    "current_plugin_id": descriptor.plugin_id,
+                }
+            )
+        if existing.domain_schema_version != descriptor.schema_version:
+            incompatible.update(
+                {
+                    "previous_domain_schema_version": existing.domain_schema_version,
+                    "current_domain_schema_version": descriptor.schema_version,
+                }
+            )
+        if (
+            existing.configuration_schema_hash is not None
+            and existing.configuration_schema_hash != configuration_schema_hash
+        ):
+            incompatible.update(
+                {
+                    "previous_configuration_schema_hash": existing.configuration_schema_hash,
+                    "current_configuration_schema_hash": configuration_schema_hash,
+                }
+            )
+        if incompatible:
+            raise EngineeringError(
+                EngineeringErrorCode.DOMAIN_INCOMPATIBLE,
+                "Registered Domain plugin is incompatible with the persisted activation",
+                details={
+                    "domain_id": existing.domain_id,
+                    "plugin_version": existing.plugin_version,
+                    **incompatible,
+                },
+            )
+
+    @staticmethod
+    def _activation_matches(
+        existing: DomainActivation,
+        descriptor: DomainDescriptor,
+        plan: DomainCompositionPlan,
+        configuration: dict[str, object],
+        configuration_schema_hash: str,
+    ) -> bool:
+        return (
+            existing.plugin_id == descriptor.plugin_id
+            and existing.plugin_version == descriptor.version
+            and existing.domain_schema_version == descriptor.schema_version
+            and existing.configuration_schema_version == descriptor.schema_version
+            and existing.configuration_schema_hash == configuration_schema_hash
+            and existing.configuration == configuration
+            and existing.capability_snapshot == dict(plan.capability_routes)
+            and existing.dependency_snapshot
+            == {
+                "domain_ids": plan.active_domain_ids,
+                "edges": plan.dependency_edges,
+            }
+        )
 
     @staticmethod
     def _build_activation(
@@ -951,5 +1025,19 @@ class DomainExtensionService:
         domain_ids: Iterable[str],
         *,
         selected_capabilities: Mapping[str, str] | None = None,
+        validation_inputs: Mapping[str, object] | None = None,
     ) -> DomainCompositionPlan:
-        return self.resolve(project_id, domain_ids, selected_capabilities=selected_capabilities)
+        plan = self.resolve(project_id, domain_ids, selected_capabilities=selected_capabilities)
+        inputs = dict(validation_inputs or {})
+        results = [
+            self.registry.execute_validation(
+                resolved_domain_id,
+                DomainValidationContext(
+                    project_id=project_id,
+                    domain_id=resolved_domain_id,
+                    inputs=inputs,
+                ),
+            )
+            for resolved_domain_id in plan.ordered_domain_ids
+        ]
+        return plan.model_copy(update={"validation_results": results})

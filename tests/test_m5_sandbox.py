@@ -232,7 +232,7 @@ def test_timeout_kills_process_tree_when_runtime_supports_it(tmp_path: Path) -> 
         executor.execute(
             CommandSpec(argv=(sys.executable, "-c", child_code)),
             workspace.root,
-            _policy(max_runtime_seconds=0.1, max_processes=2),
+            _policy(max_runtime_seconds=0.1, max_processes=64),
         )
     assert error.value.code is EngineeringErrorCode.RESOURCE_LIMIT_EXCEEDED
     deadline = time.monotonic() + 2
@@ -243,3 +243,50 @@ def test_timeout_kills_process_tree_when_runtime_supports_it(tmp_path: Path) -> 
         with pytest.raises(OSError):
             # The child must have been terminated with the parent Job/process group.
             os.kill(child_pid, 0)
+
+
+def test_posix_memory_limit_is_enforced_by_child_resource_boundary(tmp_path: Path) -> None:
+    workspace = SandboxWorkspace.from_root(tmp_path / "workspace")
+    executor = StructuredCommandExecutor()
+    if os.name != "posix" or not executor.capabilities().memory_limit:
+        pytest.skip("POSIX address-space resource limit is unavailable")
+
+    result = executor.execute(
+        CommandSpec(
+            argv=(
+                sys.executable,
+                "-c",
+                "bytearray(128 * 1024 * 1024); print('allocation-succeeded')",
+            )
+        ),
+        workspace.root,
+        _policy(max_memory_bytes=64 * 1024 * 1024, max_runtime_seconds=5),
+    )
+    assert result.returncode != 0
+    assert "allocation-succeeded" not in result.stdout
+
+
+def test_posix_process_spawn_limit_is_enforced_by_child_resource_boundary(
+    tmp_path: Path,
+) -> None:
+    workspace = SandboxWorkspace.from_root(tmp_path / "workspace")
+    executor = StructuredCommandExecutor()
+    if os.name != "posix" or not executor.capabilities().process_limit:
+        pytest.skip("POSIX process resource limit is unavailable")
+
+    code = (
+        "import subprocess, sys\n"
+        "try:\n"
+        "    subprocess.Popen([sys.executable, '-c', 'pass'])\n"
+        "except OSError:\n"
+        "    print('spawn-denied')\n"
+        "    sys.exit(0)\n"
+        "sys.exit(99)"
+    )
+    result = executor.execute(
+        CommandSpec(argv=(sys.executable, "-c", code)),
+        workspace.root,
+        _policy(max_processes=1, max_runtime_seconds=5),
+    )
+    assert result.returncode == 0
+    assert "spawn-denied" in result.stdout

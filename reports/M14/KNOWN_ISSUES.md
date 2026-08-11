@@ -7,9 +7,9 @@
   rather than being treated as trusted by manifest declaration.
 - M14 persists project activation metadata and exposes opaque Domain IR envelopes. Plugin-owned
   domain tables, migrations, and concrete artifacts remain future work and must be namespaced.
-- The exact final SHA is unavailable until the working tree is intentionally committed. Remote
-  GitHub Actions evidence and human acceptance are therefore pending; this report does not mark
-  M14R as ACCEPTED.
+- The local implementation commit is `ade9da3`; the remote acceptance head is recorded in
+  `TEST_REPORT.md`. Automated M14R gates are green. Any separate manual release-review process
+  remains outside this automated acceptance record and is not fabricated here.
 - The repository's persistent default `.eea/eea.db` contains historical Alembic comparison drift
   (`llm_cost` type and legacy CHECK-constraint names). A fresh database created by the acceptance
   sequence upgrades to migration `0021` and passes `alembic check`; the persistent local database

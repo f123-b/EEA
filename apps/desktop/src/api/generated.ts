@@ -123,6 +123,7 @@ export const engineeringDimensionValues = [
   "TEMPERATURE",
   "ANGLE",
   "ANGULAR_VELOCITY",
+  "ANGULAR_ACCELERATION",
   "LENGTH",
   "POWER",
   "ENERGY",
@@ -382,6 +383,18 @@ export interface DomainContextContribution {
   description: string;
 }
 
+export interface DomainValidationDiagnostic {
+  rule_id: string;
+  status: "PASS" | "FAIL" | "UNKNOWN" | "BLOCKED";
+  message: string;
+  details: Record<string, unknown>;
+}
+
+export interface DomainValidationResult {
+  domain_id: string;
+  diagnostics: DomainValidationDiagnostic[];
+}
+
 export interface DomainUIContribution {
   extension_id: string;
   kind: "navigation" | "action" | "form";
@@ -450,6 +463,7 @@ export interface DomainCompositionData {
   generators: DomainGeneratorContribution[];
   context_contributions: DomainContextContribution[];
   ui_contributions: DomainUIContribution[];
+  validation_results: DomainValidationResult[];
 }
 
 export interface DomainSchemaData {
@@ -466,6 +480,8 @@ export interface DomainActivationRequest {
 export interface DomainValidationRequest {
   domain_ids: string[];
   selected_capabilities: Record<string, string>;
+  domain_ir?: Record<string, unknown> | null;
+  mcu_config_id?: string | null;
 }
 
 export interface DocumentUploadRequest {
