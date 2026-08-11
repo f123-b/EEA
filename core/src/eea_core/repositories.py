@@ -18,6 +18,7 @@ from eea_core.firmware import FirmwareBundle
 from eea_core.intelligence import Document, DocumentIR
 from eea_core.mcu_config import MCUConfigBundle
 from eea_core.pin_planner import PinAssignment, PinPlan
+from eea_core.protocol import ProtocolIR
 from eea_core.requirements import Requirement, RequirementAnalysis, RequirementProfile
 from eea_core.schematic import SchematicBundle
 from eea_core.source import BuildInputSnapshot
@@ -175,6 +176,28 @@ class FirmwareRepository(Protocol):
     ) -> FirmwareBundle | None: ...
 
     def latest_for_project(self, project_id: UUID) -> FirmwareBundle | None: ...
+
+
+class ProtocolRepository(Protocol):
+    def add(self, protocol: ProtocolIR, *, commit: bool = True) -> ProtocolIR: ...
+
+    def get(
+        self,
+        protocol_id: UUID,
+        *,
+        project_id: UUID,
+        revision: int | None = None,
+    ) -> ProtocolIR | None: ...
+
+    def latest_for_project(self, project_id: UUID) -> ProtocolIR | None: ...
+
+    def save(
+        self,
+        protocol: ProtocolIR,
+        *,
+        expected_revision: int,
+        commit: bool = True,
+    ) -> ProtocolIR | None: ...
 
 
 class BuildRunRepository(Protocol):

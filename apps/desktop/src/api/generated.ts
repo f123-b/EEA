@@ -535,3 +535,110 @@ export interface EvidenceData {
   files: string[];
   summary: string;
 }
+
+export interface CANTransportConfig {
+  nominal_bitrate: number;
+  frame_kind: string;
+  data_bitrate: number | null;
+  fd_brs: boolean | null;
+}
+
+export interface ProtocolTransport {
+  transport_id: string;
+  name: string;
+  transport_type: string;
+  can: CANTransportConfig;
+}
+
+export interface ProtocolField {
+  field_id: string;
+  name: string;
+  bit_offset: number;
+  bit_length: number;
+  endian: string;
+  signed: boolean;
+  scale: number;
+  offset: number;
+  unit: string;
+  minimum: number | null;
+  maximum: number | null;
+}
+
+export interface ProtocolMessage {
+  message_id: string;
+  name: string;
+  transport_ref: string;
+  can_id: number;
+  extended_id: boolean;
+  payload_length_bytes: number;
+  fields: ProtocolField[];
+  requirement_ids: string[];
+  description: string;
+}
+
+export interface ProtocolDefinition {
+  version_label: string;
+  transports: ProtocolTransport[];
+  messages: ProtocolMessage[];
+  requirement_ids: string[];
+  evidence_ids: string[];
+}
+
+export type ProtocolCreateRequest = ProtocolDefinition;
+
+export interface ProtocolIR extends ProtocolDefinition {
+  id: string;
+  schema_version: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+  project_id: string;
+  input_hash: string;
+}
+
+export interface ProtocolUpdateRequest extends ProtocolDefinition {
+  expected_revision?: number | null;
+}
+
+export interface ProtocolValidationDiagnostic {
+  rule_id: string;
+  status: "PASS" | "FAIL" | "UNKNOWN" | "BLOCKED";
+  message: string;
+  details: Record<string, unknown>;
+}
+
+export interface ProtocolValidationResult {
+  protocol_id: string;
+  protocol_revision: number;
+  input_hash: string;
+  diagnostics: ProtocolValidationDiagnostic[];
+}
+
+export interface GeneratedProtocolOutput {
+  target: "C" | "PYTHON" | "DBC" | "MARKDOWN";
+  path: string;
+  content: string;
+  content_hash: string;
+  input_hash: string;
+  protocol_revision: number;
+  generator_version: string;
+}
+
+export interface ProtocolGenerationBundle {
+  protocol_id: string;
+  protocol_revision: number;
+  input_hash: string;
+  generator_version: string;
+  outputs: GeneratedProtocolOutput[];
+}
+
+export interface ProtocolValidateRequest {
+  protocol_id?: string | null;
+  revision?: number | null;
+}
+
+export interface ProtocolGenerateRequest {
+  protocol_id?: string | null;
+  revision?: number | null;
+}
