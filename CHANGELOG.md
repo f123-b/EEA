@@ -16,6 +16,13 @@ the frozen documentation changelogs under `docs/`.
   structured Pydantic output validation, timeout and budget enforcement, and durable usage
   accounting.
 - Alembic `0003_m2` migration for prompt definitions and AI usage records.
+- M3 Canonical Unit and Claim Core: normalized `EngineeringValue` values, frozen engineering
+  dimensions, claim predicates, applicability-aware conflict detection, and configurable claim
+  resolution.
+- Evidence-gated `DOCUMENT_VERIFIED` verification and durable SQL repositories for predicate,
+  claim, and conflict records.
+- Alembic `0004_m3_claim_core` migration and synchronized claim enum metadata in OpenAPI and
+  generated TypeScript.
 
 ### Changed
 
@@ -24,3 +31,4 @@ the frozen documentation changelogs under `docs/`.
   codes across Core, database constraints, OpenAPI, TypeScript, and frontend state handling.
 - Extended architecture checks so provider SDKs remain confined to Adapters and Ports remain
   independent of Core and frameworks.
+- Updated product and desktop version metadata to `1.3.1.dev3` / `1.3.1-dev.3` for M3.

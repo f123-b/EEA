@@ -9,7 +9,8 @@ Implementation advances one milestone at a time using the required sequence:
 
 ## Current milestone
 
-M2 AI Provider Foundation is implemented on the accepted M1 Core Domain:
+M3 EngineeringValue + Claim Core is implemented on the accepted M2 AI Provider Foundation
+(implementation version `1.3.1.dev3`):
 
 - FastAPI backend with health and version endpoints;
 - SQLAlchemy 2.x and Alembic migration foundation;
@@ -28,6 +29,12 @@ M2 AI Provider Foundation is implemented on the accepted M1 Core Domain:
 - `StructuredGenerationService` with exact output-schema checks, Pydantic validation, timeout,
   token/cost budget gates, and secret-input rejection;
 - Alembic `0003_m2` migration for prompt definitions and AI usage records.
+- Canonical-unit EngineeringValue normalization across the frozen engineering-dimension catalog;
+- Engineering claims, predicate definitions, applicability-aware resolution, and durable conflict
+  records;
+- evidence-gated `DOCUMENT_VERIFIED` claims and source-priority / source-version conflict
+  resolution;
+- Alembic `0004_m3_claim_core` migration plus synchronized Core/OpenAPI/TypeScript claim enums.
 
 ## Development
 
