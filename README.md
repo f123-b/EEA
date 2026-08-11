@@ -9,8 +9,8 @@ Implementation advances one milestone at a time using the required sequence:
 
 ## Current milestone
 
-M5 Sandbox Foundation is implemented on the accepted M4 Document + Device Intelligence
-(implementation version `1.3.1.dev5`):
+M6 Requirement DSL is implemented on the accepted M5 Sandbox Foundation
+(implementation version `1.3.1.dev6`):
 
 - FastAPI backend with health and version endpoints;
 - SQLAlchemy 2.x and Alembic migration foundation;
@@ -46,6 +46,11 @@ M5 Sandbox Foundation is implemented on the accepted M4 Document + Device Intell
 - shell-free allowlisted command execution with sanitized environment, default network denial,
   timeout/output budgets, secret argument rejection, and structured resource errors;
 - Alembic `0006_m5` error-catalog migration and synchronized sandbox error contracts.
+- versioned generic requirement profiles with field/evidence contracts and reproducible lookup;
+- structured natural-language requirement analysis routed through M2 generation;
+- deterministic completeness, ambiguity, claims, issues, and follow-up question outputs;
+- deterministic FOC benchmark profile input support without MotorControl types in Core;
+- Alembic `0007_m6` requirement profile, requirement, and analysis persistence tables.
 
 ## Development
 

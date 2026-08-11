@@ -32,6 +32,10 @@ the frozen documentation changelogs under `docs/`.
   denial, timeout/output budgets, and structured sandbox errors.
 - Alembic `0006_m5` migration extends the API error catalog for sandbox violations and resource
   limits.
+- M6 Requirement DSL: versioned generic requirement profiles, evidence contracts, structured
+  generation integration, deterministic completeness/ambiguity findings, claims, issues, and
+  follow-up questions.
+- Deterministic FOC benchmark profile input support and Alembic `0007_m6` persistence tables.
 
 ### Changed
 
@@ -43,3 +47,4 @@ the frozen documentation changelogs under `docs/`.
 - Updated product and desktop version metadata to `1.3.1.dev3` / `1.3.1-dev.3` for M3.
 - Updated product and desktop version metadata to `1.3.1.dev4` / `1.3.1-dev.4` for M4.
 - Updated product and desktop version metadata to `1.3.1.dev5` / `1.3.1-dev.5` for M5.
+- Updated product and desktop version metadata to `1.3.1.dev6` / `1.3.1-dev.6` for M6.
