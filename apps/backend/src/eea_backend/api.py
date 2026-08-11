@@ -12,6 +12,7 @@ from eea_application.ai import PromptRegistry, StructuredGenerationService
 from eea_application.architecture import ArchitectureService
 from eea_application.circuit import CircuitService
 from eea_application.intelligence import DocumentService, MultiSourceDeviceProvider
+from eea_application.mcu_config import MCUConfigService
 from eea_application.pin_planner import PinPlannerService
 from eea_application.projects import ProjectService
 from eea_application.requirements import (
@@ -51,6 +52,7 @@ from eea_core.enums import (
 )
 from eea_core.errors import EngineeringError
 from eea_core.intelligence import Device, DevicePin, Document
+from eea_core.mcu_config import MCUConfigBundle
 from eea_core.pin_planner import PinAssignment, PinLock, PinPlan, PinRequirement
 from eea_core.requirements import RequirementProfile
 from eea_core.schema_registry import create_core_schema_registry
@@ -62,6 +64,7 @@ from eea_backend.architecture_repositories import SqlAlchemyArchitectureReposito
 from eea_backend.circuit_repositories import SqlAlchemyCircuitRepository
 from eea_backend.claim_repositories import SqlAlchemyEngineeringClaimRepository
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
+from eea_backend.mcu_config_repositories import SqlAlchemyMCUConfigRepository
 from eea_backend.pin_planner_repositories import SqlAlchemyPinPlanRepository
 from eea_backend.repositories import (
     SqlAlchemyAIUsageRepository,
@@ -93,6 +96,10 @@ from eea_backend.schemas import (
     ErcImportRequest,
     EvidenceCreateRequest,
     EvidenceData,
+    MCUConfigBundleData,
+    MCUConfigGenerateRequest,
+    MCUConfigValidateRequest,
+    MCUConfigValidationData,
     PinAssignmentData,
     PinAssignmentMutationData,
     PinAssignmentMutationRequest,
@@ -182,6 +189,10 @@ def _schematic_bundle_data(bundle: SchematicBundle) -> SchematicBundleData:
     return SchematicBundleData.model_validate(bundle.model_dump(mode="json"))
 
 
+def _mcu_config_bundle_data(bundle: MCUConfigBundle) -> MCUConfigBundleData:
+    return MCUConfigBundleData.model_validate(bundle.model_dump(mode="json"))
+
+
 def _ensure_latest_hardware(session: Session, project_id: UUID, hardware_id: UUID) -> None:
     latest = SqlAlchemyArchitectureRepository(session).latest_for_project(project_id)
     if latest is None:
@@ -199,6 +210,34 @@ def _ensure_latest_hardware(session: Session, project_id: UUID, hardware_id: UUI
                 "hardware_ir_id": str(hardware_id),
                 "latest_hardware_ir_id": str(latest.hardware.id),
             },
+        )
+
+
+def _ensure_current_mcu_config_sources(
+    session: Session, project_id: UUID, bundle: MCUConfigBundle
+) -> None:
+    hardware = SqlAlchemyArchitectureRepository(session).latest_for_project(project_id)
+    circuit = SqlAlchemyCircuitRepository(session).latest_for_project(project_id)
+    schematic = SqlAlchemySchematicRepository(session).latest_for_project(project_id)
+    if hardware is None or circuit is None or schematic is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "MCUConfigIR source snapshots are not available",
+            details={"config_id": str(bundle.config.id)},
+        )
+    config = bundle.config
+    if (
+        config.hardware_ir_id != hardware.hardware.id
+        or config.hardware_ir_revision != hardware.hardware.revision
+        or config.circuit_id != circuit.circuit.id
+        or config.circuit_revision != circuit.circuit.revision
+        or config.schematic_id != schematic.schematic.id
+        or config.schematic_revision != schematic.schematic.revision
+    ):
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "MCUConfigIR source snapshot is stale",
+            details={"reason": "STALE_MCU_CONFIG_SOURCE", "config_id": str(config.id)},
         )
 
 
@@ -874,6 +913,188 @@ def import_schematic_erc(
     schematics.save_erc_report(report)
     refreshed = schematics.get(bundle.schematic.id, project_id=project_id) or bundle
     return ApiEnvelope(data=_schematic_bundle_data(refreshed), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/mcu-config/generate",
+    response_model=ApiEnvelope[MCUConfigBundleData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["mcu-config"],
+)
+def generate_mcu_config(
+    project_id: UUID,
+    payload: MCUConfigGenerateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[MCUConfigBundleData]:
+    _service(session).get(project_id)
+    architectures = SqlAlchemyArchitectureRepository(session)
+    hardware_bundle = architectures.get_by_hardware_id(
+        payload.hardware_ir_id, project_id=project_id
+    )
+    latest_hardware = architectures.latest_for_project(project_id)
+    if hardware_bundle is None or latest_hardware is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "HardwareIR is not available for MCUConfigIR generation",
+            details={"hardware_ir_id": str(payload.hardware_ir_id), "project_id": str(project_id)},
+        )
+    if hardware_bundle.hardware.id != latest_hardware.hardware.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Selected HardwareIR is stale",
+            details={
+                "reason": "STALE_HARDWARE_IR",
+                "hardware_ir_id": str(payload.hardware_ir_id),
+                "latest_hardware_ir_id": str(latest_hardware.hardware.id),
+            },
+        )
+
+    circuits = SqlAlchemyCircuitRepository(session)
+    circuit_bundle = circuits.get(payload.circuit_id, project_id=project_id)
+    latest_circuit = circuits.latest_for_project(project_id)
+    if circuit_bundle is None or latest_circuit is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "CircuitIR is not available for MCUConfigIR generation",
+            details={"circuit_id": str(payload.circuit_id), "project_id": str(project_id)},
+        )
+    if circuit_bundle.circuit.id != latest_circuit.circuit.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Selected CircuitIR is stale",
+            details={
+                "reason": "STALE_CIRCUIT_IR",
+                "circuit_id": str(payload.circuit_id),
+                "latest_circuit_id": str(latest_circuit.circuit.id),
+            },
+        )
+
+    schematics = SqlAlchemySchematicRepository(session)
+    schematic_bundle = schematics.get(payload.schematic_id, project_id=project_id)
+    latest_schematic = schematics.latest_for_project(project_id)
+    if schematic_bundle is None or latest_schematic is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "SchematicIR is not available for MCUConfigIR generation",
+            details={"schematic_id": str(payload.schematic_id), "project_id": str(project_id)},
+        )
+    if schematic_bundle.schematic.id != latest_schematic.schematic.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Selected SchematicIR is stale",
+            details={
+                "reason": "STALE_SCHEMATIC_IR",
+                "schematic_id": str(payload.schematic_id),
+                "latest_schematic_id": str(latest_schematic.schematic.id),
+            },
+        )
+    bundle = MCUConfigService().generate(
+        hardware_bundle.hardware,
+        circuit_bundle.circuit,
+        schematic_bundle.schematic,
+        device_instance_id=payload.device_instance_id,
+        clock=payload.clock,
+        gpio=payload.gpio,
+        peripherals=payload.peripherals,
+        dma=payload.dma,
+        interrupts=payload.interrupts,
+        memory=payload.memory,
+        debug=payload.debug,
+        capability_snapshot=payload.capability_snapshot,
+    )
+    saved = SqlAlchemyMCUConfigRepository(session).add(bundle)
+    return ApiEnvelope(data=_mcu_config_bundle_data(saved), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/mcu-config",
+    response_model=ApiEnvelope[MCUConfigBundleData],
+    tags=["mcu-config"],
+)
+def get_mcu_config(
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[MCUConfigBundleData]:
+    _service(session).get(project_id)
+    bundle = SqlAlchemyMCUConfigRepository(session).latest_for_project(project_id)
+    if bundle is None:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "No current MCUConfigIR has been generated for this project",
+            details={"project_id": str(project_id)},
+        )
+    _ensure_current_mcu_config_sources(session, project_id, bundle)
+    return ApiEnvelope(data=_mcu_config_bundle_data(bundle), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/mcu-config/validate",
+    response_model=ApiEnvelope[MCUConfigValidationData],
+    tags=["mcu-config"],
+)
+def validate_mcu_config(
+    project_id: UUID,
+    payload: MCUConfigValidateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[MCUConfigValidationData]:
+    _service(session).get(project_id)
+    repository = SqlAlchemyMCUConfigRepository(session)
+    bundle = repository.get(payload.config_id, project_id=project_id)
+    if bundle is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "MCUConfigIR is not available for this project",
+            details={"config_id": str(payload.config_id), "project_id": str(project_id)},
+        )
+    architectures = SqlAlchemyArchitectureRepository(session)
+    hardware_bundle = architectures.get_by_hardware_id(
+        bundle.config.hardware_ir_id, project_id=project_id
+    )
+    circuits = SqlAlchemyCircuitRepository(session)
+    circuit_bundle = circuits.get(bundle.config.circuit_id, project_id=project_id)
+    schematics = SqlAlchemySchematicRepository(session)
+    schematic_bundle = schematics.get(bundle.config.schematic_id, project_id=project_id)
+    latest_hardware = architectures.latest_for_project(project_id)
+    latest_circuit = circuits.latest_for_project(project_id)
+    latest_schematic = schematics.latest_for_project(project_id)
+    if (
+        hardware_bundle is None
+        or circuit_bundle is None
+        or schematic_bundle is None
+        or latest_hardware is None
+        or latest_circuit is None
+        or latest_schematic is None
+    ):
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "MCUConfigIR source snapshots are not available",
+            details={"config_id": str(payload.config_id)},
+        )
+    if (
+        hardware_bundle.hardware.id != latest_hardware.hardware.id
+        or circuit_bundle.circuit.id != latest_circuit.circuit.id
+        or schematic_bundle.schematic.id != latest_schematic.schematic.id
+    ):
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "MCUConfigIR source snapshot is stale",
+            details={"reason": "STALE_MCU_CONFIG_SOURCE", "config_id": str(payload.config_id)},
+        )
+    results = MCUConfigService().validate(
+        bundle.config,
+        hardware_bundle.hardware,
+        circuit_bundle.circuit,
+        schematic_bundle.schematic,
+    )
+    data = MCUConfigValidationData(
+        config_id=bundle.config.id,
+        config_revision=bundle.config.revision,
+        rule_results=[result.model_dump(mode="json") for result in results],
+    )
+    return ApiEnvelope(data=data, request_id=_request_id(request))
 
 
 @router.post(

@@ -8,6 +8,7 @@ from eea_core.circuit import CircuitBundle
 from eea_core.claims import ClaimConflict, ClaimPredicateDefinition, EngineeringClaim
 from eea_core.entities import Evidence, Project
 from eea_core.intelligence import Document, DocumentIR
+from eea_core.mcu_config import MCUConfigBundle
 from eea_core.pin_planner import PinAssignment, PinPlan
 from eea_core.requirements import Requirement, RequirementAnalysis, RequirementProfile
 from eea_core.schematic import SchematicBundle
@@ -131,3 +132,11 @@ class SchematicRepository(Protocol):
     ) -> SchematicBundle | None: ...
 
     def latest_for_project(self, project_id: UUID) -> SchematicBundle | None: ...
+
+
+class MCUConfigRepository(Protocol):
+    def add(self, bundle: MCUConfigBundle) -> MCUConfigBundle: ...
+
+    def get(self, config_id: UUID, *, project_id: UUID | None = None) -> MCUConfigBundle | None: ...
+
+    def latest_for_project(self, project_id: UUID) -> MCUConfigBundle | None: ...

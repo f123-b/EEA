@@ -1,6 +1,123 @@
 {
   "components": {
     "schemas": {
+      "ADCConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "conversion_mode": {
+            "default": "REGULAR",
+            "maxLength": 50,
+            "title": "Conversion Mode",
+            "type": "string"
+          },
+          "dma_ref": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dma Ref"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "expected_range": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EngineeringValue"
+            },
+            "title": "Expected Range",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "injected_or_regular": {
+            "default": "REGULAR",
+            "maxLength": 30,
+            "title": "Injected Or Regular",
+            "type": "string"
+          },
+          "instance": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Instance",
+            "type": "string"
+          },
+          "pin_assignment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Pin Assignment Ids",
+            "type": "array"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "sampling_time": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trigger_edge": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Edge"
+          },
+          "trigger_source": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Source"
+          }
+        },
+        "required": [
+          "instance"
+        ],
+        "title": "ADCConfig",
+        "type": "object"
+      },
       "ApiEnvelope_ArchitectureBundleData_": {
         "properties": {
           "data": {
@@ -183,6 +300,52 @@
           "request_id"
         ],
         "title": "ApiEnvelope[EvidenceData]",
+        "type": "object"
+      },
+      "ApiEnvelope_MCUConfigBundleData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MCUConfigBundleData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[MCUConfigBundleData]",
+        "type": "object"
+      },
+      "ApiEnvelope_MCUConfigValidationData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MCUConfigValidationData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[MCUConfigValidationData]",
         "type": "object"
       },
       "ApiEnvelope_PinAssignmentMutationData_": {
@@ -1158,6 +1321,189 @@
         ],
         "title": "ClaimLifecycle",
         "type": "string"
+      },
+      "ClockIR": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "title": "Parameters",
+            "type": "object"
+          },
+          "peripheral_clocks": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EngineeringValue"
+            },
+            "title": "Peripheral Clocks",
+            "type": "object"
+          },
+          "source": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "source_frequency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_frequency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tolerance_percent": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tolerance Percent"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "ClockIR",
+        "type": "object"
+      },
+      "DMAIR": {
+        "additionalProperties": false,
+        "properties": {
+          "buffer": {
+            "additionalProperties": true,
+            "title": "Buffer",
+            "type": "object"
+          },
+          "channel_or_stream": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Channel Or Stream",
+            "type": "string"
+          },
+          "circular": {
+            "default": false,
+            "title": "Circular",
+            "type": "boolean"
+          },
+          "controller": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Controller",
+            "type": "string"
+          },
+          "direction": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Direction",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "default": "NORMAL",
+            "maxLength": 30,
+            "title": "Mode",
+            "type": "string"
+          },
+          "priority": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "request": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Request",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "width": {
+            "default": 32,
+            "minimum": 1.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "controller",
+          "channel_or_stream",
+          "request",
+          "direction"
+        ],
+        "title": "DMAIR",
+        "type": "object"
+      },
+      "DebugConfigIR": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "interface": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Interface",
+            "type": "string"
+          },
+          "pin_assignment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Pin Assignment Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "interface"
+        ],
+        "title": "DebugConfigIR",
+        "type": "object"
       },
       "DecisionStatus": {
         "enum": [
@@ -2496,6 +2842,114 @@
         "title": "EvidenceType",
         "type": "string"
       },
+      "GPIOConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "alternate_function": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alternate Function"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Mode",
+            "type": "string"
+          },
+          "output_type": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Type"
+          },
+          "pin_assignment_id": {
+            "format": "uuid",
+            "title": "Pin Assignment Id",
+            "type": "string"
+          },
+          "pull": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pull"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "signal_ref": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Signal Ref",
+            "type": "string"
+          },
+          "speed": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed"
+          },
+          "voltage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "pin_assignment_id",
+          "signal_ref",
+          "mode"
+        ],
+        "title": "GPIOConfig",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2680,6 +3134,86 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "InterruptConfigIR": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_operations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Operations",
+            "type": "array"
+          },
+          "communicates_with_tasks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Communicates With Tasks",
+            "type": "array"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "irq": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Irq",
+            "type": "string"
+          },
+          "max_execution_us": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priority": {
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "source": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "subpriority": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Subpriority",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source",
+          "irq",
+          "priority"
+        ],
+        "title": "InterruptConfigIR",
+        "type": "object"
+      },
       "IssueSeverity": {
         "enum": [
           "INFO",
@@ -2715,6 +3249,648 @@
         ],
         "title": "JobStatus",
         "type": "string"
+      },
+      "MCUConfigBundleData": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/MCUConfigData"
+          },
+          "rule_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rule Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "config",
+          "rule_results"
+        ],
+        "title": "MCUConfigBundleData",
+        "type": "object"
+      },
+      "MCUConfigData": {
+        "properties": {
+          "capability_snapshot": {
+            "additionalProperties": true,
+            "title": "Capability Snapshot",
+            "type": "object"
+          },
+          "circuit_id": {
+            "format": "uuid",
+            "title": "Circuit Id",
+            "type": "string"
+          },
+          "circuit_revision": {
+            "title": "Circuit Revision",
+            "type": "integer"
+          },
+          "clock": {
+            "$ref": "#/components/schemas/ClockIR"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "debug": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DebugConfigIR"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "device_instance_id": {
+            "format": "uuid",
+            "title": "Device Instance Id",
+            "type": "string"
+          },
+          "dma": {
+            "items": {
+              "$ref": "#/components/schemas/DMAIR"
+            },
+            "title": "Dma",
+            "type": "array"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "gpio": {
+            "items": {
+              "$ref": "#/components/schemas/GPIOConfig"
+            },
+            "title": "Gpio",
+            "type": "array"
+          },
+          "hardware_ir_id": {
+            "format": "uuid",
+            "title": "Hardware Ir Id",
+            "type": "string"
+          },
+          "hardware_ir_revision": {
+            "title": "Hardware Ir Revision",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "interrupts": {
+            "items": {
+              "$ref": "#/components/schemas/InterruptConfigIR"
+            },
+            "title": "Interrupts",
+            "type": "array"
+          },
+          "memory": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryConfigIR"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "peripherals": {
+            "items": {
+              "$ref": "#/components/schemas/PeripheralConfigIR"
+            },
+            "title": "Peripherals",
+            "type": "array"
+          },
+          "pin_assignment_revisions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Pin Assignment Revisions",
+            "type": "object"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "rule_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rule Results",
+            "type": "array"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "schematic_id": {
+            "format": "uuid",
+            "title": "Schematic Id",
+            "type": "string"
+          },
+          "schematic_revision": {
+            "title": "Schematic Revision",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ArtifactStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "hardware_ir_id",
+          "hardware_ir_revision",
+          "circuit_id",
+          "circuit_revision",
+          "schematic_id",
+          "schematic_revision",
+          "device_instance_id",
+          "clock",
+          "gpio",
+          "peripherals",
+          "dma",
+          "interrupts",
+          "memory",
+          "debug",
+          "capability_snapshot",
+          "rule_results",
+          "requirement_ids",
+          "evidence_ids",
+          "pin_assignment_revisions",
+          "status"
+        ],
+        "title": "MCUConfigData",
+        "type": "object"
+      },
+      "MCUConfigGenerateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_snapshot": {
+            "additionalProperties": true,
+            "title": "Capability Snapshot",
+            "type": "object"
+          },
+          "circuit_id": {
+            "format": "uuid",
+            "title": "Circuit Id",
+            "type": "string"
+          },
+          "clock": {
+            "$ref": "#/components/schemas/ClockIR"
+          },
+          "debug": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DebugConfigIR"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "device_instance_id": {
+            "format": "uuid",
+            "title": "Device Instance Id",
+            "type": "string"
+          },
+          "dma": {
+            "items": {
+              "$ref": "#/components/schemas/DMAIR"
+            },
+            "title": "Dma",
+            "type": "array"
+          },
+          "gpio": {
+            "items": {
+              "$ref": "#/components/schemas/GPIOConfig"
+            },
+            "title": "Gpio",
+            "type": "array"
+          },
+          "hardware_ir_id": {
+            "format": "uuid",
+            "title": "Hardware Ir Id",
+            "type": "string"
+          },
+          "interrupts": {
+            "items": {
+              "$ref": "#/components/schemas/InterruptConfigIR"
+            },
+            "title": "Interrupts",
+            "type": "array"
+          },
+          "memory": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryConfigIR"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "peripherals": {
+            "items": {
+              "$ref": "#/components/schemas/PeripheralConfigIR"
+            },
+            "title": "Peripherals",
+            "type": "array"
+          },
+          "schematic_id": {
+            "format": "uuid",
+            "title": "Schematic Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hardware_ir_id",
+          "circuit_id",
+          "schematic_id",
+          "device_instance_id",
+          "clock"
+        ],
+        "title": "MCUConfigGenerateRequest",
+        "type": "object"
+      },
+      "MCUConfigValidateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "config_id": {
+            "format": "uuid",
+            "title": "Config Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "config_id"
+        ],
+        "title": "MCUConfigValidateRequest",
+        "type": "object"
+      },
+      "MCUConfigValidationData": {
+        "properties": {
+          "config_id": {
+            "format": "uuid",
+            "title": "Config Id",
+            "type": "string"
+          },
+          "config_revision": {
+            "title": "Config Revision",
+            "type": "integer"
+          },
+          "rule_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rule Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "config_id",
+          "config_revision",
+          "rule_results"
+        ],
+        "title": "MCUConfigValidationData",
+        "type": "object"
+      },
+      "MemoryConfigIR": {
+        "additionalProperties": false,
+        "properties": {
+          "flash_length": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flash Length"
+          },
+          "flash_origin": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flash Origin"
+          },
+          "linker_script_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linker Script Ref"
+          },
+          "ram_length": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ram Length"
+          },
+          "ram_origin": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ram Origin"
+          }
+        },
+        "title": "MemoryConfigIR",
+        "type": "object"
+      },
+      "PWMConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "break_input": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Break Input"
+          },
+          "center_aligned": {
+            "default": false,
+            "title": "Center Aligned",
+            "type": "boolean"
+          },
+          "channel": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Channel",
+            "type": "string"
+          },
+          "complementary_channel": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Complementary Channel"
+          },
+          "deadtime": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "pin_assignment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Pin Assignment Ids",
+            "type": "array"
+          },
+          "polarity": {
+            "default": "ACTIVE_HIGH",
+            "maxLength": 30,
+            "title": "Polarity",
+            "type": "string"
+          },
+          "realized_frequency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "switching_frequency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timer": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Timer",
+            "type": "string"
+          },
+          "update_event": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Update Event"
+          }
+        },
+        "required": [
+          "timer",
+          "channel"
+        ],
+        "title": "PWMConfig",
+        "type": "object"
+      },
+      "PeripheralConfigIR": {
+        "additionalProperties": false,
+        "properties": {
+          "adc": {
+            "items": {
+              "$ref": "#/components/schemas/ADCConfig"
+            },
+            "title": "Adc",
+            "type": "array"
+          },
+          "clock": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dma_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dma Refs",
+            "type": "array"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "instance": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Instance",
+            "type": "string"
+          },
+          "interrupt_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Interrupt Refs",
+            "type": "array"
+          },
+          "mode": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Mode",
+            "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "title": "Parameters",
+            "type": "object"
+          },
+          "pin_assignment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Pin Assignment Ids",
+            "type": "array"
+          },
+          "pwm": {
+            "items": {
+              "$ref": "#/components/schemas/PWMConfig"
+            },
+            "title": "Pwm",
+            "type": "array"
+          },
+          "requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "trigger_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Trigger Refs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "instance",
+          "mode"
+        ],
+        "title": "PeripheralConfigIR",
+        "type": "object"
       },
       "Permission": {
         "description": "FIX-08 canonical permission catalog.",
@@ -5386,6 +6562,170 @@
         "summary": "Validate Circuit",
         "tags": [
           "circuit"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/mcu-config": {
+      "get": {
+        "operationId": "get_mcu_config_api_v1_projects__project_id__mcu_config_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_MCUConfigBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Mcu Config",
+        "tags": [
+          "mcu-config"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/mcu-config/generate": {
+      "post": {
+        "operationId": "generate_mcu_config_api_v1_projects__project_id__mcu_config_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MCUConfigGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_MCUConfigBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Mcu Config",
+        "tags": [
+          "mcu-config"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/mcu-config/validate": {
+      "post": {
+        "operationId": "validate_mcu_config_api_v1_projects__project_id__mcu_config_validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MCUConfigValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_MCUConfigValidationData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Validate Mcu Config",
+        "tags": [
+          "mcu-config"
         ]
       }
     },

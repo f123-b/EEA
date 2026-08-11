@@ -45,6 +45,8 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
         "circuit_rule_results",
         "schematic_artifacts",
         "erc_reports",
+        "mcu_configs",
+        "mcu_config_rule_results",
     } <= table_names
     with engine.connect() as connection:
         assert (
@@ -82,6 +84,16 @@ def test_m0_migration_upgrades_and_downgrades(tmp_path: Path) -> None:
     command.upgrade(config, "head")
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     assert {"schematic_artifacts", "erc_reports"} <= set(inspect(engine).get_table_names())
+    engine.dispose()
+
+    command.downgrade(config, "0012_m10_schematic")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    assert not {"mcu_configs", "mcu_config_rule_results"} & set(inspect(engine).get_table_names())
+    engine.dispose()
+
+    command.upgrade(config, "head")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    assert {"mcu_configs", "mcu_config_rule_results"} <= set(inspect(engine).get_table_names())
     engine.dispose()
 
     command.downgrade(config, "0008_m6_review_fixes")

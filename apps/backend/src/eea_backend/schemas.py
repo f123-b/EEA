@@ -32,6 +32,15 @@ from eea_core.enums import (
     TraceabilityRelation,
     VerificationLevel,
 )
+from eea_core.mcu_config import (
+    DMAIR,
+    ClockIR,
+    DebugConfigIR,
+    GPIOConfig,
+    InterruptConfigIR,
+    MemoryConfigIR,
+    PeripheralConfigIR,
+)
 from eea_core.schematic import ErcIssue
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -546,6 +555,70 @@ class SchematicValidateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schematic_id: UUID
+
+
+class MCUConfigGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hardware_ir_id: UUID
+    circuit_id: UUID
+    schematic_id: UUID
+    device_instance_id: UUID
+    clock: ClockIR
+    gpio: list[GPIOConfig] = Field(default_factory=list)
+    peripherals: list[PeripheralConfigIR] = Field(default_factory=list)
+    dma: list[DMAIR] = Field(default_factory=list)
+    interrupts: list[InterruptConfigIR] = Field(default_factory=list)
+    memory: MemoryConfigIR | None = None
+    debug: DebugConfigIR | None = None
+    capability_snapshot: dict[str, object] = Field(default_factory=dict)
+
+
+class MCUConfigData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    hardware_ir_id: UUID
+    hardware_ir_revision: int
+    circuit_id: UUID
+    circuit_revision: int
+    schematic_id: UUID
+    schematic_revision: int
+    device_instance_id: UUID
+    clock: ClockIR
+    gpio: list[GPIOConfig]
+    peripherals: list[PeripheralConfigIR]
+    dma: list[DMAIR]
+    interrupts: list[InterruptConfigIR]
+    memory: MemoryConfigIR | None
+    debug: DebugConfigIR | None
+    capability_snapshot: dict[str, object]
+    rule_results: list[dict[str, object]]
+    requirement_ids: list[UUID]
+    evidence_ids: list[UUID]
+    pin_assignment_revisions: dict[str, int]
+    status: ArtifactStatus
+
+
+class MCUConfigBundleData(BaseModel):
+    config: MCUConfigData
+    rule_results: list[dict[str, object]]
+
+
+class MCUConfigValidateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    config_id: UUID
+
+
+class MCUConfigValidationData(BaseModel):
+    config_id: UUID
+    config_revision: int
+    rule_results: list[dict[str, object]]
 
 
 class ErcImportRequest(BaseModel):

@@ -538,6 +538,73 @@ class ErcReportRecord(CoreRecordMixin, Base):
     recommendation: Mapped[str] = mapped_column(Text, nullable=False)
 
 
+class MCUConfigRecord(CoreRecordMixin, Base):
+    __tablename__ = "mcu_configs"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(f"status IN ({_enum_values(ArtifactStatus)})", name="status"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    hardware_ir_id: Mapped[str] = mapped_column(
+        ForeignKey("hardware_irs.id"), nullable=False, index=True
+    )
+    hardware_ir_revision: Mapped[int] = mapped_column(nullable=False)
+    circuit_id: Mapped[str] = mapped_column(ForeignKey("circuits.id"), nullable=False, index=True)
+    circuit_revision: Mapped[int] = mapped_column(nullable=False)
+    schematic_id: Mapped[str] = mapped_column(
+        ForeignKey("schematic_artifacts.id"), nullable=False, index=True
+    )
+    schematic_revision: Mapped[int] = mapped_column(nullable=False)
+    device_instance_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    clock: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    gpio: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    peripherals: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    dma: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    interrupts: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    memory: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    debug: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    capability_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    pin_assignment_revisions: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class MCUConfigRuleResultRecord(CoreRecordMixin, Base):
+    __tablename__ = "mcu_config_rule_results"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            "stage IN ('PRE_GENERATION', 'POST_GENERATION', 'PRE_TOOL', 'POST_TOOL', "
+            "'RELEASE_GATE')",
+            name="stage",
+        ),
+        CheckConstraint(
+            "status IN ('PASS', 'FAIL', 'NOT_APPLICABLE', 'UNKNOWN')",
+            name="status",
+        ),
+        CheckConstraint(f"severity IN ({_enum_values(IssueSeverity)})", name="severity"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    mcu_config_id: Mapped[str] = mapped_column(
+        ForeignKey("mcu_configs.id"), nullable=False, index=True
+    )
+    rule_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    rule_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    stage: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    affected_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    measured: Mapped[object | None] = mapped_column(JSON)
+    threshold: Mapped[object | None] = mapped_column(JSON)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    recommendation: Mapped[str] = mapped_column(Text, nullable=False)
+    input_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+
+
 class PromptDefinitionRecord(CoreRecordMixin, Base):
     __tablename__ = "prompt_definitions"
     __table_args__ = (
