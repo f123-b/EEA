@@ -330,7 +330,15 @@ class ReviewEngine:
                             or (
                                 "Test result has no verification authority"
                                 if result.result_authority is TestResultAuthority.CONTRACT_ONLY
-                                else "Trusted evidence is required for this result authority"
+                                else (
+                                    "Trusted evidence is required for this result authority"
+                                    if (
+                                        result.result_authority
+                                        is TestResultAuthority.TRUSTED_EVIDENCE
+                                        and not result.evidence_ids
+                                    )
+                                    else f"Test case status is {result.status.value}"
+                                )
                             ),
                             "TestCaseResult",
                             result.test_case_code,
