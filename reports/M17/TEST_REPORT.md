@@ -51,6 +51,31 @@ concurrency, traceability upsert CAS concurrency, and evidence union.
 No migration was added for M17R.1; the clean database gate remains at
 `0023_m17_test_traceability_review`.
 
+## Acceptance closure
+
+M17 acceptance explicitly closes the following review conditions:
+
+- A `TestCase` definition PASS is not a Requirement verification PASS.
+- `CONTRACT_ONLY` never contributes to Verification Coverage.
+- `DETERMINISTIC_VERIFICATION` is the deterministic verification authority.
+- `TRUSTED_EVIDENCE` requires evidence IDs before it has verification authority.
+- Requirement revision freshness, TestIR/TestRun freshness, and SourceRevision
+  freshness are fail-closed.
+- Deterministic failure cannot be bypassed by Review policy flags.
+- Review final state is restricted to `PASS`, `FAIL`, `UNKNOWN`, or `BLOCKED`;
+  `SKIPPED` cannot become Review `PASS`.
+- Stable semantic Issue dedupe, concurrent Issue occurrence/evidence handling,
+  and CAS-hardened concurrent Traceability evidence union are covered.
+- M18 has not started.
+
+Acceptance implementation head:
+`a806b805784599500f54dc7923768becc73bf4f7`
+
+Acceptance CI evidence:
+
+- PR CI `31601493785`: backend PASS, desktop PASS.
+- Push CI `31601489575`: backend PASS, desktop PASS.
+
 The repository's `uv` Windows interpreter redirector reports a process-launch
 error in the existing M5 Sandbox subprocess tests. Re-running the same M5
 tests with the authoritative Python 3.12.13 interpreter passes (`8 passed,
@@ -58,11 +83,15 @@ tests with the authoritative Python 3.12.13 interpreter passes (`8 passed,
 
 ## Status
 
-`M17R.1 = IMPLEMENTED`
+`M17 = ACCEPTED`
+
+`M17R = ACCEPTED`
+
+`M17R.1 = ACCEPTED`
 
 `READY_FOR_M17_FINAL_REVIEW = YES`
 
-`READY_FOR_M18 = NO`
+`READY_FOR_M18 = YES`
 
 `M18 = NOT_STARTED`
 
@@ -70,6 +99,5 @@ tests with the authoritative Python 3.12.13 interpreter passes (`8 passed,
 
 `M21 = NOT_STARTED`
 
-This report records local implementation verification and the latest pushed
-implementation HEAD CI verification. The pull request remains Draft pending
-the repository acceptance decision.
+This report records accepted implementation verification. M18 remains
+`NOT_STARTED`; M19 and M21 remain `NOT_STARTED`.
