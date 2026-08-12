@@ -160,6 +160,7 @@ class IssueRecord(CoreRecordMixin, Base):
         CheckConstraint("revision >= 1", name="revision_positive"),
         CheckConstraint(f"severity IN ({_enum_values(IssueSeverity)})", name="severity"),
         CheckConstraint(f"status IN ({_enum_values(IssueStatus)})", name="status"),
+        UniqueConstraint("project_id", "dedupe_key", name="uq_issues_project_dedupe_key"),
     )
 
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
@@ -171,6 +172,14 @@ class IssueRecord(CoreRecordMixin, Base):
     claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     resolution: Mapped[str | None] = mapped_column(Text)
+    dedupe_key: Mapped[str | None] = mapped_column(String(64), index=True)
+    source_kind: Mapped[str | None] = mapped_column(String(100))
+    source_ref: Mapped[str | None] = mapped_column(String(300))
+    affected_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    occurrence_count: Mapped[int] = mapped_column(nullable=False, default=1)
+    last_review_id: Mapped[str | None] = mapped_column(String(36))
 
 
 class EngineeringDecisionRecord(CoreRecordMixin, Base):
@@ -253,6 +262,73 @@ class TraceabilityEdgeRecord(CoreRecordMixin, Base):
     target_id: Mapped[str] = mapped_column(String(36), nullable=False)
     relation: Mapped[str] = mapped_column(String(40), nullable=False)
     evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+
+class TestIRRecord(CoreRecordMixin, Base):
+    __tablename__ = "test_irs"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        UniqueConstraint("project_id", "input_hash", name="uq_test_irs_project_input_hash"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    requirement_revisions: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+    requirement_snapshots: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    cases: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    generator_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+
+class TestRunRecord(CoreRecordMixin, Base):
+    __tablename__ = "test_runs"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            "status IN ('PASS', 'FAIL', 'UNKNOWN', 'BLOCKED', 'SKIPPED')", name="status"
+        ),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    test_ir_id: Mapped[str] = mapped_column(ForeignKey("test_irs.id"), nullable=False, index=True)
+    test_ir_revision: Mapped[int] = mapped_column(nullable=False)
+    test_input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_revision_id: Mapped[str] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    case_results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    tool_versions: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+
+class ReviewRunRecord(CoreRecordMixin, Base):
+    __tablename__ = "review_runs"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("status IN ('PASS', 'FAIL', 'UNKNOWN', 'BLOCKED')", name="status"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    source_revision_id: Mapped[str] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=False, index=True
+    )
+    policy_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    build_run_id: Mapped[str | None] = mapped_column(String(36))
+    static_analysis_id: Mapped[str | None] = mapped_column(String(36))
+    test_run_id: Mapped[str | None] = mapped_column(String(36))
+    test_ir_id: Mapped[str | None] = mapped_column(String(36))
+    test_ir_revision: Mapped[int | None] = mapped_column()
+    protocol_id: Mapped[str | None] = mapped_column(String(36))
+    protocol_revision: Mapped[int | None] = mapped_column()
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    findings: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    issue_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
 
 
 class SchemaRegistryRecord(Base):

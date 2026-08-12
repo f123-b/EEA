@@ -16,6 +16,7 @@ from eea_application.requirements import (
     build_foc_benchmark_profile,
     ensure_requirement_prompt_registered,
 )
+from eea_application.testing import TestExecutorRegistry
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from eea_ports.ai import AIProvider
@@ -153,6 +154,7 @@ def create_app(
         else DomainExtensionRegistry((build_motor_control_plugin(),))
     )
     application.state.static_analysis_provider = CppcheckAdapter()
+    application.state.test_executor_registry = TestExecutorRegistry()
     component_source = resolved_settings.stm32cube_g4_source
     if component_source is None:
         candidate = Path(".eea-component-cache/source/STM32CubeG4-v1.6.3")
