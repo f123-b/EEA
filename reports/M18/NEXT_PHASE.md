@@ -20,4 +20,4 @@ project isolation, bootstrap scope, API semantics, and generated contracts.
 
 `M18A = NOT_STARTED`
 
-`READY_FOR_M18_REVIEW = NO`
+`READY_FOR_M18_REVIEW = YES`

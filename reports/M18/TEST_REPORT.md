@@ -52,9 +52,9 @@ and generated contract synchronization.
 
 `M18 = IMPLEMENTED`
 
-`READY_FOR_M18_REVIEW = NO`
+`READY_FOR_M18_REVIEW = YES`
 
 `M18A = NOT_STARTED`
 
-This report records implementation and automated verification only. Human review
-is still required before the readiness flag is changed.
+This report records implementation and automated verification. Human review is
+now the remaining gate before M18 closure.
