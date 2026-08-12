@@ -22,12 +22,12 @@ M21 Desktop UI, or any ProtocolIR changes.
 
 ## Verification
 
-Focused M17/M17R tests: **22 passed**.
+Focused M17/M17R.1 tests: **27 passed**.
 
 Repository verification under the authoritative Python 3.12.13 interpreter:
 
-- `pytest`: **273 passed, 3 skipped**
-- coverage: **84.98%**
+- `pytest`: **278 passed, 3 skipped**
+- coverage: **84.99%**
 - `ruff check .`: **PASS**
 - `ruff format --check .`: **PASS**
 - `mypy`: **PASS**
@@ -39,23 +39,28 @@ Repository verification under the authoritative Python 3.12.13 interpreter:
 - `pnpm typecheck`: **PASS**
 - `pnpm build`: **PASS**
 
-M17R focused assertions include the HTTP app-state controlled executor,
-unknown/arbitrary executor blocking, requirement and TestIR/TestRun/source
-freshness, missing/duplicate result fail-closed behavior, policy bypass
-regressions, SKIPPED/PENDING/RUNNING mappings, semantic review hashes, stable
-Issue recurrence with two-session SQLite concurrency, traceability upsert
-concurrency, and evidence propagation.
+M17R.1 focused assertions include the distinction between contract-only results
+and authorized verification, a project-scoped deterministic fact executor that
+can produce a real PASS, evidence-required TRUSTED_EVIDENCE, unknown/arbitrary
+executor blocking, requirement and TestIR/TestRun/source freshness,
+missing/duplicate result fail-closed behavior, policy bypass regressions,
+SKIPPED/PENDING/RUNNING mappings, semantic review hashes, stable TestCase and
+Rule source identity, stable Issue recurrence with two-session SQLite
+concurrency, traceability upsert CAS concurrency, and evidence union.
+
+No migration was added for M17R.1; the clean database gate remains at
+`0023_m17_test_traceability_review`.
 
 The repository's `uv` Windows interpreter redirector reports a process-launch
 error in the existing M5 Sandbox subprocess tests. Re-running the same M5
-tests with the authoritative Python 3.12.4 interpreter passes (`8 passed,
-3 skipped`). No Sandbox source was changed by M17.
+tests with the authoritative Python 3.12.13 interpreter passes (`8 passed,
+3 skipped`). No Sandbox source was changed by M17R.1.
 
 ## Status
 
-`M17R = IMPLEMENTED`
+`M17R.1 = IMPLEMENTED`
 
-`READY_FOR_M17_FINAL_REVIEW = YES`
+`READY_FOR_M17_FINAL_REVIEW = NO`
 
 `READY_FOR_M18 = NO`
 
@@ -65,5 +70,5 @@ tests with the authoritative Python 3.12.4 interpreter passes (`8 passed,
 
 `M21 = NOT_STARTED`
 
-This report records implementation verification only. Final review readiness
+This report records local implementation verification. Final review readiness
 will be set to YES only after the latest pushed HEAD CI passes.

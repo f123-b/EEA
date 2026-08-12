@@ -238,43 +238,76 @@ class SqlAlchemyTraceabilityRepository:
             TraceabilityEdgeRecord.target_id == str(edge.target_id),
             TraceabilityEdgeRecord.relation == edge.relation.value,
         )
-        existing = self.session.scalar(select(TraceabilityEdgeRecord).where(*identity))
-        if existing is not None:
-            existing.evidence_ids = sorted(
-                set(existing.evidence_ids) | {str(item) for item in edge.evidence_ids}
+        for _ in range(5):
+            existing = self.session.scalar(
+                select(TraceabilityEdgeRecord)
+                .where(*identity)
+                .execution_options(populate_existing=True)
             )
-            if commit:
-                self.session.commit()
-            return self._to_edge(existing)
-        candidate = TraceabilityEdgeRecord(
-            id=str(edge.id),
-            schema_version=edge.schema_version,
-            revision=edge.revision,
-            created_at=edge.created_at,
-            updated_at=edge.updated_at,
-            entity_metadata=edge.metadata,
-            project_id=str(edge.project_id),
-            source_type=edge.source_type,
-            source_id=str(edge.source_id),
-            target_type=edge.target_type,
-            target_id=str(edge.target_id),
-            relation=edge.relation.value,
-            evidence_ids=[str(item) for item in edge.evidence_ids],
-        )
-        try:
-            with self.session.begin_nested():
-                self.session.add(candidate)
-                self.session.flush()
-        except IntegrityError:
-            existing = self.session.scalar(select(TraceabilityEdgeRecord).where(*identity))
             if existing is None:
-                raise
-            existing.evidence_ids = sorted(
+                candidate = TraceabilityEdgeRecord(
+                    id=str(edge.id),
+                    schema_version=edge.schema_version,
+                    revision=edge.revision,
+                    created_at=edge.created_at,
+                    updated_at=edge.updated_at,
+                    entity_metadata=edge.metadata,
+                    project_id=str(edge.project_id),
+                    source_type=edge.source_type,
+                    source_id=str(edge.source_id),
+                    target_type=edge.target_type,
+                    target_id=str(edge.target_id),
+                    relation=edge.relation.value,
+                    evidence_ids=[str(item) for item in edge.evidence_ids],
+                )
+                try:
+                    with self.session.begin_nested():
+                        self.session.add(candidate)
+                        self.session.flush()
+                except IntegrityError:
+                    continue
+                if commit:
+                    self.session.commit()
+                return self._to_edge(candidate)
+            current_revision = existing.revision
+            merged_evidence = sorted(
                 set(existing.evidence_ids) | {str(item) for item in edge.evidence_ids}
             )
-        if commit:
-            self.session.commit()
-        return self._to_edge(existing or candidate)
+            now = utc_now()
+            result = cast(
+                CursorResult[Any],
+                self.session.execute(
+                    update(TraceabilityEdgeRecord)
+                    .where(*identity, TraceabilityEdgeRecord.revision == current_revision)
+                    .values(
+                        evidence_ids=merged_evidence,
+                        revision=TraceabilityEdgeRecord.revision + 1,
+                        updated_at=case(
+                            (
+                                TraceabilityEdgeRecord.updated_at > now,
+                                TraceabilityEdgeRecord.updated_at,
+                            ),
+                            (
+                                TraceabilityEdgeRecord.created_at > now,
+                                TraceabilityEdgeRecord.created_at,
+                            ),
+                            else_=now,
+                        ),
+                    )
+                ),
+            )
+            if result.rowcount == 1:
+                if commit:
+                    self.session.commit()
+                refreshed = self.session.scalar(
+                    select(TraceabilityEdgeRecord)
+                    .where(*identity)
+                    .execution_options(populate_existing=True)
+                )
+                if refreshed is None:
+                    raise RuntimeError("traceability edge disappeared after CAS update")
+                return self._to_edge(refreshed)
+        raise RuntimeError("traceability edge evidence union exceeded controlled retries")
 
     def list_for_project(self, project_id: UUID) -> list[TraceabilityEdge]:
         records = self.session.scalars(

@@ -14,6 +14,7 @@ from eea_core.testing import (
     TestCaseResult,
     TestExecutionStatus,
     TestIR,
+    TestResultAuthority,
     TestRun,
     TestType,
     acceptance_criteria_hash,
@@ -24,6 +25,7 @@ from eea_core.testing import (
 class TestExecutor(Protocol):
     executor_id: str
     controlled: bool
+    result_authority: TestResultAuthority
 
     def execute(self, case: TestCase) -> TestCaseResult: ...
 
@@ -52,11 +54,16 @@ class TestExecutorRegistry:
             raise ValueError("project executor_id must be unique and non-empty")
         project_registry[executor.executor_id] = executor
 
-    def ensure_project(self, project_id: UUID) -> None:
-        if project_id not in self._project_executors:
-            self._project_executors[project_id] = {
-                ControlledRequirementExecutor.executor_id: ControlledRequirementExecutor(project_id)
-            }
+    def ensure_project(self, project_id: UUID, facts: dict[str, object] | None = None) -> None:
+        project_registry = self._project_executors.setdefault(project_id, {})
+        project_registry.setdefault(
+            ControlledRequirementExecutor.executor_id,
+            ControlledRequirementExecutor(project_id),
+        )
+        if facts is not None:
+            project_registry[DeterministicFactExecutor.executor_id] = DeterministicFactExecutor(
+                project_id, facts
+            )
 
     def execute(self, case: TestCase, *, project_id: UUID | None = None) -> TestCaseResult:
         if case.automation_level is AutomationLevel.MANUAL:
@@ -81,14 +88,28 @@ class TestExecutorRegistry:
         result = executors[case.executor_id].execute(case)
         if result.test_case_id != case.id:
             raise ValueError("executor returned a result for a different test case")
+        executor_authority = getattr(
+            executors[case.executor_id],
+            "result_authority",
+            TestResultAuthority.CONTRACT_ONLY,
+        )
+        if result.result_authority is not executor_authority:
+            return result.model_copy(
+                update={
+                    "status": TestExecutionStatus.BLOCKED,
+                    "message": "Executor result authority is invalid",
+                    "result_authority": TestResultAuthority.CONTRACT_ONLY,
+                }
+            )
         return result
 
 
 class ControlledRequirementExecutor:
-    """A deterministic, project-scoped contract executor with no code execution."""
+    """A project-scoped contract checker, never a requirement verification source."""
 
     executor_id = "controlled.requirement.contract.v1"
     controlled = True
+    result_authority = TestResultAuthority.CONTRACT_ONLY
 
     def __init__(self, project_id: UUID) -> None:
         self.project_id = project_id
@@ -112,10 +133,50 @@ class ControlledRequirementExecutor:
             test_case_id=case.id,
             test_case_code=case.code,
             status=TestExecutionStatus.PASS if valid else TestExecutionStatus.BLOCKED,
+            result_authority=self.result_authority,
             message="Structured TestCase contract verified"
             if valid
             else "TestCase contract is incomplete",
             executor_id=self.executor_id,
+        )
+
+
+class DeterministicFactExecutor:
+    """Compare a case's expected value with a server-owned project fact."""
+
+    executor_id = "controlled.project.fact.v1"
+    controlled = True
+    result_authority = TestResultAuthority.DETERMINISTIC_VERIFICATION
+
+    def __init__(self, project_id: UUID, facts: dict[str, object]) -> None:
+        self.project_id = project_id
+        self._facts = dict(facts)
+
+    def execute(self, case: TestCase) -> TestCaseResult:
+        fact_name = case.executor_config.get("fact")
+        expected = case.executor_config.get("expected")
+        if not isinstance(fact_name, str) or fact_name not in self._facts:
+            return TestCaseResult(
+                id=uuid4(),
+                test_case_id=case.id,
+                test_case_code=case.code,
+                status=TestExecutionStatus.BLOCKED,
+                message="Trusted project fact is unavailable",
+                executor_id=self.executor_id,
+                result_authority=self.result_authority,
+            )
+        observed = self._facts[fact_name]
+        matched = observed == expected
+        return TestCaseResult(
+            id=uuid4(),
+            test_case_id=case.id,
+            test_case_code=case.code,
+            status=TestExecutionStatus.PASS if matched else TestExecutionStatus.FAIL,
+            message="Trusted project fact matched" if matched else "Trusted project fact mismatch",
+            observed=observed,
+            expected=expected,
+            executor_id=self.executor_id,
+            result_authority=self.result_authority,
         )
 
 
@@ -211,6 +272,7 @@ class TestRunService:
 
 __all__ = [
     "ControlledRequirementExecutor",
+    "DeterministicFactExecutor",
     "TestExecutor",
     "TestExecutorRegistry",
     "TestGenerationResult",

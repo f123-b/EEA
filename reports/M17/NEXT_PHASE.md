@@ -9,9 +9,9 @@ deduplication, migration parity, and generated API contracts. After review,
 the pull request may be updated with CI evidence; it must remain unmerged
 until the repository acceptance decision is made.
 
-`M17R = IMPLEMENTED`
+`M17R.1 = IMPLEMENTED`
 
-`READY_FOR_M17_FINAL_REVIEW = YES`
+`READY_FOR_M17_FINAL_REVIEW = NO`
 
 `READY_FOR_M18 = NO`
 

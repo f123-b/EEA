@@ -55,6 +55,7 @@ class ReviewFinding(BaseModel):
             "project_id": str(project_id),
             "code": self.code,
             "source_kind": self.source_kind,
+            "source_ref": self.source_ref,
             "affected_refs": sorted(self.affected_refs),
         }
         key = hashlib.sha256(

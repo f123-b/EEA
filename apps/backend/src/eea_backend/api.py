@@ -2511,7 +2511,7 @@ def run_tests(
             details={"test_ir_id": str(payload.test_ir_id) if payload.test_ir_id else None},
         )
     registry = request.app.state.test_executor_registry
-    registry.ensure_project(project_id)
+    registry.ensure_project(project_id, facts={"source_revision.exists": True})
     test_run = TestRunService(registry).run(
         project_id=project_id, test_ir=test_ir, source_revision_id=payload.source_revision_id
     )

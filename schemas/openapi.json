@@ -11001,6 +11001,10 @@
             ],
             "title": "Observed"
           },
+          "result_authority": {
+            "$ref": "#/components/schemas/TestResultAuthority",
+            "default": "CONTRACT_ONLY"
+          },
           "status": {
             "$ref": "#/components/schemas/TestExecutionStatus"
           },
@@ -11182,6 +11186,16 @@
         ],
         "title": "TestIRListData",
         "type": "object"
+      },
+      "TestResultAuthority": {
+        "description": "Authority carried by a result; contract checks are not verification evidence.",
+        "enum": [
+          "CONTRACT_ONLY",
+          "DETERMINISTIC_VERIFICATION",
+          "TRUSTED_EVIDENCE"
+        ],
+        "title": "TestResultAuthority",
+        "type": "string"
       },
       "TestRun": {
         "additionalProperties": false,

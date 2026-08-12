@@ -23,6 +23,7 @@ from eea_core.testing import (
     TestCaseResult,
     TestExecutionStatus,
     TestIR,
+    TestResultAuthority,
     TestRun,
     TestType,
 )
@@ -46,6 +47,7 @@ __all__ = [
     "TestCaseResult",
     "TestExecutionStatus",
     "TestIR",
+    "TestResultAuthority",
     "TestRun",
     "TestType",
 ]

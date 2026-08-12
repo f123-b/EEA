@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from eea_application.review import ReviewEngine, TestCoverageService
 from eea_application.testing import (
     ControlledRequirementExecutor,
+    DeterministicFactExecutor,
 )
 from eea_application.testing import (
     TestExecutorRegistry as ExecutorRegistry,
@@ -35,6 +36,8 @@ from eea_core.testing import (
     TestCaseResult,
     TestExecutionStatus,
     TestIR,
+    TestResultAuthority,
+    TestRun,
 )
 
 PROJECT = UUID("00000000-0000-0000-0000-000000000017")
@@ -104,6 +107,7 @@ def test_gap_requirement_revision_is_in_test_ir_hash_even_without_criteria() -> 
 class _PassExecutor:
     executor_id = "structured.pass"
     controlled = True
+    result_authority = TestResultAuthority.DETERMINISTIC_VERIFICATION
 
     def execute(self, case: TestCase) -> TestCaseResult:
         return TestCaseResult(
@@ -112,6 +116,7 @@ class _PassExecutor:
             test_case_code=case.code,
             status=TestExecutionStatus.PASS,
             executor_id=self.executor_id,
+            result_authority=self.result_authority,
         )
 
 
@@ -152,11 +157,81 @@ def test_default_controlled_requirement_executor_is_project_scoped_and_exact() -
     assert registry.execute(arbitrary, project_id=PROJECT).status is TestExecutionStatus.BLOCKED
 
 
-def test_coverage_rejects_stale_snapshot_test_run_source_and_missing_result() -> None:
-    requirement = _requirement(criteria=["one", "two"])
+def test_requirement_contract_pass_cannot_verify_requirement() -> None:
+    requirement = _requirement()
     test_ir = GenerationService().generate(PROJECT, [requirement]).test_ir
     registry = ExecutorRegistry()
     registry.ensure_project(PROJECT)
+    run = RunService(registry).run(project_id=PROJECT, test_ir=test_ir, source_revision_id=SOURCE)
+    assert run.status is TestExecutionStatus.BLOCKED
+    coverage = TestCoverageService().calculate(
+        [requirement], test_ir, run, source_revision_id=SOURCE
+    )
+    assert coverage.verified_requirements == 0
+    assert coverage.verification_coverage_ratio == 0.0
+
+
+def test_project_fact_executor_can_produce_authorized_verification_pass() -> None:
+    case = TestCase(
+        id=uuid4(),
+        code="FACT_1",
+        title="trusted fact",
+        pass_condition="source revision exists",
+        executor_id=DeterministicFactExecutor.executor_id,
+        executor_config={"fact": "source_revision.exists", "expected": True},
+    )
+    registry = ExecutorRegistry()
+    registry.register_for_project(
+        PROJECT,
+        DeterministicFactExecutor(PROJECT, {"source_revision.exists": True}),
+    )
+    result = registry.execute(case, project_id=PROJECT)
+    assert result.status is TestExecutionStatus.PASS
+    assert result.result_authority is TestResultAuthority.DETERMINISTIC_VERIFICATION
+
+
+def test_trusted_evidence_requires_evidence_ids_before_verification() -> None:
+    result = TestCaseResult(
+        id=uuid4(),
+        test_case_id=uuid4(),
+        test_case_code="TRUSTED",
+        status=TestExecutionStatus.PASS,
+        result_authority=TestResultAuthority.TRUSTED_EVIDENCE,
+    )
+    assert not result.verification_authorized
+    assert TestRun.aggregate_status((result,)) is TestExecutionStatus.BLOCKED
+
+    authorized = result.model_copy(update={"evidence_ids": (uuid4(),)})
+    assert authorized.verification_authorized
+    assert TestRun.aggregate_status((authorized,)) is TestExecutionStatus.PASS
+
+
+def test_coverage_rejects_stale_snapshot_test_run_source_and_missing_result() -> None:
+    requirement = _requirement(criteria=["one", "two"])
+    generated = GenerationService().generate(PROJECT, [requirement]).test_ir
+    test_ir = TestIR.build(
+        project_id=PROJECT,
+        requirement_ids=generated.requirement_ids,
+        requirement_revisions=generated.requirement_revisions,
+        requirement_snapshots=generated.requirement_snapshots,
+        cases=tuple(
+            case.model_copy(
+                update={
+                    "executor_id": DeterministicFactExecutor.executor_id,
+                    "executor_config": {
+                        "fact": "requirement.acceptance_criteria_verified",
+                        "expected": True,
+                    },
+                }
+            )
+            for case in generated.cases
+        ),
+    )
+    registry = ExecutorRegistry()
+    registry.register_for_project(
+        PROJECT,
+        DeterministicFactExecutor(PROJECT, {"requirement.acceptance_criteria_verified": True}),
+    )
     run = RunService(registry).run(project_id=PROJECT, test_ir=test_ir, source_revision_id=SOURCE)
     current = TestCoverageService().calculate(
         [requirement], test_ir, run, source_revision_id=SOURCE
@@ -508,3 +583,32 @@ def test_finding_dedupe_key_is_stable_and_affected_ref_sensitive() -> None:
     different = base.model_copy(update={"affected_refs": ("a", "c")}).with_dedupe_key(PROJECT)
     assert same.dedupe_key == reordered.dedupe_key
     assert same.dedupe_key != different.dedupe_key
+
+
+def test_finding_dedupe_identity_distinguishes_test_cases_and_rules() -> None:
+    base = ReviewFinding(
+        code="TEST_RESULT_FAIL",
+        title="test",
+        message="failed",
+        source_kind="TestCaseResult",
+        source_ref="test-case-a",
+        severity=IssueSeverity.CRITICAL,
+        status=TestExecutionStatus.FAIL,
+    )
+    other_test = base.model_copy(update={"source_ref": "test-case-b"})
+    assert (
+        base.with_dedupe_key(PROJECT).dedupe_key != other_test.with_dedupe_key(PROJECT).dedupe_key
+    )
+
+    rule_a = ReviewFinding(
+        code="RULE_FAIL",
+        title="rule",
+        message="failed",
+        source_kind="RuleResult",
+        source_ref="RULE_A",
+        severity=IssueSeverity.HIGH,
+        status=TestExecutionStatus.FAIL,
+    )
+    rule_b = rule_a.model_copy(update={"source_ref": "RULE_B"})
+    assert rule_a.with_dedupe_key(PROJECT).dedupe_key != rule_b.with_dedupe_key(PROJECT).dedupe_key
+    assert rule_a.with_dedupe_key(PROJECT).dedupe_key == rule_a.with_dedupe_key(PROJECT).dedupe_key

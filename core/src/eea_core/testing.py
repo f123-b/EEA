@@ -50,6 +50,14 @@ class TestExecutionStatus(StrEnum):
     SKIPPED = "SKIPPED"
 
 
+class TestResultAuthority(StrEnum):
+    """Authority carried by a result; contract checks are not verification evidence."""
+
+    CONTRACT_ONLY = "CONTRACT_ONLY"
+    DETERMINISTIC_VERIFICATION = "DETERMINISTIC_VERIFICATION"
+    TRUSTED_EVIDENCE = "TRUSTED_EVIDENCE"
+
+
 class RequirementTestSnapshot(BaseModel):
     """The requirement facts used when a TestIR was generated."""
 
@@ -215,6 +223,7 @@ class TestCaseResult(BaseModel):
     test_case_id: UUID
     test_case_code: str
     status: TestExecutionStatus
+    result_authority: TestResultAuthority = TestResultAuthority.CONTRACT_ONLY
     duration_ms: int = Field(default=0, ge=0)
     message: str = ""
     observed: object | None = None
@@ -222,6 +231,15 @@ class TestCaseResult(BaseModel):
     evidence_ids: tuple[UUID, ...] = ()
     executor_id: str | None = None
     failure: dict[str, object] | None = None
+
+    @property
+    def verification_authorized(self) -> bool:
+        """Return whether this result can count as acceptance verification."""
+
+        return self.result_authority is TestResultAuthority.DETERMINISTIC_VERIFICATION or (
+            self.result_authority is TestResultAuthority.TRUSTED_EVIDENCE
+            and bool(self.evidence_ids)
+        )
 
 
 class TestRun(EntityBase):
@@ -252,7 +270,11 @@ class TestRun(EntityBase):
         ):
             if status in statuses:
                 return status
-        return TestExecutionStatus.PASS if results else TestExecutionStatus.UNKNOWN
+        if not results:
+            return TestExecutionStatus.UNKNOWN
+        if any(not result.verification_authorized for result in results):
+            return TestExecutionStatus.BLOCKED
+        return TestExecutionStatus.PASS
 
 
 def deterministic_case_id(
@@ -278,6 +300,7 @@ __all__ = [
     "TestCaseResult",
     "TestExecutionStatus",
     "TestIR",
+    "TestResultAuthority",
     "TestRun",
     "TestType",
     "acceptance_criteria_hash",

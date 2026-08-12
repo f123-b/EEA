@@ -16,6 +16,7 @@ from eea_core.static_analysis import FirmwareStaticAnalysis
 from eea_core.testing import (
     TestExecutionStatus,
     TestIR,
+    TestResultAuthority,
     TestRun,
     acceptance_criteria_hash,
 )
@@ -120,6 +121,12 @@ class TestCoverageService:
                 failing.add(requirement.id)
             if TestExecutionStatus.BLOCKED in statuses or TestExecutionStatus.SKIPPED in statuses:
                 blocked.add(requirement.id)
+            if any(
+                not results[case.id].verification_authorized
+                for case in required_cases
+                if case.id in results
+            ):
+                blocked.add(requirement.id)
             if TestExecutionStatus.UNKNOWN in statuses:
                 unknown.add(requirement.id)
             if (
@@ -127,7 +134,11 @@ class TestCoverageService:
                 and len(statuses) == len(required_cases)
                 and not invalid_for_requirement
                 and not stale.intersection({requirement.id})
-                and all(status is TestExecutionStatus.PASS for status in statuses)
+                and all(
+                    results[case.id].status is TestExecutionStatus.PASS
+                    and results[case.id].verification_authorized
+                    for case in required_cases
+                )
             ):
                 verified.add(requirement.id)
         stale_test_run = bool(
@@ -272,7 +283,7 @@ class ReviewEngine:
                     "Source revision mismatch",
                     "TestRun source revision differs from review source revision",
                     "TestRun",
-                    str(test_run.id),
+                    f"{test_ir.id if test_ir else 'missing'}:{source_revision_id}",
                     TestExecutionStatus.BLOCKED,
                     IssueSeverity.CRITICAL,
                 )
@@ -299,17 +310,33 @@ class ReviewEngine:
                         tuple(str(item) for item in (*missing, *duplicate)),
                     )
                 for result in test_run.case_results:
-                    if (
-                        result.test_case_id in required_ids
-                        and result.status is not TestExecutionStatus.PASS
+                    if result.test_case_id in required_ids and (
+                        result.status is not TestExecutionStatus.PASS
+                        or not result.verification_authorized
                     ):
+                        code = (
+                            "TEST_RESULT_" + result.status.value
+                            if result.status is not TestExecutionStatus.PASS
+                            else (
+                                "TEST_RESULT_CONTRACT_ONLY"
+                                if result.result_authority is TestResultAuthority.CONTRACT_ONLY
+                                else "TEST_RESULT_TRUSTED_EVIDENCE_MISSING"
+                            )
+                        )
                         add(
-                            "TEST_RESULT_" + result.status.value,
+                            code,
                             "Test case is not PASS",
-                            result.message or f"Test case status is {result.status.value}",
+                            result.message
+                            or (
+                                "Test result has no verification authority"
+                                if result.result_authority is TestResultAuthority.CONTRACT_ONLY
+                                else "Trusted evidence is required for this result authority"
+                            ),
                             "TestCaseResult",
                             result.test_case_code,
-                            result.status,
+                            TestExecutionStatus.BLOCKED
+                            if not result.verification_authorized
+                            else result.status,
                             IssueSeverity.CRITICAL,
                             evidence_ids=result.evidence_ids,
                         )
