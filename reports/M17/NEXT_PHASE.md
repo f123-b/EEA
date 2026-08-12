@@ -1,7 +1,8 @@
 # M17 Next Phase
 
-The next action is M17R.1 final repository review and latest implementation-HEAD
-CI verification. It is not M18 implementation.
+M17R.1 final repository review and latest implementation-HEAD CI verification
+are complete. The next action is the repository acceptance decision; it is not
+M18 implementation.
 
 Review must verify the TestIR/TestRun contracts, deterministic generation,
 fail-closed execution and review gates, project-scoped traceability and issue
@@ -11,7 +12,7 @@ until the repository acceptance decision is made.
 
 `M17R.1 = IMPLEMENTED`
 
-`READY_FOR_M17_FINAL_REVIEW = NO`
+`READY_FOR_M17_FINAL_REVIEW = YES`
 
 `READY_FOR_M18 = NO`
 
