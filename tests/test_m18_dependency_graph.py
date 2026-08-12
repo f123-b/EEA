@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from uuid import UUID
 
 import pytest
@@ -129,6 +128,37 @@ class MemoryGraphRepository:
         self.states[key] = state
         return state
 
+    def merge_invalidation_state(
+        self,
+        state: DependencyNodeState,
+        *,
+        expected_revision: int | None = None,
+        commit: bool = True,
+    ) -> DependencyNodeState:
+        return self.upsert_node_state(state, expected_revision=expected_revision, commit=commit)
+
+    def replace_revalidated_state(
+        self,
+        state: DependencyNodeState,
+        *,
+        expected_revision: int | None = None,
+        commit: bool = True,
+    ) -> DependencyNodeState:
+        key = (state.project_id, state.entity_type, state.entity_id)
+        current = self.states.get(key)
+        if current is not None:
+            if expected_revision is not None and current.revision != expected_revision:
+                raise ValueError("CAS conflict")
+            state = state.model_copy(
+                update={
+                    "id": current.id,
+                    "revision": current.revision + 1,
+                    "created_at": current.created_at,
+                }
+            )
+        self.states[key] = state
+        return state
+
     def rebind(self, project_id: UUID, **kwargs: object) -> EngineeringDependencyEdge | None:
         key = (
             project_id,
@@ -154,15 +184,15 @@ class MemoryGraphRepository:
 def _provider(
     nodes: dict[tuple[str, str], DependencyNodeSnapshot],
 ) -> DependencyNodeProviderRegistry:
-    grouped: dict[str, dict[str, DependencyNodeSnapshot]] = defaultdict(dict)
-    for (entity_type, entity_id), snapshot in nodes.items():
-        grouped[entity_type][entity_id] = snapshot
+    entity_types = sorted({entity_type for entity_type, _ in nodes})
     return DependencyNodeProviderRegistry(
         CallbackDependencyNodeProvider(
             entity_type,
-            lambda _project_id, entity_id, values=values: values.get(entity_id),
+            lambda _project_id, entity_id, entity_type=entity_type: nodes.get(
+                (entity_type, entity_id)
+            ),
         )
-        for entity_type, values in grouped.items()
+        for entity_type in entity_types
     )
 
 
@@ -181,9 +211,89 @@ def _snap(
     )
 
 
-def test_semantic_hash_ignores_mapping_order_and_sorts_reference_lists() -> None:
-    assert canonical_semantic_hash({"b": ["z", "a"], "a": 1}) == canonical_semantic_hash(
+def test_semantic_hash_preserves_sequence_order_and_sorts_sets() -> None:
+    assert canonical_semantic_hash({"b": ["z", "a"], "a": 1}) != canonical_semantic_hash(
         {"a": 1, "b": ["a", "z"]}
+    )
+    assert canonical_semantic_hash({"ids": {"a", "b"}}) == canonical_semantic_hash(
+        {"ids": {"b", "a"}}
+    )
+
+
+def test_set_like_reference_provider_can_normalize_list_order() -> None:
+    assert canonical_semantic_hash(
+        {"requirement_ids": sorted(["b", "a"])}
+    ) == canonical_semantic_hash({"requirement_ids": sorted(["a", "b"])})
+
+
+def test_none_policy_does_not_propagate_required_semantic_change() -> None:
+    nodes = {("Claim", "c"): _snap("Claim", "c"), ("Artifact", "a"): _snap("Artifact", "a")}
+    repository = MemoryGraphRepository()
+    service = DependencyGraphService(repository, _provider(nodes))
+    service.bind(
+        PROJECT,
+        upstream_type="Claim",
+        upstream_id="c",
+        downstream_type="Artifact",
+        downstream_id="a",
+        dependency_kind=DependencyKind.INPUT,
+        required=True,
+        invalidation_policy=InvalidationPolicy.NONE,
+        reason="optional freshness policy",
+    )
+    plan = service.propagate(PROJECT, nodes[("Claim", "c")], _snap("Claim", "c", "changed"))
+    assert plan.impacts == []
+    assert (
+        repository.get_node_state(PROJECT, "Artifact", "a").status is DependencyNodeStatus.CURRENT
+    )
+
+
+def test_rebind_requires_all_incoming_edges_to_match_before_recovery() -> None:
+    nodes = {
+        ("Claim", "a"): _snap("Claim", "a"),
+        ("Claim", "b"): _snap("Claim", "b"),
+        ("Artifact", "d"): _snap("Artifact", "d"),
+    }
+    repository = MemoryGraphRepository()
+    service = DependencyGraphService(repository, _provider(nodes))
+    for upstream in ("a", "b"):
+        service.bind(
+            PROJECT,
+            upstream_type="Claim",
+            upstream_id=upstream,
+            downstream_type="Artifact",
+            downstream_id="d",
+            dependency_kind=DependencyKind.INPUT,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE,
+            reason="multi-input artifact",
+        )
+    changed_a = _snap("Claim", "a", "changed")
+    changed_b = _snap("Claim", "b", "changed")
+    nodes[("Claim", "a")] = changed_a
+    nodes[("Claim", "b")] = changed_b
+    service.propagate(PROJECT, _snap("Claim", "a"), changed_a)
+    service.propagate(PROJECT, _snap("Claim", "b"), changed_b)
+    assert repository.get_node_state(PROJECT, "Artifact", "d").status is DependencyNodeStatus.STALE
+    service.rebind(
+        PROJECT,
+        upstream_type="Claim",
+        upstream_id="a",
+        downstream_type="Artifact",
+        downstream_id="d",
+        dependency_kind=DependencyKind.INPUT,
+    )
+    assert repository.get_node_state(PROJECT, "Artifact", "d").status is DependencyNodeStatus.STALE
+    service.rebind(
+        PROJECT,
+        upstream_type="Claim",
+        upstream_id="b",
+        downstream_type="Artifact",
+        downstream_id="d",
+        dependency_kind=DependencyKind.INPUT,
+    )
+    assert (
+        repository.get_node_state(PROJECT, "Artifact", "d").status is DependencyNodeStatus.CURRENT
     )
 
 
@@ -252,6 +362,60 @@ def test_bfs_diamond_is_deduplicated_and_deterministic() -> None:
         ("Firmware", "f"),
     ]
     assert len([item for item in plan.impacts if item.node.entity_id == "f"]) == 1
+
+
+def test_bfs_diamond_keeps_stronger_projected_status() -> None:
+    nodes = {
+        (kind, name): _snap(kind, name)
+        for kind, name in [
+            ("Claim", "c"),
+            ("Pin", "stale"),
+            ("Pin", "invalid"),
+            ("Firmware", "f"),
+        ]
+    }
+    repository = MemoryGraphRepository()
+    service = DependencyGraphService(repository, _provider(nodes))
+    service.bind(
+        PROJECT,
+        upstream_type="Claim",
+        upstream_id="c",
+        downstream_type="Pin",
+        downstream_id="stale",
+        dependency_kind=DependencyKind.SELECTION,
+        required=True,
+        invalidation_policy=InvalidationPolicy.SOURCE_INVALID_STALE,
+        reason="optional claim selection",
+    )
+    service.bind(
+        PROJECT,
+        upstream_type="Claim",
+        upstream_id="c",
+        downstream_type="Pin",
+        downstream_id="invalid",
+        dependency_kind=DependencyKind.SELECTION,
+        required=True,
+        invalidation_policy=InvalidationPolicy.SOURCE_INVALID_INVALID,
+        reason="required claim selection",
+    )
+    for pin in ("stale", "invalid"):
+        service.bind(
+            PROJECT,
+            upstream_type="Pin",
+            upstream_id=pin,
+            downstream_type="Firmware",
+            downstream_id="f",
+            dependency_kind=DependencyKind.GENERATION,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SOURCE_INVALID_INVALID,
+            reason="pin feeds firmware",
+        )
+
+    changed = _snap("Claim", "c", "changed", valid=False)
+    plan = service.propagate(PROJECT, nodes[("Claim", "c")], changed)
+    firmware_impacts = [item for item in plan.impacts if item.node.entity_id == "f"]
+    assert len(firmware_impacts) == 1
+    assert firmware_impacts[0].projected_status is DependencyNodeStatus.INVALID
 
 
 def test_required_invalid_source_invalidates_and_cannot_be_downgraded() -> None:

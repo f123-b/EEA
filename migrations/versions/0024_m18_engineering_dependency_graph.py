@@ -119,8 +119,45 @@ def upgrade() -> None:
         ["project_id", "status"],
     )
 
+    op.create_table(
+        "generated_protocol_outputs",
+        *_common_columns(),
+        sa.Column("project_id", sa.String(length=36), nullable=False),
+        sa.Column("protocol_id", sa.String(length=36), nullable=False),
+        sa.Column("protocol_revision", sa.Integer(), nullable=False),
+        sa.Column("target", sa.String(length=40), nullable=False),
+        sa.Column("path", sa.String(length=1000), nullable=False),
+        sa.Column("content", sa.Text(), nullable=False),
+        sa.Column("content_hash", sa.String(length=64), nullable=False),
+        sa.Column("input_hash", sa.String(length=64), nullable=False),
+        sa.Column("generator_version", sa.String(length=100), nullable=False),
+        sa.CheckConstraint("revision >= 1", name="revision_positive"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"]),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "project_id", "protocol_id", "target", name="uq_protocol_output_target"
+        ),
+    )
+    op.create_index(
+        "ix_generated_protocol_outputs_project_id",
+        "generated_protocol_outputs",
+        ["project_id"],
+    )
+    op.create_index(
+        "ix_generated_protocol_outputs_protocol_id",
+        "generated_protocol_outputs",
+        ["protocol_id"],
+    )
+
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_generated_protocol_outputs_protocol_id", table_name="generated_protocol_outputs"
+    )
+    op.drop_index(
+        "ix_generated_protocol_outputs_project_id", table_name="generated_protocol_outputs"
+    )
+    op.drop_table("generated_protocol_outputs")
     op.drop_index(
         "ix_engineering_dependency_node_states_project_status",
         table_name="engineering_dependency_node_states",

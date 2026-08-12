@@ -383,6 +383,39 @@ class RequirementProfileData(BaseModel):
     active: bool
 
 
+class RequirementData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    code: str
+    title: str
+    requirement_type: RequirementType
+    priority: RequirementPriority
+    statement: str
+    rationale: str
+    acceptance_criteria: list[str]
+    source_evidence_ids: list[UUID]
+    status: RequirementStatus
+
+
+class RequirementUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int = Field(ge=1)
+    title: str | None = Field(default=None, min_length=1, max_length=300)
+    requirement_type: RequirementType | None = None
+    priority: RequirementPriority | None = None
+    statement: str | None = Field(default=None, min_length=1, max_length=8000)
+    rationale: str | None = Field(default=None, max_length=8000)
+    acceptance_criteria: list[str] | None = Field(default=None, max_length=50)
+    source_evidence_ids: list[UUID] | None = None
+    status: RequirementStatus | None = None
+
+
 class RequirementStructuredAnalysisRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

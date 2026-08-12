@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, cast
 from uuid import UUID
 
 from eea_core.dependency_graph import (
@@ -36,6 +36,7 @@ class DependencyNodeSnapshot:
     valid: bool = True
     reason: str = ""
     recovery_action: ImpactAction = ImpactAction.MANUAL_REVIEW
+    fingerprint_aliases: tuple[str, ...] = ()
 
     @property
     def status(self) -> DependencyNodeStatus:
@@ -149,6 +150,22 @@ class DependencyGraphRepository(Protocol):
         commit: bool = True,
     ) -> DependencyNodeState: ...
 
+    def merge_invalidation_state(
+        self,
+        state: DependencyNodeState,
+        *,
+        expected_revision: int | None = None,
+        commit: bool = True,
+    ) -> DependencyNodeState: ...
+
+    def replace_revalidated_state(
+        self,
+        state: DependencyNodeState,
+        *,
+        expected_revision: int | None = None,
+        commit: bool = True,
+    ) -> DependencyNodeState: ...
+
     def rebind(
         self,
         project_id: UUID,
@@ -173,11 +190,81 @@ _STATUS_PRECEDENCE = {
 
 
 def _effective_policy(edge: EngineeringDependencyEdge) -> InvalidationPolicy:
-    if edge.invalidation_policy is not InvalidationPolicy.NONE:
-        return edge.invalidation_policy
-    if edge.required:
-        return InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID
-    return InvalidationPolicy.SEMANTIC_CHANGE_STALE
+    return edge.invalidation_policy
+
+
+def _merge_state(
+    repository: DependencyGraphRepository,
+    state: DependencyNodeState,
+    *,
+    expected_revision: int | None = None,
+    commit: bool = True,
+) -> DependencyNodeState:
+    method = getattr(repository, "merge_invalidation_state", None)
+    if method is not None:
+        return cast(
+            DependencyNodeState,
+            method(state, expected_revision=expected_revision, commit=commit),
+        )
+    return repository.upsert_node_state(state, expected_revision=expected_revision, commit=commit)
+
+
+def _replace_state(
+    repository: DependencyGraphRepository,
+    state: DependencyNodeState,
+    *,
+    expected_revision: int | None = None,
+    commit: bool = True,
+) -> DependencyNodeState:
+    method = getattr(repository, "replace_revalidated_state", None)
+    if method is not None:
+        return cast(
+            DependencyNodeState,
+            method(state, expected_revision=expected_revision, commit=commit),
+        )
+    return repository.upsert_node_state(state, expected_revision=expected_revision, commit=commit)
+
+
+def _snapshot_matches_edge(
+    snapshot: DependencyNodeSnapshot, edge: EngineeringDependencyEdge
+) -> bool:
+    return (
+        snapshot.ref.semantic_hash == edge.bound_upstream_semantic_hash
+        or edge.bound_upstream_semantic_hash in snapshot.fingerprint_aliases
+    )
+
+
+def _merge_with_retry(
+    repository: DependencyGraphRepository,
+    state: DependencyNodeState,
+    *,
+    expected_revision: int | None = None,
+    commit: bool = False,
+) -> DependencyNodeState:
+    current_expected = expected_revision
+    for _ in range(3):
+        try:
+            return _merge_state(
+                repository,
+                state,
+                expected_revision=current_expected,
+                commit=commit,
+            )
+        except (EngineeringError, ValueError) as error:
+            if (
+                isinstance(error, EngineeringError)
+                and error.code is not EngineeringErrorCode.REVISION_CONFLICT
+            ):
+                raise
+            current = repository.get_node_state(
+                state.project_id, state.entity_type, state.entity_id
+            )
+            current_expected = current.revision if current is not None else None
+    raise EngineeringError(
+        EngineeringErrorCode.REVISION_CONFLICT,
+        "Dependency node state could not be merged after bounded retries",
+        details={"entity_type": state.entity_type, "entity_id": state.entity_id},
+    )
 
 
 def _projected_status(
@@ -225,6 +312,7 @@ def _action_for(entity_type: str, recovery_action: ImpactAction | None = None) -
         "SystemArchitectureIR",
         "HardwareIR",
         "CircuitIR",
+        "SchematicIR",
     }:
         return ImpactAction.REGENERATE
     return ImpactAction.MANUAL_REVIEW
@@ -281,6 +369,8 @@ class DependencyGraphService:
         invalidation_policy: InvalidationPolicy,
         reason: str,
         evidence_ids: list[UUID] | None = None,
+        bound_upstream_revision: int | None = None,
+        bound_upstream_semantic_hash: str | None = None,
         commit: bool = True,
     ) -> EngineeringDependencyEdge:
         upstream = self.providers.resolve(project_id, upstream_type, upstream_id)
@@ -294,8 +384,8 @@ class DependencyGraphService:
             dependency_kind=dependency_kind,
             required=required,
             invalidation_policy=invalidation_policy,
-            bound_upstream_revision=upstream.ref.revision,
-            bound_upstream_semantic_hash=upstream.ref.semantic_hash,
+            bound_upstream_revision=bound_upstream_revision or upstream.ref.revision,
+            bound_upstream_semantic_hash=bound_upstream_semantic_hash or upstream.ref.semantic_hash,
             reason=reason,
             evidence_ids=evidence_ids or [],
         )
@@ -303,7 +393,8 @@ class DependencyGraphService:
         saved = self.repository.bind(edge, commit=commit)
         downstream = self.providers.resolve(project_id, downstream_type, downstream_id)
         if self.repository.get_node_state(project_id, downstream_type, downstream_id) is None:
-            self.repository.upsert_node_state(
+            _replace_state(
+                self.repository,
                 DependencyNodeState(
                     project_id=project_id,
                     entity_type=downstream_type,
@@ -329,19 +420,14 @@ class DependencyGraphService:
 
         edges: list[EngineeringDependencyEdge] = []
         for dependency_id in sorted(set(dependency_ids)):
-            upstream_type = "Artifact"
             if dependency_id not in dependency_hashes:
                 continue
             edges.append(
-                self.bind(
+                self.bind_artifact_input(
                     project_id,
-                    upstream_type=upstream_type,
                     upstream_id=dependency_id,
-                    downstream_type="Artifact",
                     downstream_id=artifact_id,
-                    dependency_kind=DependencyKind.INPUT,
-                    required=True,
-                    invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+                    bound_upstream_semantic_hash=dependency_hashes[dependency_id],
                     reason="Artifact declared dependency_ids/dependency_hashes",
                     commit=False,
                 )
@@ -351,6 +437,32 @@ class DependencyGraphService:
             if session is not None:
                 session.commit()
         return edges
+
+    def bind_artifact_input(
+        self,
+        project_id: UUID,
+        *,
+        upstream_type: str = "Artifact",
+        upstream_id: str,
+        downstream_id: str,
+        bound_upstream_semantic_hash: str | None = None,
+        dependency_kind: DependencyKind = DependencyKind.INPUT,
+        reason: str,
+        commit: bool = True,
+    ) -> EngineeringDependencyEdge:
+        return self.bind(
+            project_id,
+            upstream_type=upstream_type,
+            upstream_id=upstream_id,
+            downstream_type="Artifact",
+            downstream_id=downstream_id,
+            dependency_kind=dependency_kind,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+            reason=reason,
+            bound_upstream_semantic_hash=bound_upstream_semantic_hash,
+            commit=commit,
+        )
 
     def bootstrap_explicit_edges(self, project_id: UUID, *, commit: bool = True) -> int:
         """Reconcile graph edges from explicit durable references only.
@@ -419,6 +531,7 @@ class DependencyGraphService:
             source_status = DependencyNodeStatus.INVALID
         source_ref = source_snapshot.ref
         impacts: list[DependencyImpact] = []
+        impact_indexes: dict[tuple[str, str], int] = {}
         queue: deque[
             tuple[str, str, int, list[DependencyNodeRef], ChangeObservation, DependencyNodeStatus]
         ] = deque([(entity_type, entity_id, 0, [source_ref], observation, source_status)])
@@ -462,21 +575,25 @@ class DependencyGraphService:
                 )
                 child_ref = snapshot.ref if snapshot is not None else fallback
                 child_path = [*path, child_ref]
-                impacts.append(
-                    DependencyImpact(
-                        node=child_ref,
-                        depth=depth + 1,
-                        status_before=before,
-                        projected_status=projected,
-                        reason=edge.reason,
-                        dependency_path=child_path,
-                        via_edge_id=edge.id,
-                        recommended_action=_action_for(
-                            edge.downstream_type,
-                            snapshot.recovery_action if snapshot else None,
-                        ),
-                    )
+                impact = DependencyImpact(
+                    node=child_ref,
+                    depth=depth + 1,
+                    status_before=before,
+                    projected_status=projected,
+                    reason=edge.reason,
+                    dependency_path=child_path,
+                    via_edge_id=edge.id,
+                    recommended_action=_action_for(
+                        edge.downstream_type,
+                        snapshot.recovery_action if snapshot else None,
+                    ),
                 )
+                existing_index = impact_indexes.get(child_key)
+                if existing_index is None:
+                    impact_indexes[child_key] = len(impacts)
+                    impacts.append(impact)
+                else:
+                    impacts[existing_index] = impact
                 queue.append(
                     (
                         edge.downstream_type,
@@ -540,7 +657,10 @@ class DependencyGraphService:
             else [observation.value],
             stale_since=None if observation is ChangeObservation.NON_SEMANTIC else utc_now(),
         )
-        self.repository.upsert_node_state(source_state, commit=False)
+        if after.valid:
+            _replace_state(self.repository, source_state, commit=False)
+        else:
+            _merge_with_retry(self.repository, source_state, commit=False)
         plan = self.impact_analysis(
             project_id,
             after.ref.entity_type,
@@ -565,7 +685,8 @@ class DependencyGraphService:
                     reason_codes=[impact.projected_status.value, observation.value],
                     stale_since=utc_now(),
                 )
-                self.repository.upsert_node_state(
+                _merge_with_retry(
+                    self.repository,
                     next_state,
                     expected_revision=state.revision if state else None,
                     commit=False,
@@ -599,28 +720,14 @@ class DependencyGraphService:
             dependency_kind=dependency_kind,
             revision=snapshot.ref.revision,
             semantic_hash=snapshot.ref.semantic_hash,
-            commit=commit,
+            commit=False,
         )
         if edge is not None:
-            state = self.repository.get_node_state(project_id, downstream_type, downstream_id)
-            if state is not None and state.status is not DependencyNodeStatus.CURRENT:
-                self.repository.upsert_node_state(
-                    state.model_copy(
-                        update={
-                            "status": DependencyNodeStatus.CURRENT,
-                            "observed_revision": self.providers.resolve(
-                                project_id, downstream_type, downstream_id
-                            ).ref.revision,
-                            "observed_semantic_hash": self.providers.resolve(
-                                project_id, downstream_type, downstream_id
-                            ).ref.semantic_hash,
-                            "invalidated_by": [],
-                            "reason_codes": ["REBIND"],
-                            "stale_since": None,
-                        }
-                    ),
-                    commit=commit,
-                )
+            self.revalidate(project_id, downstream_type, downstream_id, commit=False)
+            if commit:
+                session = getattr(self.repository, "session", None)
+                if session is not None:
+                    session.commit()
         return edge
 
     def revalidate(
@@ -638,25 +745,55 @@ class DependencyGraphService:
         projected = snapshot.status
         reasons: list[str] = []
         invalidated_by: list[str] = []
+        all_required_current = True
+        all_incoming_current = True
         for edge in incoming:
             upstream = self.providers.resolve(project_id, edge.upstream_type, edge.upstream_id)
-            if (
-                upstream.ref.revision != edge.bound_upstream_revision
-                or upstream.ref.semantic_hash != edge.bound_upstream_semantic_hash
+            upstream_state = self.repository.get_node_state(
+                project_id, edge.upstream_type, edge.upstream_id
+            )
+            if not upstream.valid or (
+                upstream_state is not None and upstream_state.status is DependencyNodeStatus.INVALID
             ):
+                observation = ChangeObservation.SOURCE_INVALID
+            elif not _snapshot_matches_edge(upstream, edge):
                 observation = (
-                    ChangeObservation.SOURCE_INVALID
-                    if not upstream.valid
-                    else ChangeObservation.SEMANTIC_CHANGED
+                    ChangeObservation.SEMANTIC_CHANGED
+                    if upstream.ref.semantic_hash != edge.bound_upstream_semantic_hash
+                    else ChangeObservation.NON_SEMANTIC
                 )
-                candidate = _projected_status(edge, observation, upstream.status)
-                if (
-                    candidate is not None
-                    and _STATUS_PRECEDENCE[candidate] > _STATUS_PRECEDENCE[projected]
-                ):
-                    projected = candidate
+            elif (
+                upstream_state is not None
+                and upstream_state.status is not DependencyNodeStatus.CURRENT
+            ):
+                observation = ChangeObservation.SEMANTIC_CHANGED
+            else:
+                observation = ChangeObservation.NON_SEMANTIC
+            candidate = _projected_status(edge, observation, upstream.status)
+            if candidate is not None:
+                all_incoming_current = False
+            if (
+                edge.required
+                and edge.invalidation_policy is not InvalidationPolicy.NONE
+                and (not upstream.valid or observation is not ChangeObservation.NON_SEMANTIC)
+            ):
+                all_required_current = False
+            if (
+                candidate is not None
+                and _STATUS_PRECEDENCE[candidate] > _STATUS_PRECEDENCE[projected]
+            ):
+                projected = candidate
+            if observation is not ChangeObservation.NON_SEMANTIC:
                 reasons.append(f"{edge.upstream_type}:{edge.upstream_id}:{observation.value}")
                 invalidated_by.append(f"{edge.upstream_type}:{edge.upstream_id}")
+            elif upstream.ref.revision != edge.bound_upstream_revision:
+                reasons.append(
+                    f"{edge.upstream_type}:{edge.upstream_id}:{ChangeObservation.NON_SEMANTIC.value}"
+                )
+        if all_required_current and all_incoming_current and snapshot.valid:
+            projected = DependencyNodeStatus.CURRENT
+            reasons = []
+            invalidated_by = []
         state = DependencyNodeState(
             project_id=project_id,
             entity_type=entity_type,
@@ -669,7 +806,8 @@ class DependencyGraphService:
             stale_since=utc_now() if projected is not DependencyNodeStatus.CURRENT else None,
         )
         existing = self.repository.get_node_state(project_id, entity_type, entity_id)
-        saved = self.repository.upsert_node_state(
+        saved = _replace_state(
+            self.repository,
             state,
             expected_revision=existing.revision if existing else None,
             commit=commit,

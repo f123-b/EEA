@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
@@ -23,12 +23,14 @@ from eea_backend.models import (
     EngineeringClaimRecord,
     FirmwareRecord,
     FirmwareStaticAnalysisRecord,
+    GeneratedProtocolOutputRecord,
     HardwareIRRecord,
     MCUConfigRecord,
     PinAssignmentRecord,
     ProtocolRecord,
     RequirementRecord,
     ReviewRunRecord,
+    SchematicArtifactRecord,
     SourceRevisionRecord,
     SystemArchitectureRecord,
     TestIRRecord,
@@ -39,12 +41,12 @@ from eea_backend.models import (
 def _snapshot(
     entity_type: str,
     record: Any,
-    fields: Iterable[str],
+    payload: dict[str, Any],
     *,
     valid: bool = True,
     recovery_action: ImpactAction = ImpactAction.MANUAL_REVIEW,
+    fingerprint_aliases: tuple[str, ...] = (),
 ) -> DependencyNodeSnapshot:
-    payload = {name: getattr(record, name) for name in fields}
     return DependencyNodeSnapshot(
         ref=DependencyNodeRef(
             entity_type=entity_type,
@@ -54,6 +56,7 @@ def _snapshot(
         ),
         valid=valid,
         recovery_action=recovery_action,
+        fingerprint_aliases=fingerprint_aliases,
     )
 
 
@@ -66,6 +69,7 @@ def _record_provider(
     recovery_action: ImpactAction,
     validity: Callable[[Any], bool] | None = None,
     global_claim: bool = False,
+    payload_normalizer: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> CallbackDependencyNodeProvider:
     def resolve(project_id: UUID, entity_id: str) -> DependencyNodeSnapshot | None:
         statement = select(record_type).where(record_type.id == entity_id)
@@ -81,13 +85,40 @@ def _record_provider(
         record = session.scalar(statement.limit(1))
         if record is None:
             return None
-        return _snapshot(
+        payload = {name: getattr(record, name) for name in fields}
+        if payload_normalizer is not None:
+            payload = payload_normalizer(payload)
+        snapshot = _snapshot(
             entity_type,
             record,
-            fields,
+            payload,
             valid=validity(record) if validity else True,
             recovery_action=recovery_action,
         )
+        if entity_type in {"Artifact", "FirmwareIR", "ProtocolIR", "TestIR"}:
+            fingerprint = getattr(record, "input_hash", None)
+            aliases = tuple(
+                str(value)
+                for value in (getattr(record, "content_hash", None), fingerprint)
+                if value
+            )
+            if fingerprint and entity_type in {"FirmwareIR", "ProtocolIR", "TestIR"}:
+                snapshot = DependencyNodeSnapshot(
+                    ref=snapshot.ref.model_copy(update={"semantic_hash": str(fingerprint)}),
+                    valid=snapshot.valid,
+                    reason=snapshot.reason,
+                    recovery_action=snapshot.recovery_action,
+                    fingerprint_aliases=aliases,
+                )
+            elif aliases:
+                snapshot = DependencyNodeSnapshot(
+                    ref=snapshot.ref,
+                    valid=snapshot.valid,
+                    reason=snapshot.reason,
+                    recovery_action=snapshot.recovery_action,
+                    fingerprint_aliases=aliases,
+                )
+        return snapshot
 
     return CallbackDependencyNodeProvider(entity_type, resolve)
 
@@ -111,6 +142,16 @@ def build_dependency_provider_registry(session: Session) -> DependencyNodeProvid
     def requirement_valid(record: Any) -> bool:
         return bool(record.status != "REJECTED")
 
+    def set_like_fields(payload: dict[str, Any]) -> dict[str, Any]:
+        for name in ("requirement_ids", "claim_ids", "evidence_ids", "affected_refs"):
+            if name in payload and isinstance(payload[name], list):
+                payload[name] = sorted(payload[name], key=str)
+        return payload
+
+    def claim_payload(payload: dict[str, Any]) -> dict[str, Any]:
+        payload["verification_levels"] = sorted(payload.get("verification_levels", []), key=str)
+        return payload
+
     providers = [
         _record_provider(
             session,
@@ -122,17 +163,14 @@ def build_dependency_provider_registry(session: Session) -> DependencyNodeProvid
                 "version_label",
                 "content_hash",
                 "input_hash",
-                "storage_uri",
                 "parent_artifact_id",
                 "dependency_ids",
                 "dependency_hashes",
-                "created_by",
                 "generator_version",
-                "tool_versions",
-                "knowledge_snapshot",
             ),
             recovery_action=ImpactAction.REVALIDATE,
             validity=current_or_valid,
+            payload_normalizer=set_like_fields,
         ),
         _record_provider(
             session,
@@ -164,10 +202,12 @@ def build_dependency_provider_registry(session: Session) -> DependencyNodeProvid
                 "source_priority",
                 "source_version",
                 "lifecycle",
+                "verification_levels",
             ),
             recovery_action=ImpactAction.MANUAL_REVIEW,
             validity=claim_valid,
             global_claim=True,
+            payload_normalizer=claim_payload,
         ),
         _record_provider(
             session,
@@ -237,6 +277,30 @@ def build_dependency_provider_registry(session: Session) -> DependencyNodeProvid
         ),
         _record_provider(
             session,
+            "SchematicIR",
+            SchematicArtifactRecord,
+            (
+                "artifact_id",
+                "circuit_id",
+                "circuit_revision",
+                "hardware_ir_id",
+                "hardware_ir_revision",
+                "format",
+                "components",
+                "nets",
+                "power_nets",
+                "constraints",
+                "content_hash",
+                "input_hash",
+                "preflight_results",
+                "requirement_ids",
+                "pin_assignment_revisions",
+            ),
+            recovery_action=ImpactAction.REGENERATE,
+            payload_normalizer=set_like_fields,
+        ),
+        _record_provider(
+            session,
             "MCUConfigIR",
             MCUConfigRecord,
             (
@@ -260,6 +324,7 @@ def build_dependency_provider_registry(session: Session) -> DependencyNodeProvid
             ),
             recovery_action=ImpactAction.REGENERATE,
             validity=current_or_valid,
+            payload_normalizer=set_like_fields,
         ),
         _record_provider(
             session,
@@ -297,6 +362,7 @@ def build_dependency_provider_registry(session: Session) -> DependencyNodeProvid
             ),
             recovery_action=ImpactAction.REGENERATE,
             validity=current_or_valid,
+            payload_normalizer=set_like_fields,
         ),
         _record_provider(
             session,
@@ -305,6 +371,22 @@ def build_dependency_provider_registry(session: Session) -> DependencyNodeProvid
             ("version_label", "transports", "messages", "requirement_ids", "input_hash"),
             recovery_action=ImpactAction.REGENERATE,
             validity=current_or_valid,
+            payload_normalizer=set_like_fields,
+        ),
+        _record_provider(
+            session,
+            "GeneratedProtocolOutput",
+            GeneratedProtocolOutputRecord,
+            (
+                "protocol_id",
+                "protocol_revision",
+                "target",
+                "path",
+                "content_hash",
+                "input_hash",
+                "generator_version",
+            ),
+            recovery_action=ImpactAction.REGENERATE,
         ),
         _record_provider(
             session,

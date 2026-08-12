@@ -5,7 +5,7 @@ from base64 import b64decode
 from binascii import Error as Base64Error
 from collections.abc import Iterator
 from typing import Annotated, Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from eea_adapters.devices import Stm32G431FixtureProvider
 from eea_application.ai import PromptRegistry, StructuredGenerationService
@@ -114,7 +114,7 @@ from eea_backend.m17_repositories import (
     SqlAlchemyTraceabilityRepository,
 )
 from eea_backend.mcu_config_repositories import SqlAlchemyMCUConfigRepository
-from eea_backend.models import ArtifactRecord
+from eea_backend.models import ArtifactRecord, GeneratedProtocolOutputRecord
 from eea_backend.pin_planner_repositories import SqlAlchemyPinPlanRepository
 from eea_backend.protocol_repositories import SqlAlchemyProtocolRepository
 from eea_backend.repositories import (
@@ -207,9 +207,11 @@ from eea_backend.schemas import (
     ProtocolUpdateRequest,
     ProtocolValidateRequest,
     RequirementAnalysisData,
+    RequirementData,
     RequirementNaturalLanguageAnalysisRequest,
     RequirementProfileData,
     RequirementStructuredAnalysisRequest,
+    RequirementUpdateRequest,
     ReviewListData,
     ReviewRequest,
     SchemaData,
@@ -262,10 +264,28 @@ def _evidence_data(evidence: Evidence) -> EvidenceData:
     return EvidenceData.model_validate(evidence.model_dump(mode="json"))
 
 
-def _artifact_data(artifact: object) -> ArtifactData:
-    return ArtifactData.model_validate(
-        artifact.model_dump(mode="json") if hasattr(artifact, "model_dump") else artifact
-    )
+def _artifact_data(artifact: object, session: Session | None = None) -> ArtifactData:
+    payload = artifact.model_dump(mode="json") if hasattr(artifact, "model_dump") else artifact
+    if session is not None and isinstance(payload, dict):
+        state = SqlAlchemyDependencyGraphRepository(session).get_node_state(
+            UUID(str(payload["project_id"])), "Artifact", str(payload["id"])
+        )
+        if state is not None:
+            projected = {
+                DependencyNodeStatus.CURRENT: ArtifactStatus.CURRENT,
+                DependencyNodeStatus.STALE: ArtifactStatus.STALE,
+                DependencyNodeStatus.INVALID: ArtifactStatus.INVALID,
+            }.get(state.status)
+            if projected is not None:
+                precedence = {
+                    ArtifactStatus.CURRENT: 0,
+                    ArtifactStatus.STALE: 1,
+                    ArtifactStatus.INVALID: 2,
+                }
+                stored = ArtifactStatus(payload["status"])
+                if precedence[projected] > precedence[stored]:
+                    payload = {**payload, "status": projected.value}
+    return ArtifactData.model_validate(payload)
 
 
 def _dependency_service(session: Session) -> DependencyGraphService:
@@ -298,6 +318,11 @@ def mutate_claim_lifecycle(
             EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
             "Claim is not available for this project",
         )
+    if claim.project_id is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Global Claim lifecycle mutation requires the authoritative internal path",
+        )
     if claim.revision != payload.expected_revision:
         raise EngineeringError(
             EngineeringErrorCode.REVISION_CONFLICT, "Claim revision does not match"
@@ -328,6 +353,57 @@ def mutate_claim_lifecycle(
     )
 
 
+@router.patch(
+    "/projects/{project_id}/requirements/{requirement_id}",
+    response_model=ApiEnvelope[RequirementData],
+    tags=["requirements", "dependency-graph"],
+)
+def update_requirement(
+    project_id: UUID,
+    requirement_id: UUID,
+    payload: RequirementUpdateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[RequirementData]:
+    _service(session).get(project_id)
+    repository = SqlAlchemyRequirementRepository(session)
+    current = repository.get(requirement_id, project_id=project_id)
+    if current is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Requirement is not available for this project",
+            details={"requirement_id": str(requirement_id), "project_id": str(project_id)},
+        )
+    if current.revision != payload.expected_revision:
+        raise EngineeringError(
+            EngineeringErrorCode.REVISION_CONFLICT,
+            "Requirement revision does not match the requested optimistic-concurrency revision",
+        )
+    before = build_dependency_provider_registry(session).resolve(
+        project_id, "Requirement", str(requirement_id)
+    )
+    snapshot = current.model_dump(mode="json")
+    snapshot.update(payload.model_dump(exclude={"expected_revision"}, exclude_unset=True))
+    snapshot["revision"] = current.revision + 1
+    snapshot["updated_at"] = utc_now()
+    updated = current.__class__.model_validate(snapshot)
+    saved = repository.save(updated, expected_revision=current.revision, commit=False)
+    if saved is None:
+        raise EngineeringError(
+            EngineeringErrorCode.REVISION_CONFLICT,
+            "Requirement changed during update",
+        )
+    after = build_dependency_provider_registry(session).resolve(
+        project_id, "Requirement", str(requirement_id)
+    )
+    _dependency_service(session).propagate(project_id, before, after, commit=False)
+    session.commit()
+    return ApiEnvelope(
+        data=RequirementData.model_validate(saved.model_dump(mode="json")),
+        request_id=_request_id(request),
+    )
+
+
 @router.post(
     "/entities/{entity_type}/{entity_id}/impact-analysis",
     response_model=ApiEnvelope[ImpactAnalysisData],
@@ -341,6 +417,12 @@ def dependency_impact_analysis(
     session: SessionDependency,
 ) -> ApiEnvelope[ImpactAnalysisData]:
     _service(session).get(project_id)
+    if not _dependency_service(session).providers.supports(entity_type):
+        raise EngineeringError(
+            EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+            "Dependency node type is not registered",
+            details={"entity_type": entity_type},
+        )
     plan = _dependency_service(session).impact_analysis(project_id, entity_type, entity_id)
     return ApiEnvelope(data=ImpactAnalysisData(plan=plan), request_id=_request_id(request))
 
@@ -358,6 +440,13 @@ def entity_dependencies(
     session: SessionDependency,
 ) -> ApiEnvelope[DependencyListData]:
     _service(session).get(project_id)
+    service = _dependency_service(session)
+    if not service.providers.supports(entity_type):
+        raise EngineeringError(
+            EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+            "Dependency node type is not registered",
+            details={"entity_type": entity_type},
+        )
     repository = SqlAlchemyDependencyGraphRepository(session)
     items = [
         DependencyEdgeData(edge=edge)
@@ -379,6 +468,13 @@ def entity_dependents(
     session: SessionDependency,
 ) -> ApiEnvelope[DependencyListData]:
     _service(session).get(project_id)
+    service = _dependency_service(session)
+    if not service.providers.supports(entity_type):
+        raise EngineeringError(
+            EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
+            "Dependency node type is not registered",
+            details={"entity_type": entity_type},
+        )
     repository = SqlAlchemyDependencyGraphRepository(session)
     items = [
         DependencyEdgeData(edge=edge)
@@ -398,7 +494,7 @@ def list_artifacts(
     _service(session).get(project_id)
     artifacts = SqlAlchemyArtifactRepository(session).list_for_project(project_id)
     return ApiEnvelope(
-        data=ArtifactListData(items=[_artifact_data(item) for item in artifacts]),
+        data=ArtifactListData(items=[_artifact_data(item, session) for item in artifacts]),
         request_id=_request_id(request),
     )
 
@@ -421,7 +517,7 @@ def get_artifact(
             EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
             "Artifact is not available for this project",
         )
-    return ApiEnvelope(data=_artifact_data(artifact), request_id=_request_id(request))
+    return ApiEnvelope(data=_artifact_data(artifact, session), request_id=_request_id(request))
 
 
 @router.get(
@@ -445,7 +541,7 @@ def artifact_versions(
         )
     return ApiEnvelope(
         data=ArtifactListData(
-            items=[_artifact_data(item) for item in repository.list_versions(artifact)]
+            items=[_artifact_data(item, session) for item in repository.list_versions(artifact)]
         ),
         request_id=_request_id(request),
     )
@@ -472,7 +568,7 @@ def artifact_dependencies(
     repository = SqlAlchemyDependencyGraphRepository(session)
     return ApiEnvelope(
         data=ArtifactDependenciesData(
-            artifact=_artifact_data(artifact),
+            artifact=_artifact_data(artifact, session),
             dependencies=[
                 DependencyEdgeData(edge=edge)
                 for edge in repository.list_dependencies(project_id, "Artifact", str(artifact_id))
@@ -509,7 +605,7 @@ def stale_artifacts(
         if str(item.id) in stale_ids or item.status == ArtifactStatus.STALE
     ]
     return ApiEnvelope(
-        data=ArtifactListData(items=[_artifact_data(item) for item in artifacts]),
+        data=ArtifactListData(items=[_artifact_data(item, session) for item in artifacts]),
         request_id=_request_id(request),
     )
 
@@ -557,7 +653,7 @@ def revalidate_artifact(
     artifact = artifact_repository.save_status_projection(artifact, projection)
     return ApiEnvelope(
         data=ArtifactRevalidateData(
-            artifact=_artifact_data(artifact),
+            artifact=_artifact_data(artifact, session),
             state=DependencyNodeStateData(state=state),
         ),
         request_id=_request_id(request),
@@ -1188,7 +1284,23 @@ def generate_pin_plan(
         requirements=pin_requirements,
         device_provider=device_provider,
     )
-    plan = SqlAlchemyPinPlanRepository(session).add(plan)
+    plan = SqlAlchemyPinPlanRepository(session).add(plan, commit=False)
+    dependency_service = _dependency_service(session)
+    for assignment in plan.assignments:
+        for claim_id in assignment.claim_ids:
+            dependency_service.bind(
+                project_id,
+                upstream_type="Claim",
+                upstream_id=str(claim_id),
+                downstream_type="PinAssignment",
+                downstream_id=str(assignment.id),
+                dependency_kind=DependencyKind.SELECTION,
+                required=True,
+                invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+                reason="PinAssignment generated claim reference",
+                commit=False,
+            )
+    session.commit()
     return ApiEnvelope(
         data=_pin_plan_data(plan),
         request_id=_request_id(request),
@@ -1287,6 +1399,16 @@ def lock_pin_assignment(
             details={"entity_id": str(assignment_id), "expected_revision": expected_revision},
         )
     saved_lock = repository.add_lock(lock, commit=False)
+    _dependency_service(session).propagate(
+        project_id,
+        build_dependency_provider_registry(session).resolve(
+            project_id, "PinAssignment", str(current.id)
+        ),
+        build_dependency_provider_registry(session).resolve(
+            project_id, "PinAssignment", str(saved.id)
+        ),
+        commit=False,
+    )
     session.commit()
     _set_etag(response, saved.revision)
     return ApiEnvelope(
@@ -1353,6 +1475,16 @@ def unlock_pin_assignment(
             "The active pin lock was not found",
             details={"assignment_id": str(assignment_id)},
         )
+    _dependency_service(session).propagate(
+        project_id,
+        build_dependency_provider_registry(session).resolve(
+            project_id, "PinAssignment", str(current.id)
+        ),
+        build_dependency_provider_registry(session).resolve(
+            project_id, "PinAssignment", str(saved.id)
+        ),
+        commit=False,
+    )
     session.commit()
     _set_etag(response, saved.revision)
     return ApiEnvelope(
@@ -1387,7 +1519,34 @@ def generate_architecture(
             details={"pin_plan_id": str(payload.pin_plan_id), "project_id": str(project_id)},
         )
     bundle = ArchitectureService().generate(plan, latest_plan_id=latest.id)
-    saved = SqlAlchemyArchitectureRepository(session).add(bundle)
+    saved = SqlAlchemyArchitectureRepository(session).add(bundle, commit=False)
+    dependency_service = _dependency_service(session)
+    for assignment_id in saved.system_architecture.pin_assignment_revisions:
+        dependency_service.bind(
+            project_id,
+            upstream_type="PinAssignment",
+            upstream_id=str(assignment_id),
+            downstream_type="SystemArchitectureIR",
+            downstream_id=str(saved.system_architecture.id),
+            dependency_kind=DependencyKind.GENERATION,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+            reason="SystemArchitectureIR pin_assignment_revisions",
+            commit=False,
+        )
+    dependency_service.bind(
+        project_id,
+        upstream_type="SystemArchitectureIR",
+        upstream_id=str(saved.system_architecture.id),
+        downstream_type="HardwareIR",
+        downstream_id=str(saved.hardware.id),
+        dependency_kind=DependencyKind.GENERATION,
+        required=True,
+        invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+        reason="HardwareIR architecture_id",
+        commit=False,
+    )
+    session.commit()
     return ApiEnvelope(data=_architecture_bundle_data(saved), request_id=_request_id(request))
 
 
@@ -1451,7 +1610,20 @@ def generate_circuit(
         power_nets=payload.power_nets,
         constraints=payload.constraints,
     )
-    saved = SqlAlchemyCircuitRepository(session).add(bundle)
+    saved = SqlAlchemyCircuitRepository(session).add(bundle, commit=False)
+    _dependency_service(session).bind(
+        project_id,
+        upstream_type="HardwareIR",
+        upstream_id=str(saved.circuit.hardware_ir_id),
+        downstream_type="CircuitIR",
+        downstream_id=str(saved.circuit.id),
+        dependency_kind=DependencyKind.GENERATION,
+        required=True,
+        invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+        reason="CircuitIR hardware_ir_id",
+        commit=False,
+    )
+    session.commit()
     SqlAlchemySchematicRepository(session).mark_stale_for_circuit(project_id, saved.circuit.id)
     return ApiEnvelope(data=_circuit_bundle_data(saved), request_id=_request_id(request))
 
@@ -1561,7 +1733,43 @@ def generate_schematic(
         )
     _ensure_latest_hardware(session, project_id, selected.circuit.hardware_ir_id)
     bundle = SchematicService().generate(selected.circuit)
-    saved = SqlAlchemySchematicRepository(session).add(bundle)
+    saved = SqlAlchemySchematicRepository(session).add(bundle, commit=False)
+    dependency_service = _dependency_service(session)
+    for upstream_type, upstream_id, reason in (
+        ("CircuitIR", saved.schematic.circuit_id, "SchematicIR circuit_id"),
+        ("HardwareIR", saved.schematic.hardware_ir_id, "SchematicIR hardware_ir_id"),
+    ):
+        dependency_service.bind(
+            project_id,
+            upstream_type=upstream_type,
+            upstream_id=str(upstream_id),
+            downstream_type="SchematicIR",
+            downstream_id=str(saved.schematic.id),
+            dependency_kind=DependencyKind.GENERATION,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+            reason=reason,
+            commit=False,
+        )
+    dependency_service.bind_artifact_input(
+        project_id,
+        upstream_type="CircuitIR",
+        upstream_id=str(saved.schematic.circuit_id),
+        downstream_id=str(saved.artifact.id),
+        bound_upstream_semantic_hash=saved.artifact.dependency_hashes.get("circuit"),
+        reason="Schematic artifact circuit dependency",
+        commit=False,
+    )
+    dependency_service.bind_artifact_input(
+        project_id,
+        upstream_type="HardwareIR",
+        upstream_id=str(saved.schematic.hardware_ir_id),
+        downstream_id=str(saved.artifact.id),
+        bound_upstream_semantic_hash=saved.artifact.dependency_hashes.get("hardware_ir"),
+        reason="Schematic artifact hardware dependency",
+        commit=False,
+    )
+    session.commit()
     return ApiEnvelope(data=_schematic_bundle_data(saved), request_id=_request_id(request))
 
 
@@ -1764,7 +1972,40 @@ def generate_mcu_config(
         debug=payload.debug,
         capability_snapshot=payload.capability_snapshot,
     )
-    saved = SqlAlchemyMCUConfigRepository(session).add(bundle)
+    saved = SqlAlchemyMCUConfigRepository(session).add(bundle, commit=False)
+    dependency_service = _dependency_service(session)
+    for upstream_type, upstream_id, reason in (
+        ("HardwareIR", saved.config.hardware_ir_id, "MCUConfigIR hardware_ir_id"),
+        ("CircuitIR", saved.config.circuit_id, "MCUConfigIR circuit_id"),
+        ("SchematicIR", saved.config.schematic_id, "MCUConfigIR schematic_id"),
+    ):
+        if dependency_service.providers.supports(upstream_type):
+            dependency_service.bind(
+                project_id,
+                upstream_type=upstream_type,
+                upstream_id=str(upstream_id),
+                downstream_type="MCUConfigIR",
+                downstream_id=str(saved.config.id),
+                dependency_kind=DependencyKind.GENERATION,
+                required=True,
+                invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+                reason=reason,
+                commit=False,
+            )
+    for assignment_id in saved.config.pin_assignment_revisions:
+        dependency_service.bind(
+            project_id,
+            upstream_type="PinAssignment",
+            upstream_id=str(assignment_id),
+            downstream_type="MCUConfigIR",
+            downstream_id=str(saved.config.id),
+            dependency_kind=DependencyKind.CONFIGURATION,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+            reason="MCUConfigIR pin_assignment_revisions",
+            commit=False,
+        )
+    session.commit()
     return ApiEnvelope(data=_mcu_config_bundle_data(saved), request_id=_request_id(request))
 
 
@@ -1873,7 +2114,8 @@ def create_protocol(
 ) -> ApiEnvelope[ProtocolIR]:
     _service(session).get(project_id)
     protocol = ProtocolIR(project_id=project_id, **payload.model_dump())
-    saved = SqlAlchemyProtocolRepository(session).add(protocol)
+    saved = SqlAlchemyProtocolRepository(session).add(protocol, commit=False)
+    session.commit()
     _set_etag(response, saved.revision)
     return ApiEnvelope(data=saved, request_id=_request_id(request))
 
@@ -1940,7 +2182,10 @@ def update_protocol(
     snapshot["revision"] = current.revision + 1
     snapshot["updated_at"] = utc_now()
     updated = ProtocolIR.model_validate(snapshot)
-    saved = repository.save(updated, expected_revision=expected_revision)
+    before = build_dependency_provider_registry(session).resolve(
+        project_id, "ProtocolIR", str(current.id)
+    )
+    saved = repository.save(updated, expected_revision=expected_revision, commit=False)
     if saved is None:
         raise EngineeringError(
             EngineeringErrorCode.REVISION_CONFLICT,
@@ -1951,6 +2196,11 @@ def update_protocol(
                 "current_revision": current.revision,
             },
         )
+    after = build_dependency_provider_registry(session).resolve(
+        project_id, "ProtocolIR", str(saved.id)
+    )
+    _dependency_service(session).propagate(project_id, before, after, commit=False)
+    session.commit()
     _set_etag(response, saved.revision)
     return ApiEnvelope(data=saved, request_id=_request_id(request))
 
@@ -2018,6 +2268,58 @@ def generate_protocol(
             "ProtocolIR generation is blocked by validation failures",
             details={"protocol_id": str(protocol.id), "reason": str(error)},
         ) from error
+    dependency_service = _dependency_service(session)
+    for output in bundle.outputs:
+        output_target = str(output.target)
+        record = session.scalar(
+            select(GeneratedProtocolOutputRecord).where(
+                GeneratedProtocolOutputRecord.project_id == str(project_id),
+                GeneratedProtocolOutputRecord.protocol_id == str(protocol.id),
+                GeneratedProtocolOutputRecord.target == output_target,
+            )
+        )
+        if record is None:
+            record = GeneratedProtocolOutputRecord(
+                id=str(uuid4()),
+                schema_version="1.0",
+                revision=1,
+                created_at=utc_now(),
+                updated_at=utc_now(),
+                entity_metadata={},
+                project_id=str(project_id),
+                protocol_id=str(protocol.id),
+                protocol_revision=protocol.revision,
+                target=output_target,
+                path=output.path,
+                content=output.content,
+                content_hash=output.content_hash,
+                input_hash=output.input_hash,
+                generator_version=output.generator_version,
+            )
+            session.add(record)
+            session.flush()
+        else:
+            record.revision += 1
+            record.updated_at = utc_now()
+            record.protocol_revision = protocol.revision
+            record.path = output.path
+            record.content = output.content
+            record.content_hash = output.content_hash
+            record.input_hash = output.input_hash
+            record.generator_version = output.generator_version
+        dependency_service.bind(
+            project_id,
+            upstream_type="ProtocolIR",
+            upstream_id=str(protocol.id),
+            downstream_type="GeneratedProtocolOutput",
+            downstream_id=str(record.id),
+            dependency_kind=DependencyKind.GENERATION,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+            reason="Generated protocol output from ProtocolIR",
+            commit=False,
+        )
+    session.commit()
     return ApiEnvelope(data=bundle, request_id=_request_id(request))
 
 
@@ -2071,7 +2373,25 @@ def generate_firmware(
         board_name=payload.board_name,
         dependency_lock=dependency_lock,
     )
-    saved = SqlAlchemyFirmwareRepository(session).add(bundle)
+    saved = SqlAlchemyFirmwareRepository(session).add(bundle, commit=False)
+    dependency_service = _dependency_service(session)
+    for upstream_type, upstream_id, reason in (
+        ("MCUConfigIR", saved.firmware.mcu_config_id, "FirmwareIR mcu_config_id"),
+        ("SourceRevision", saved.firmware.source_revision_id, "FirmwareIR source_revision_id"),
+    ):
+        dependency_service.bind(
+            project_id,
+            upstream_type=upstream_type,
+            upstream_id=str(upstream_id),
+            downstream_type="FirmwareIR",
+            downstream_id=str(saved.firmware.id),
+            dependency_kind=DependencyKind.GENERATION,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+            reason=reason,
+            commit=False,
+        )
+    session.commit()
     return ApiEnvelope(data=_firmware_bundle_data(saved), request_id=_request_id(request))
 
 
@@ -2135,7 +2455,20 @@ def build_firmware(
         request.app.state.settings.data_dir / "m12-builds" / str(project_id),
         component_cache_root=request.app.state.settings.data_dir / "component-cache",
     )
-    saved = SqlAlchemyBuildRunRepository(session).add(snapshot, build)
+    saved = SqlAlchemyBuildRunRepository(session).add(snapshot, build, commit=False)
+    _dependency_service(session).bind(
+        project_id,
+        upstream_type="SourceRevision",
+        upstream_id=str(saved.source_revision_id),
+        downstream_type="BuildRun",
+        downstream_id=str(saved.id),
+        dependency_kind=DependencyKind.INPUT,
+        required=True,
+        invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+        reason="BuildRun source_revision_id",
+        commit=False,
+    )
+    session.commit()
     return ApiEnvelope(data=_build_run_data(saved), request_id=_request_id(request))
 
 
@@ -2222,7 +2555,20 @@ def analyze_firmware_static(
         mcu_config=config_bundle.config if config_bundle is not None else None,
         run_cppcheck=payload.run_cppcheck,
     )
-    saved = SqlAlchemyFirmwareStaticAnalysisRepository(session).add(analysis)
+    saved = SqlAlchemyFirmwareStaticAnalysisRepository(session).add(analysis, commit=False)
+    _dependency_service(session).bind(
+        project_id,
+        upstream_type="SourceRevision",
+        upstream_id=str(saved.source_revision_id),
+        downstream_type="StaticAnalysis",
+        downstream_id=str(saved.id),
+        dependency_kind=DependencyKind.INPUT,
+        required=True,
+        invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+        reason="StaticAnalysis source_revision_id",
+        commit=False,
+    )
+    session.commit()
     return ApiEnvelope(data=_static_analysis_data(saved), request_id=_request_id(request))
 
 
@@ -3156,6 +3502,44 @@ def create_review(
             required=True,
             invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
             reason="ReviewRun consumes TestIR",
+            commit=False,
+        )
+    dependency_service.bind(
+        project_id,
+        upstream_type="SourceRevision",
+        upstream_id=str(saved.source_revision_id),
+        downstream_type="ReviewRun",
+        downstream_id=str(saved.id),
+        dependency_kind=DependencyKind.INPUT,
+        required=True,
+        invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+        reason="ReviewRun source snapshot",
+        commit=False,
+    )
+    if saved.build_run_id is not None:
+        dependency_service.bind(
+            project_id,
+            upstream_type="BuildRun",
+            upstream_id=str(saved.build_run_id),
+            downstream_type="ReviewRun",
+            downstream_id=str(saved.id),
+            dependency_kind=DependencyKind.VERIFICATION,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+            reason="ReviewRun consumes BuildRun",
+            commit=False,
+        )
+    if saved.static_analysis_id is not None:
+        dependency_service.bind(
+            project_id,
+            upstream_type="StaticAnalysis",
+            upstream_id=str(saved.static_analysis_id),
+            downstream_type="ReviewRun",
+            downstream_id=str(saved.id),
+            dependency_kind=DependencyKind.VERIFICATION,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+            reason="ReviewRun consumes StaticAnalysis",
             commit=False,
         )
     session.commit()

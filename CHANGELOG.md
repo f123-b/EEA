@@ -7,6 +7,13 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18R Semantic Freshness, Runtime Binding & Recovery Closure: added canonical
+  semantic freshness rules, explicit provider-backed dependency binding,
+  historical artifact hash revalidation, CAS merge/recovery semantics, complete
+  bootstrap reconciliation, persisted generated protocol output nodes, runtime
+  impact propagation for requirement/claim and engineering IR mutations,
+  fail-closed dependency APIs, migration `0024_m18_engineering_dependency_graph`,
+  and real DB/API acceptance benchmarks.
 - M17 Test/Traceability/Review: added Core-neutral declarative TestIR and immutable TestRun
   contracts, deterministic requirement-based test generation, project-scoped controlled
   fail-closed executors, revision/source freshness checks, design/verification coverage,

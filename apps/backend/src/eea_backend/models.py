@@ -897,6 +897,26 @@ class ProtocolRecord(Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False)
 
 
+class GeneratedProtocolOutputRecord(CoreRecordMixin, Base):
+    """Durable generated ProtocolIR fan-out output used by M18 freshness."""
+
+    __tablename__ = "generated_protocol_outputs"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        UniqueConstraint("project_id", "protocol_id", "target", name="uq_protocol_output_target"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    protocol_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    protocol_revision: Mapped[int] = mapped_column(nullable=False)
+    target: Mapped[str] = mapped_column(String(40), nullable=False)
+    path: Mapped[str] = mapped_column(String(1000), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    generator_version: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
 class FirmwareSourceFileRecord(CoreRecordMixin, Base):
     __tablename__ = "firmware_source_files"
     __table_args__ = (

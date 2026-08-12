@@ -152,6 +152,15 @@ class SqlAlchemyRequirementRepository:
         )
         return [_to_requirement(record) for record in self._session.scalars(statement)]
 
+    def get(self, requirement_id: UUID, *, project_id: UUID) -> Requirement | None:
+        record = self._session.scalar(
+            select(RequirementRecord).where(
+                RequirementRecord.id == str(requirement_id),
+                RequirementRecord.project_id == str(project_id),
+            )
+        )
+        return _to_requirement(record) if record else None
+
     def get_by_code(self, project_id: UUID, code: str) -> Requirement | None:
         statement = select(RequirementRecord).where(
             RequirementRecord.project_id == str(project_id),

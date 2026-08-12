@@ -31,10 +31,9 @@ DEPENDENCY_GRAPH_POLICY_VERSION = "m18-dependency-policy-1"
 def _canonical_value(value: Any) -> Any:
     """Convert supported values to deterministic JSON-compatible values.
 
-    Lists are ordered canonically by their serialized representation.  This
-    keeps semantic hashes stable when callers supply sets of references in a
-    different order, while field-level providers remain responsible for
-    deciding which fields are semantic in the first place.
+    Lists and tuples preserve their declared order.  Only set-like values are
+    sorted here; providers must explicitly normalize fields whose domain
+    semantics are set-like even when their storage type is a JSON list.
     """
 
     if isinstance(value, BaseModel):
@@ -46,7 +45,9 @@ def _canonical_value(value: Any) -> Any:
         return timestamp.astimezone(UTC).isoformat()
     if isinstance(value, dict):
         return {str(key): _canonical_value(value[key]) for key in sorted(value, key=str)}
-    if isinstance(value, (list, tuple, set, frozenset)):
+    if isinstance(value, (list, tuple)):
+        return [_canonical_value(item) for item in value]
+    if isinstance(value, (set, frozenset)):
         values = [_canonical_value(item) for item in value]
         return sorted(
             values,

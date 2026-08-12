@@ -10,7 +10,8 @@ from eea_core.dependency_graph import (
     EngineeringDependencyEdge,
 )
 from eea_core.entities import utc_now
-from eea_core.enums import DependencyKind, DependencyNodeStatus
+from eea_core.enums import DependencyKind, DependencyNodeStatus, EngineeringErrorCode
+from eea_core.errors import EngineeringError
 from sqlalchemy import select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
@@ -252,86 +253,193 @@ class SqlAlchemyDependencyGraphRepository:
         expected_revision: int | None = None,
         commit: bool = True,
     ) -> DependencyNodeState:
-        identity = (
+        return self.merge_invalidation_state(
+            state, expected_revision=expected_revision, commit=commit
+        )
+
+    def _insert_state(self, state: DependencyNodeState) -> DependencyNodeState | None:
+        record = EngineeringDependencyNodeStateRecord(
+            id=str(state.id),
+            schema_version=state.schema_version,
+            revision=state.revision,
+            created_at=state.created_at,
+            updated_at=state.updated_at,
+            entity_metadata=state.metadata,
+            project_id=str(state.project_id),
+            entity_type=state.entity_type,
+            entity_id=state.entity_id,
+            observed_revision=state.observed_revision,
+            observed_semantic_hash=state.observed_semantic_hash,
+            status=state.status.value,
+            invalidated_by=sorted(set(state.invalidated_by)),
+            reason_codes=sorted(set(state.reason_codes)),
+            stale_since=state.stale_since,
+        )
+        try:
+            with self.session.begin_nested():
+                self.session.add(record)
+                self.session.flush()
+        except IntegrityError:
+            return None
+        return _to_node_state(record)
+
+    def _state_identity(self, state: DependencyNodeState) -> tuple[Any, ...]:
+        return (
             EngineeringDependencyNodeStateRecord.project_id == str(state.project_id),
             EngineeringDependencyNodeStateRecord.entity_type == state.entity_type,
             EngineeringDependencyNodeStateRecord.entity_id == state.entity_id,
         )
+
+    def merge_invalidation_state(
+        self,
+        state: DependencyNodeState,
+        *,
+        expected_revision: int | None = None,
+        commit: bool = True,
+    ) -> DependencyNodeState:
+        """CAS merge for propagation; status and invalidation evidence only grow."""
+
+        identity = (*self._state_identity(state),)
+        return self._merge_state_impl(
+            state, identity, expected_revision=expected_revision, commit=commit
+        )
+
+    def _merge_state_impl(
+        self,
+        state: DependencyNodeState,
+        identity: tuple[Any, ...],
+        *,
+        expected_revision: int | None,
+        commit: bool,
+    ) -> DependencyNodeState:
         current = self.session.scalar(select(EngineeringDependencyNodeStateRecord).where(*identity))
         if current is None:
-            record = EngineeringDependencyNodeStateRecord(
-                id=str(state.id),
-                schema_version=state.schema_version,
-                revision=state.revision,
-                created_at=state.created_at,
-                updated_at=state.updated_at,
-                entity_metadata=state.metadata,
-                project_id=str(state.project_id),
-                entity_type=state.entity_type,
-                entity_id=state.entity_id,
-                observed_revision=state.observed_revision,
-                observed_semantic_hash=state.observed_semantic_hash,
-                status=state.status.value,
-                invalidated_by=sorted(set(state.invalidated_by)),
-                reason_codes=sorted(set(state.reason_codes)),
-                stale_since=state.stale_since,
-            )
-            try:
-                with self.session.begin_nested():
-                    self.session.add(record)
-                    self.session.flush()
-            except IntegrityError:
-                current = self.session.scalar(
-                    select(EngineeringDependencyNodeStateRecord).where(*identity)
-                )
-            else:
+            inserted = self._insert_state(state)
+            if inserted is not None:
                 if commit:
                     self.session.commit()
-                return _to_node_state(record)
-
-        assert current is not None
+                return inserted
+            current = self.session.scalar(
+                select(EngineeringDependencyNodeStateRecord).where(*identity)
+            )
+        if current is None:
+            raise EngineeringError(
+                EngineeringErrorCode.REVISION_CONFLICT,
+                "Dependency node state could not be loaded after concurrent insert",
+            )
         if expected_revision is not None and current.revision != expected_revision:
-            raise ValueError("dependency node state revision conflict")
+            raise EngineeringError(
+                EngineeringErrorCode.REVISION_CONFLICT,
+                "Dependency node state changed concurrently",
+                details={"entity_type": state.entity_type, "entity_id": state.entity_id},
+            )
         precedence = {
             DependencyNodeStatus.UNKNOWN: 0,
             DependencyNodeStatus.CURRENT: 1,
             DependencyNodeStatus.STALE: 2,
             DependencyNodeStatus.INVALID: 3,
         }
-        current_status = DependencyNodeStatus(current.status)
-        merged_status = (
-            state.status
-            if precedence[state.status] >= precedence[current_status]
-            else current_status
+        merged_status = max(
+            DependencyNodeStatus(current.status), state.status, key=precedence.__getitem__
         )
-        merged_invalidated_by = sorted(set(current.invalidated_by) | set(state.invalidated_by))
-        merged_reason_codes = sorted(set(current.reason_codes) | set(state.reason_codes))
-        statement = (
-            update(EngineeringDependencyNodeStateRecord)
-            .where(*identity, EngineeringDependencyNodeStateRecord.revision == current.revision)
-            .values(
-                schema_version=state.schema_version,
-                revision=current.revision + 1,
-                updated_at=utc_now(),
-                entity_metadata=state.metadata,
-                observed_revision=state.observed_revision,
-                observed_semantic_hash=state.observed_semantic_hash,
-                status=merged_status.value,
-                invalidated_by=merged_invalidated_by,
-                reason_codes=merged_reason_codes,
-                stale_since=current.stale_since or state.stale_since,
-            )
+        result = cast(
+            CursorResult[Any],
+            self.session.execute(
+                update(EngineeringDependencyNodeStateRecord)
+                .where(*identity, EngineeringDependencyNodeStateRecord.revision == current.revision)
+                .values(
+                    schema_version=state.schema_version,
+                    revision=current.revision + 1,
+                    updated_at=utc_now(),
+                    entity_metadata=state.metadata,
+                    observed_revision=state.observed_revision,
+                    observed_semantic_hash=state.observed_semantic_hash,
+                    status=merged_status.value,
+                    invalidated_by=sorted(set(current.invalidated_by) | set(state.invalidated_by)),
+                    reason_codes=sorted(set(current.reason_codes) | set(state.reason_codes)),
+                    stale_since=current.stale_since or state.stale_since,
+                ),
+            ),
         )
-        result = cast(CursorResult[Any], self.session.execute(statement))
         if result.rowcount != 1:
-            raise ValueError("dependency node state changed concurrently")
+            raise EngineeringError(
+                EngineeringErrorCode.REVISION_CONFLICT,
+                "Dependency node state changed concurrently",
+            )
         if commit:
             self.session.commit()
         refreshed = self.session.scalar(
             select(EngineeringDependencyNodeStateRecord).where(*identity)
         )
         if refreshed is None:
-            raise RuntimeError("dependency node state disappeared after CAS update")
+            raise EngineeringError(
+                EngineeringErrorCode.REVISION_CONFLICT,
+                "Dependency node state disappeared after CAS update",
+            )
+        return _to_node_state(refreshed)
+
+    def replace_revalidated_state(
+        self,
+        state: DependencyNodeState,
+        *,
+        expected_revision: int | None = None,
+        commit: bool = True,
+    ) -> DependencyNodeState:
+        """CAS replacement after a complete, successful revalidation."""
+
+        identity = self._state_identity(state)
+        current = self.session.scalar(select(EngineeringDependencyNodeStateRecord).where(*identity))
+        if current is None:
+            inserted = self._insert_state(state)
+            if inserted is not None:
+                if commit:
+                    self.session.commit()
+                return inserted
+            current = self.session.scalar(
+                select(EngineeringDependencyNodeStateRecord).where(*identity)
+            )
+        if current is None or (
+            expected_revision is not None and current.revision != expected_revision
+        ):
+            raise EngineeringError(
+                EngineeringErrorCode.REVISION_CONFLICT,
+                "Dependency node state changed during revalidation",
+                details={"entity_type": state.entity_type, "entity_id": state.entity_id},
+            )
+        result = cast(
+            CursorResult[Any],
+            self.session.execute(
+                update(EngineeringDependencyNodeStateRecord)
+                .where(*identity, EngineeringDependencyNodeStateRecord.revision == current.revision)
+                .values(
+                    schema_version=state.schema_version,
+                    revision=current.revision + 1,
+                    updated_at=utc_now(),
+                    entity_metadata=state.metadata,
+                    observed_revision=state.observed_revision,
+                    observed_semantic_hash=state.observed_semantic_hash,
+                    status=state.status.value,
+                    invalidated_by=sorted(set(state.invalidated_by)),
+                    reason_codes=sorted(set(state.reason_codes)),
+                    stale_since=state.stale_since,
+                ),
+            ),
+        )
+        if result.rowcount != 1:
+            raise EngineeringError(
+                EngineeringErrorCode.REVISION_CONFLICT,
+                "Dependency node state changed during revalidation",
+            )
+        if commit:
+            self.session.commit()
+        refreshed = self.session.scalar(
+            select(EngineeringDependencyNodeStateRecord).where(*identity)
+        )
+        if refreshed is None:
+            raise EngineeringError(
+                EngineeringErrorCode.REVISION_CONFLICT,
+                "Dependency node state disappeared after revalidation",
+            )
         return _to_node_state(refreshed)
 
 
