@@ -78,8 +78,17 @@ from eea_core.protocol import (
     ProtocolIR,
     ProtocolValidationResult,
 )
+from eea_core.review import ReviewRun
 from eea_core.schematic import ErcIssue
 from eea_core.static_analysis import StaticAnalysisToolResult
+from eea_core.testing import (
+    AutomationLevel,
+    TestCase,
+    TestExecutionStatus,
+    TestIR,
+    TestRun,
+    TestType,
+)
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -325,6 +334,9 @@ class EnumValues(BaseModel):
     requirement_value_type: list[RequirementValueType] = Field(alias="RequirementValueType")
     static_analysis_status: list[StaticAnalysisStatus] = Field(alias="StaticAnalysisStatus")
     traceability_relation: list[TraceabilityRelation] = Field(alias="TraceabilityRelation")
+    automation_level: list[AutomationLevel] = Field(alias="AutomationLevel")
+    test_execution_status: list[TestExecutionStatus] = Field(alias="TestExecutionStatus")
+    test_type: list[TestType] = Field(alias="TestType")
     verification_level: list[VerificationLevel] = Field(alias="VerificationLevel")
 
 
@@ -1090,6 +1102,111 @@ class FirmwareStaticAnalysisData(BaseModel):
 
 class StaticAnalysisListData(BaseModel):
     analyses: list[FirmwareStaticAnalysisData]
+
+
+class TestGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class TestGenerationData(BaseModel):
+    test_ir: TestIR
+    coverage_gaps: list[UUID] = Field(default_factory=list)
+
+
+class TestIRListData(BaseModel):
+    items: list[TestIR]
+
+
+class TestCaseListData(BaseModel):
+    items: list[TestCase]
+
+
+class TestRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    test_ir_id: UUID | None = None
+    source_revision_id: UUID
+
+
+class TestRunListData(BaseModel):
+    items: list[TestRun]
+
+
+class CoverageData(BaseModel):
+    total_requirements: int
+    release_critical_requirements: int
+    covered_requirements: int
+    verified_requirements: int
+    design_coverage_ratio: float
+    verification_coverage_ratio: float
+    uncovered_requirement_ids: list[UUID]
+    unexecuted_requirement_ids: list[UUID]
+    failing_requirement_ids: list[UUID]
+    blocked_requirement_ids: list[UUID]
+    unknown_requirement_ids: list[UUID]
+
+
+class TraceabilityData(BaseModel):
+    edges: list[dict[str, object]]
+    coverage: CoverageData
+    orphan_tests: list[UUID]
+    uncovered_requirements: list[UUID]
+
+
+class ReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_revision_id: UUID
+    test_ir_id: UUID | None = None
+    test_run_id: UUID | None = None
+    build_run_id: UUID | None = None
+    static_analysis_id: UUID | None = None
+    schematic_id: UUID | None = None
+    require_build: bool = False
+    require_static_analysis: bool = False
+    require_erc: bool = False
+
+
+class ReviewListData(BaseModel):
+    items: list[ReviewRun]
+
+
+class IssueData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    code: str
+    title: str
+    description: str
+    severity: IssueSeverity
+    status: IssueStatus
+    claim_ids: list[UUID]
+    evidence_ids: list[UUID]
+    resolution: str | None
+    dedupe_key: str | None
+    source_kind: str | None
+    source_ref: str | None
+    affected_refs: list[str]
+    first_seen_at: datetime | None
+    last_seen_at: datetime | None
+    occurrence_count: int
+    last_review_id: UUID | None
+
+
+class IssueListData(BaseModel):
+    items: list[IssueData]
+
+
+class IssueMutationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID
+    reason: str = Field(min_length=1, max_length=8000)
+    expected_revision: int | None = Field(default=None, ge=1)
 
 
 class ErcImportRequest(BaseModel):

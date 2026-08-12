@@ -279,6 +279,29 @@
         "title": "ApiEnvelope[ComponentDetailData]",
         "type": "object"
       },
+      "ApiEnvelope_CoverageData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CoverageData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[CoverageData]",
+        "type": "object"
+      },
       "ApiEnvelope_DependencyLockData_": {
         "properties": {
           "data": {
@@ -624,6 +647,52 @@
         "title": "ApiEnvelope[FirmwareStaticAnalysisData]",
         "type": "object"
       },
+      "ApiEnvelope_IssueData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/IssueData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[IssueData]",
+        "type": "object"
+      },
+      "ApiEnvelope_IssueListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/IssueListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[IssueListData]",
+        "type": "object"
+      },
       "ApiEnvelope_MCUConfigBundleData_": {
         "properties": {
           "data": {
@@ -900,6 +969,52 @@
         "title": "ApiEnvelope[RequirementProfileData]",
         "type": "object"
       },
+      "ApiEnvelope_ReviewListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ReviewListData]",
+        "type": "object"
+      },
+      "ApiEnvelope_ReviewRun_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewRun"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ReviewRun]",
+        "type": "object"
+      },
       "ApiEnvelope_SchemaData_": {
         "properties": {
           "data": {
@@ -990,6 +1105,144 @@
           "request_id"
         ],
         "title": "ApiEnvelope[StaticAnalysisListData]",
+        "type": "object"
+      },
+      "ApiEnvelope_TestCaseListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TestCaseListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[TestCaseListData]",
+        "type": "object"
+      },
+      "ApiEnvelope_TestGenerationData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TestGenerationData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[TestGenerationData]",
+        "type": "object"
+      },
+      "ApiEnvelope_TestIRListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TestIRListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[TestIRListData]",
+        "type": "object"
+      },
+      "ApiEnvelope_TestRunListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TestRunListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[TestRunListData]",
+        "type": "object"
+      },
+      "ApiEnvelope_TestRun_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TestRun"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[TestRun]",
+        "type": "object"
+      },
+      "ApiEnvelope_TraceabilityData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TraceabilityData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[TraceabilityData]",
         "type": "object"
       },
       "ApiEnvelope_VersionData_": {
@@ -1244,6 +1497,15 @@
           "ARCHIVED"
         ],
         "title": "ArtifactStatus",
+        "type": "string"
+      },
+      "AutomationLevel": {
+        "enum": [
+          "AUTOMATED",
+          "SEMI_AUTOMATED",
+          "MANUAL"
+        ],
+        "title": "AutomationLevel",
         "type": "string"
       },
       "BSPConfig": {
@@ -2692,6 +2954,89 @@
           "toolchain_id"
         ],
         "title": "ComponentResolveRequest",
+        "type": "object"
+      },
+      "CoverageData": {
+        "properties": {
+          "blocked_requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Blocked Requirement Ids",
+            "type": "array"
+          },
+          "covered_requirements": {
+            "title": "Covered Requirements",
+            "type": "integer"
+          },
+          "design_coverage_ratio": {
+            "title": "Design Coverage Ratio",
+            "type": "number"
+          },
+          "failing_requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Failing Requirement Ids",
+            "type": "array"
+          },
+          "release_critical_requirements": {
+            "title": "Release Critical Requirements",
+            "type": "integer"
+          },
+          "total_requirements": {
+            "title": "Total Requirements",
+            "type": "integer"
+          },
+          "uncovered_requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Uncovered Requirement Ids",
+            "type": "array"
+          },
+          "unexecuted_requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Unexecuted Requirement Ids",
+            "type": "array"
+          },
+          "unknown_requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Unknown Requirement Ids",
+            "type": "array"
+          },
+          "verification_coverage_ratio": {
+            "title": "Verification Coverage Ratio",
+            "type": "number"
+          },
+          "verified_requirements": {
+            "title": "Verified Requirements",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_requirements",
+          "release_critical_requirements",
+          "covered_requirements",
+          "verified_requirements",
+          "design_coverage_ratio",
+          "verification_coverage_ratio",
+          "uncovered_requirement_ids",
+          "unexecuted_requirement_ids",
+          "failing_requirement_ids",
+          "blocked_requirement_ids",
+          "unknown_requirement_ids"
+        ],
+        "title": "CoverageData",
         "type": "object"
       },
       "DMAIR": {
@@ -4463,6 +4808,13 @@
             "title": "Artifactstatus",
             "type": "array"
           },
+          "AutomationLevel": {
+            "items": {
+              "$ref": "#/components/schemas/AutomationLevel"
+            },
+            "title": "Automationlevel",
+            "type": "array"
+          },
           "ClaimConflictStatus": {
             "items": {
               "$ref": "#/components/schemas/ClaimConflictStatus"
@@ -4624,6 +4976,20 @@
             "title": "Staticanalysisstatus",
             "type": "array"
           },
+          "TestExecutionStatus": {
+            "items": {
+              "$ref": "#/components/schemas/TestExecutionStatus"
+            },
+            "title": "Testexecutionstatus",
+            "type": "array"
+          },
+          "TestType": {
+            "items": {
+              "$ref": "#/components/schemas/TestType"
+            },
+            "title": "Testtype",
+            "type": "array"
+          },
           "TraceabilityRelation": {
             "items": {
               "$ref": "#/components/schemas/TraceabilityRelation"
@@ -4665,6 +5031,9 @@
           "RequirementValueType",
           "StaticAnalysisStatus",
           "TraceabilityRelation",
+          "AutomationLevel",
+          "TestExecutionStatus",
+          "TestType",
           "VerificationLevel"
         ],
         "title": "EnumValues",
@@ -6330,6 +6699,245 @@
           "priority"
         ],
         "title": "InterruptConfigIR",
+        "type": "object"
+      },
+      "IssueData": {
+        "properties": {
+          "affected_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Affected Refs",
+            "type": "array"
+          },
+          "claim_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Claim Ids",
+            "type": "array"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dedupe_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dedupe Key"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "first_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_review_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Review Id"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "occurrence_count": {
+            "title": "Occurrence Count",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/IssueSeverity"
+          },
+          "source_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Kind"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IssueStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "code",
+          "title",
+          "description",
+          "severity",
+          "status",
+          "claim_ids",
+          "evidence_ids",
+          "resolution",
+          "dedupe_key",
+          "source_kind",
+          "source_ref",
+          "affected_refs",
+          "first_seen_at",
+          "last_seen_at",
+          "occurrence_count",
+          "last_review_id"
+        ],
+        "title": "IssueData",
+        "type": "object"
+      },
+      "IssueListData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IssueData"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "IssueListData",
+        "type": "object"
+      },
+      "IssueMutationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "reason"
+        ],
+        "title": "IssueMutationRequest",
         "type": "object"
       },
       "IssueSeverity": {
@@ -8908,6 +9516,359 @@
         "title": "ResolvedComponent",
         "type": "object"
       },
+      "ReviewFinding": {
+        "additionalProperties": false,
+        "properties": {
+          "affected_refs": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Affected Refs",
+            "type": "array"
+          },
+          "code": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "dedupe_key": {
+            "default": "",
+            "title": "Dedupe Key",
+            "type": "string"
+          },
+          "deterministic": {
+            "default": true,
+            "title": "Deterministic",
+            "type": "boolean"
+          },
+          "evidence_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "message": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/IssueSeverity"
+          },
+          "source_kind": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Source Kind",
+            "type": "string"
+          },
+          "source_ref": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Source Ref",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TestExecutionStatus"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title",
+          "message",
+          "source_kind",
+          "source_ref",
+          "severity",
+          "status"
+        ],
+        "title": "ReviewFinding",
+        "type": "object"
+      },
+      "ReviewListData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewRun"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ReviewListData",
+        "type": "object"
+      },
+      "ReviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "build_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Run Id"
+          },
+          "require_build": {
+            "default": false,
+            "title": "Require Build",
+            "type": "boolean"
+          },
+          "require_erc": {
+            "default": false,
+            "title": "Require Erc",
+            "type": "boolean"
+          },
+          "require_static_analysis": {
+            "default": false,
+            "title": "Require Static Analysis",
+            "type": "boolean"
+          },
+          "schematic_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schematic Id"
+          },
+          "source_revision_id": {
+            "format": "uuid",
+            "title": "Source Revision Id",
+            "type": "string"
+          },
+          "static_analysis_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Static Analysis Id"
+          },
+          "test_ir_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Ir Id"
+          },
+          "test_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Run Id"
+          }
+        },
+        "required": [
+          "source_revision_id"
+        ],
+        "title": "ReviewRequest",
+        "type": "object"
+      },
+      "ReviewRun": {
+        "additionalProperties": false,
+        "properties": {
+          "build_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Run Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "findings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ReviewFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "issue_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Issue Ids",
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "policy_version": {
+            "default": "m17-review-1",
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "protocol_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protocol Id"
+          },
+          "protocol_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protocol Revision"
+          },
+          "revision": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_revision_id": {
+            "format": "uuid",
+            "title": "Source Revision Id",
+            "type": "string"
+          },
+          "static_analysis_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Static Analysis Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TestExecutionStatus"
+          },
+          "test_ir_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Ir Id"
+          },
+          "test_ir_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Ir Revision"
+          },
+          "test_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Run Id"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "source_revision_id",
+          "input_hash",
+          "status"
+        ],
+        "title": "ReviewRun",
+        "type": "object"
+      },
       "SchemaData": {
         "properties": {
           "json_schema": {
@@ -9746,6 +10707,602 @@
         "title": "SystemArchitectureData",
         "type": "object"
       },
+      "TestCase": {
+        "additionalProperties": false,
+        "description": "A declarative test case.  Steps are data and are never executable code.",
+        "properties": {
+          "automation_level": {
+            "$ref": "#/components/schemas/AutomationLevel",
+            "default": "AUTOMATED"
+          },
+          "cleanup": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Cleanup",
+            "type": "array"
+          },
+          "code": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "executor_config": {
+            "additionalProperties": true,
+            "title": "Executor Config",
+            "type": "object"
+          },
+          "executor_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executor Id"
+          },
+          "expected": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Expected",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "title": "Inputs",
+            "type": "object"
+          },
+          "pass_condition": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Pass Condition",
+            "type": "string"
+          },
+          "preconditions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Preconditions",
+            "type": "array"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "requirement_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "setup": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Setup",
+            "type": "array"
+          },
+          "steps": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "timeout": {
+            "default": "UNKNOWN",
+            "title": "Timeout",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/TestType",
+            "default": "REQUIREMENT"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "title",
+          "pass_condition"
+        ],
+        "title": "TestCase",
+        "type": "object"
+      },
+      "TestCaseListData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TestCase"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TestCaseListData",
+        "type": "object"
+      },
+      "TestCaseResult": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_ms": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "evidence_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "executor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executor Id"
+          },
+          "expected": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          },
+          "observed": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TestExecutionStatus"
+          },
+          "test_case_code": {
+            "title": "Test Case Code",
+            "type": "string"
+          },
+          "test_case_id": {
+            "format": "uuid",
+            "title": "Test Case Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "test_case_id",
+          "test_case_code",
+          "status"
+        ],
+        "title": "TestCaseResult",
+        "type": "object"
+      },
+      "TestExecutionStatus": {
+        "enum": [
+          "PASS",
+          "FAIL",
+          "UNKNOWN",
+          "BLOCKED",
+          "SKIPPED"
+        ],
+        "title": "TestExecutionStatus",
+        "type": "string"
+      },
+      "TestGenerateRequest": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "TestGenerateRequest",
+        "type": "object"
+      },
+      "TestGenerationData": {
+        "properties": {
+          "coverage_gaps": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Coverage Gaps",
+            "type": "array"
+          },
+          "test_ir": {
+            "$ref": "#/components/schemas/TestIR"
+          }
+        },
+        "required": [
+          "test_ir"
+        ],
+        "title": "TestGenerationData",
+        "type": "object"
+      },
+      "TestIR": {
+        "additionalProperties": false,
+        "description": "Test design SSOT; the canonical hash excludes entity timestamps.",
+        "properties": {
+          "cases": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TestCase"
+            },
+            "title": "Cases",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "generator_version": {
+            "default": "m17-deterministic-1",
+            "title": "Generator Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "policy_version": {
+            "default": "m17-review-1",
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "requirement_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Requirement Ids",
+            "type": "array"
+          },
+          "revision": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "input_hash"
+        ],
+        "title": "TestIR",
+        "type": "object"
+      },
+      "TestIRListData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TestIR"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TestIRListData",
+        "type": "object"
+      },
+      "TestRun": {
+        "additionalProperties": false,
+        "description": "Immutable execution record bound to a TestIR and SourceRevision.",
+        "properties": {
+          "case_results": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TestCaseResult"
+            },
+            "title": "Case Results",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "revision": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_revision_id": {
+            "format": "uuid",
+            "title": "Source Revision Id",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TestExecutionStatus"
+          },
+          "test_input_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Test Input Hash",
+            "type": "string"
+          },
+          "test_ir_id": {
+            "format": "uuid",
+            "title": "Test Ir Id",
+            "type": "string"
+          },
+          "test_ir_revision": {
+            "minimum": 1.0,
+            "title": "Test Ir Revision",
+            "type": "integer"
+          },
+          "tool_versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Tool Versions",
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "test_ir_id",
+          "test_ir_revision",
+          "test_input_hash",
+          "source_revision_id",
+          "status",
+          "started_at"
+        ],
+        "title": "TestRun",
+        "type": "object"
+      },
+      "TestRunListData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TestRun"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TestRunListData",
+        "type": "object"
+      },
+      "TestRunRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "source_revision_id": {
+            "format": "uuid",
+            "title": "Source Revision Id",
+            "type": "string"
+          },
+          "test_ir_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Ir Id"
+          }
+        },
+        "required": [
+          "source_revision_id"
+        ],
+        "title": "TestRunRequest",
+        "type": "object"
+      },
+      "TestType": {
+        "enum": [
+          "REQUIREMENT",
+          "BUILD",
+          "STATIC_ANALYSIS",
+          "ERC",
+          "PROTOCOL",
+          "INTEGRATION",
+          "MANUAL"
+        ],
+        "title": "TestType",
+        "type": "string"
+      },
+      "TraceabilityData": {
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/CoverageData"
+          },
+          "edges": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "orphan_tests": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Orphan Tests",
+            "type": "array"
+          },
+          "uncovered_requirements": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Uncovered Requirements",
+            "type": "array"
+          }
+        },
+        "required": [
+          "edges",
+          "coverage",
+          "orphan_tests",
+          "uncovered_requirements"
+        ],
+        "title": "TraceabilityData",
+        "type": "object"
+      },
       "TraceabilityRelation": {
         "enum": [
           "IMPLEMENTS",
@@ -10095,6 +11652,180 @@
         "summary": "Query Device Pin",
         "tags": [
           "devices"
+        ]
+      }
+    },
+    "/api/v1/issues/{issue_id}": {
+      "get": {
+        "operationId": "get_issue_api_v1_issues__issue_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Issue Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_IssueData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Issue",
+        "tags": [
+          "issues"
+        ]
+      }
+    },
+    "/api/v1/issues/{issue_id}/ignore": {
+      "post": {
+        "operationId": "ignore_issue_api_v1_issues__issue_id__ignore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Issue Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueMutationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_IssueData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ignore Issue",
+        "tags": [
+          "issues"
+        ]
+      }
+    },
+    "/api/v1/issues/{issue_id}/resolve": {
+      "post": {
+        "operationId": "resolve_issue_api_v1_issues__issue_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Issue Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueMutationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_IssueData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Resolve Issue",
+        "tags": [
+          "issues"
         ]
       }
     },
@@ -12090,6 +13821,54 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/issues": {
+      "get": {
+        "operationId": "list_issues_api_v1_projects__project_id__issues_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_IssueListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Issues",
+        "tags": [
+          "issues"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/mcu-config": {
       "get": {
         "operationId": "get_mcu_config_api_v1_projects__project_id__mcu_config_get",
@@ -12936,6 +14715,112 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/review": {
+      "post": {
+        "operationId": "create_review_api_v1_projects__project_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ReviewRun_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Review",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/reviews": {
+      "get": {
+        "operationId": "list_reviews_api_v1_projects__project_id__reviews_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ReviewListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Reviews",
+        "tags": [
+          "review"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/schematic": {
       "get": {
         "operationId": "get_schematic_api_v1_projects__project_id__schematic_get",
@@ -13155,6 +15040,362 @@
         "summary": "Validate Schematic",
         "tags": [
           "schematic"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/tests": {
+      "get": {
+        "operationId": "list_tests_api_v1_projects__project_id__tests_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_TestIRListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Tests",
+        "tags": [
+          "tests"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/tests/cases": {
+      "get": {
+        "operationId": "list_test_cases_api_v1_projects__project_id__tests_cases_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_TestCaseListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Test Cases",
+        "tags": [
+          "tests"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/tests/coverage": {
+      "get": {
+        "operationId": "get_test_coverage_api_v1_projects__project_id__tests_coverage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CoverageData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Test Coverage",
+        "tags": [
+          "tests"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/tests/generate": {
+      "post": {
+        "operationId": "generate_tests_api_v1_projects__project_id__tests_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_TestGenerationData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Tests",
+        "tags": [
+          "tests"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/tests/results": {
+      "get": {
+        "operationId": "list_test_results_api_v1_projects__project_id__tests_results_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_TestRunListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Test Results",
+        "tags": [
+          "tests"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/tests/run": {
+      "post": {
+        "operationId": "run_tests_api_v1_projects__project_id__tests_run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_TestRun_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Run Tests",
+        "tags": [
+          "tests"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/traceability": {
+      "get": {
+        "operationId": "get_traceability_api_v1_projects__project_id__traceability_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_TraceabilityData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Traceability",
+        "tags": [
+          "traceability"
         ]
       }
     },

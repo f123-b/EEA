@@ -324,6 +324,33 @@ export const traceabilityRelationValues = [
 ] as const;
 export type TraceabilityRelation = (typeof traceabilityRelationValues)[number];
 
+export const automationLevelValues = [
+  "AUTOMATED",
+  "SEMI_AUTOMATED",
+  "MANUAL"
+] as const;
+export type AutomationLevel = (typeof automationLevelValues)[number];
+
+export const testExecutionStatusValues = [
+  "PASS",
+  "FAIL",
+  "UNKNOWN",
+  "BLOCKED",
+  "SKIPPED"
+] as const;
+export type TestExecutionStatus = (typeof testExecutionStatusValues)[number];
+
+export const testTypeValues = [
+  "REQUIREMENT",
+  "BUILD",
+  "STATIC_ANALYSIS",
+  "ERC",
+  "PROTOCOL",
+  "INTEGRATION",
+  "MANUAL"
+] as const;
+export type TestType = (typeof testTypeValues)[number];
+
 export const verificationLevelValues = [
   "AI_INFERRED",
   "REFERENCE_SUPPORTED",
@@ -641,4 +668,187 @@ export interface ProtocolValidateRequest {
 export interface ProtocolGenerateRequest {
   protocol_id?: string | null;
   revision?: number | null;
+}
+
+export interface TestCase {
+  id: string;
+  code: string;
+  title: string;
+  type: TestType;
+  requirement_ids: string[];
+  preconditions: string[];
+  setup: string[];
+  inputs: Record<string, unknown>;
+  steps: string[];
+  expected: string[];
+  timeout: string;
+  pass_condition: string;
+  cleanup: string[];
+  automation_level: AutomationLevel;
+  executor_id: string | null;
+  executor_config: Record<string, unknown>;
+  required: boolean;
+  evidence_ids: string[];
+}
+
+export interface TestIR {
+  id: string;
+  schema_version: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+  project_id: string;
+  requirement_ids: string[];
+  cases: TestCase[];
+  input_hash: string;
+  generator_version: string;
+  policy_version: string;
+  evidence_ids: string[];
+}
+
+export interface TestCaseResult {
+  id: string;
+  test_case_id: string;
+  test_case_code: string;
+  status: TestExecutionStatus;
+  duration_ms: number;
+  message: string;
+  observed: unknown;
+  expected: unknown;
+  evidence_ids: string[];
+  executor_id: string | null;
+  failure: Record<string, unknown> | null;
+}
+
+export interface TestRun {
+  id: string;
+  schema_version: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+  project_id: string;
+  test_ir_id: string;
+  test_ir_revision: number;
+  test_input_hash: string;
+  source_revision_id: string;
+  status: TestExecutionStatus;
+  started_at: string;
+  finished_at: string | null;
+  case_results: TestCaseResult[];
+  tool_versions: Record<string, string>;
+  evidence_ids: string[];
+}
+
+export interface TestGenerationData {
+  test_ir: TestIR;
+  coverage_gaps: string[];
+}
+
+export interface TestRunRequest {
+  test_ir_id?: string | null;
+  source_revision_id: string;
+}
+
+export interface CoverageData {
+  total_requirements: number;
+  release_critical_requirements: number;
+  covered_requirements: number;
+  verified_requirements: number;
+  design_coverage_ratio: number;
+  verification_coverage_ratio: number;
+  uncovered_requirement_ids: string[];
+  unexecuted_requirement_ids: string[];
+  failing_requirement_ids: string[];
+  blocked_requirement_ids: string[];
+  unknown_requirement_ids: string[];
+}
+
+export interface TraceabilityData {
+  edges: Record<string, unknown>[];
+  coverage: CoverageData;
+  orphan_tests: string[];
+  uncovered_requirements: string[];
+}
+
+export interface ReviewFinding {
+  code: string;
+  title: string;
+  message: string;
+  source_kind: string;
+  source_ref: string;
+  severity: IssueSeverity;
+  status: TestExecutionStatus;
+  affected_refs: string[];
+  evidence_ids: string[];
+  deterministic: boolean;
+  dedupe_key: string;
+}
+
+export interface ReviewRun {
+  id: string;
+  schema_version: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+  project_id: string;
+  source_revision_id: string;
+  policy_version: string;
+  input_hash: string;
+  build_run_id: string | null;
+  static_analysis_id: string | null;
+  test_run_id: string | null;
+  test_ir_id: string | null;
+  test_ir_revision: number | null;
+  protocol_id: string | null;
+  protocol_revision: number | null;
+  status: TestExecutionStatus;
+  findings: ReviewFinding[];
+  issue_ids: string[];
+}
+
+export interface ReviewRequest {
+  source_revision_id: string;
+  test_ir_id?: string | null;
+  test_run_id?: string | null;
+  build_run_id?: string | null;
+  static_analysis_id?: string | null;
+  schematic_id?: string | null;
+  require_build?: boolean;
+  require_static_analysis?: boolean;
+  require_erc?: boolean;
+}
+
+export interface IssueData {
+  id: string;
+  schema_version: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+  project_id: string;
+  code: string;
+  title: string;
+  description: string;
+  severity: IssueSeverity;
+  status: IssueStatus;
+  claim_ids: string[];
+  evidence_ids: string[];
+  resolution: string | null;
+  dedupe_key: string | null;
+  source_kind: string | null;
+  source_ref: string | null;
+  affected_refs: string[];
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  occurrence_count: number;
+  last_review_id: string | null;
+}
+
+export interface IssueMutationRequest {
+  project_id: string;
+  reason: string;
+  expected_revision?: number | null;
 }

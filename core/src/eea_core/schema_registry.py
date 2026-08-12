@@ -125,6 +125,7 @@ from eea_core.requirements import (
     RequirementIssueDraft,
     RequirementProfile,
 )
+from eea_core.review import ReviewFinding, ReviewPolicy, ReviewRun
 from eea_core.sandbox import (
     ArchiveExtractionReport,
     CommandResult,
@@ -134,6 +135,7 @@ from eea_core.sandbox import (
 from eea_core.schematic import ErcIssue, ErcReport, SchematicBundle, SchematicIR
 from eea_core.source import BuildInputSnapshot, SourceRevision
 from eea_core.static_analysis import FirmwareStaticAnalysis, StaticAnalysisToolResult
+from eea_core.testing import TestCase, TestCaseResult, TestIR, TestRun
 
 
 @dataclass(frozen=True, slots=True)
@@ -266,7 +268,14 @@ def create_core_schema_registry() -> SchemaRegistry:
         SourceRevision,
         StartupConfig,
         StaticAnalysisToolResult,
+        TestCase,
+        TestCaseResult,
+        TestIR,
+        TestRun,
         MemoryLayout,
+        ReviewFinding,
+        ReviewPolicy,
+        ReviewRun,
         PeripheralDriverConfig,
         FollowUpQuestion,
         Requirement,

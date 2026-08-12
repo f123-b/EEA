@@ -115,6 +115,14 @@ class Issue(EntityBase):
     claim_ids: list[UUID] = Field(default_factory=list)
     evidence_ids: list[UUID] = Field(default_factory=list)
     resolution: str | None = Field(default=None, max_length=8000)
+    dedupe_key: str | None = Field(default=None, max_length=64)
+    source_kind: str | None = Field(default=None, max_length=100)
+    source_ref: str | None = Field(default=None, max_length=300)
+    affected_refs: list[str] = Field(default_factory=list)
+    first_seen_at: datetime | None = None
+    last_seen_at: datetime | None = None
+    occurrence_count: int = Field(default=1, ge=1)
+    last_review_id: UUID | None = None
 
 
 class EngineeringDecision(EntityBase):

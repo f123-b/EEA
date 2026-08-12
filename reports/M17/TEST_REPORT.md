@@ -1,0 +1,62 @@
+# M17 Test / Traceability / Review Test Report
+
+Date: 2026-08-12
+
+Repository: `f123-b/EEA`
+
+Branch: `codex/m17-test-traceability-review`
+
+Base: `main` at `6c75c1467d6e5ba001168b98a09cbbd005361336`
+
+Migration: `0023_m17_test_traceability_review`
+
+## Scope
+
+This implementation covers the M17 TestIR, deterministic test generation,
+controlled test execution, coverage and traceability, ReviewRun evaluation,
+project-scoped issue persistence, issue deduplication, CAS lifecycle updates,
+and synchronized API/OpenAPI/TypeScript contracts.
+
+M17 does not implement M18 dependency invalidation, M19 FOC or commissioning,
+M21 Desktop UI, or any ProtocolIR changes.
+
+## Verification
+
+Focused M17 tests: **12 passed**.
+
+Repository verification under the authoritative Python 3.12.4 interpreter:
+
+- `pytest`: **263 passed, 3 skipped**
+- coverage: **84.77%**
+- `ruff check .`: **PASS**
+- `ruff format --check .`: **PASS**
+- `mypy`: **PASS**
+- database upgrade: **PASS**
+- clean database + `alembic check`: **PASS**
+- `eea openapi export --check`: **PASS**
+- `eea openapi typescript --check`: **PASS**
+- `pnpm lint`: **PASS**
+- `pnpm typecheck`: **PASS**
+- `pnpm build`: **PASS**
+
+The repository's `uv` Windows interpreter redirector reports a process-launch
+error in the existing M5 Sandbox subprocess tests. Re-running the same M5
+tests with the authoritative Python 3.12.4 interpreter passes (`8 passed,
+3 skipped`). No Sandbox source was changed by M17.
+
+## Status
+
+`M17 = IMPLEMENTED`
+
+`M17R = PENDING_REVIEW`
+
+`READY_FOR_M18 = NO`
+
+`M18 = NOT_STARTED`
+
+`M19 = NOT_STARTED`
+
+`M21 = NOT_STARTED`
+
+This report records implementation verification only. M17 acceptance requires
+repository review and the resulting CI evidence.

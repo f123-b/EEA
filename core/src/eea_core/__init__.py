@@ -15,8 +15,18 @@ from eea_core.protocol import (
     ProtocolMessage,
     ProtocolTransport,
 )
+from eea_core.testing import (
+    AutomationLevel,
+    TestCase,
+    TestCaseResult,
+    TestExecutionStatus,
+    TestIR,
+    TestRun,
+    TestType,
+)
 
 __all__ = [
+    "AutomationLevel",
     "DomainActivation",
     "DomainCompositionPlan",
     "DomainDescriptor",
@@ -28,6 +38,12 @@ __all__ = [
     "ProtocolIR",
     "ProtocolMessage",
     "ProtocolTransport",
+    "TestCase",
+    "TestCaseResult",
+    "TestExecutionStatus",
+    "TestIR",
+    "TestRun",
+    "TestType",
 ]
 
 from eea_core.entities import (
