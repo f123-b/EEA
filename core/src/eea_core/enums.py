@@ -234,6 +234,52 @@ class TraceabilityRelation(StrEnum):
     INVALIDATES = "INVALIDATES"
 
 
+class DependencyKind(StrEnum):
+    """Engineering Dependency Graph edge semantics (M18)."""
+
+    INPUT = "INPUT"
+    DERIVATION = "DERIVATION"
+    GENERATION = "GENERATION"
+    CONFIGURATION = "CONFIGURATION"
+    SELECTION = "SELECTION"
+    VERIFICATION = "VERIFICATION"
+    EVIDENCE = "EVIDENCE"
+
+
+class InvalidationPolicy(StrEnum):
+    """How an upstream semantic or validity change affects a dependent."""
+
+    NONE = "NONE"
+    SEMANTIC_CHANGE_STALE = "SEMANTIC_CHANGE_STALE"
+    SOURCE_INVALID_STALE = "SOURCE_INVALID_STALE"
+    SOURCE_INVALID_INVALID = "SOURCE_INVALID_INVALID"
+    SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID = "SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID"
+
+
+class DependencyNodeStatus(StrEnum):
+    """Graph-owned status; it does not rewrite historical run statuses."""
+
+    CURRENT = "CURRENT"
+    STALE = "STALE"
+    INVALID = "INVALID"
+    UNKNOWN = "UNKNOWN"
+
+
+class ChangeObservation(StrEnum):
+    NON_SEMANTIC = "NON_SEMANTIC"
+    SEMANTIC_CHANGED = "SEMANTIC_CHANGED"
+    SOURCE_INVALID = "SOURCE_INVALID"
+
+
+class ImpactAction(StrEnum):
+    REVALIDATE = "REVALIDATE"
+    REGENERATE = "REGENERATE"
+    REBUILD = "REBUILD"
+    RERUN_TEST = "RERUN_TEST"
+    RERUN_REVIEW = "RERUN_REVIEW"
+    MANUAL_REVIEW = "MANUAL_REVIEW"
+
+
 class EngineeringDimension(StrEnum):
     """FIX-02 frozen dimensions used by every normalized engineering value."""
 

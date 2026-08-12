@@ -18,7 +18,8 @@ from eea_core.enums import (
     EngineeringDimension,
     VerificationLevel,
 )
-from sqlalchemy import desc, or_, select
+from sqlalchemy import desc, or_, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -164,6 +165,56 @@ class SqlAlchemyEngineeringClaimRepository:
     def get(self, claim_id: UUID) -> EngineeringClaim | None:
         record = self._session.get(EngineeringClaimRecord, str(claim_id))
         return _to_claim(record) if record else None
+
+    def save(
+        self,
+        claim: EngineeringClaim,
+        *,
+        expected_revision: int,
+        commit: bool = True,
+    ) -> EngineeringClaim | None:
+        value = (
+            claim.value.model_dump(mode="json")
+            if isinstance(claim.value, EngineeringValue)
+            else claim.value
+        )
+        result = cast(
+            CursorResult[object],
+            self._session.execute(
+                update(EngineeringClaimRecord)
+                .where(
+                    EngineeringClaimRecord.id == str(claim.id),
+                    EngineeringClaimRecord.revision == expected_revision,
+                )
+                .values(
+                    schema_version=claim.schema_version,
+                    revision=claim.revision,
+                    updated_at=claim.updated_at,
+                    entity_metadata=claim.metadata,
+                    project_id=str(claim.project_id) if claim.project_id else None,
+                    subject_ref=claim.subject_ref,
+                    predicate=claim.predicate,
+                    value_schema_ref=claim.value_schema_ref,
+                    value_json=value,
+                    applicability=claim.applicability,
+                    evidence_ids=[str(item) for item in claim.evidence_ids],
+                    verification_levels=[item.value for item in claim.verification_levels],
+                    confidence=claim.confidence,
+                    source_priority=claim.source_priority,
+                    source_version=claim.source_version,
+                    lifecycle=claim.lifecycle.value,
+                ),
+            ),
+        )
+        if result.rowcount != 1:
+            if commit:
+                self._session.rollback()
+            return None
+        if commit:
+            self._session.commit()
+        else:
+            self._session.flush()
+        return self.get(claim.id)
 
     def list_for_subject_predicate(
         self,

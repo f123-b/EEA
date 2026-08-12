@@ -17,13 +17,16 @@ from eea_core.enums import (
     ComponentRevisionKind,
     ComponentSourceType,
     DecisionStatus,
+    DependencyKind,
     DependencyLockStatus,
+    DependencyNodeStatus,
     DocumentParseStatus,
     DocumentType,
     DomainActivationStatus,
     EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
+    InvalidationPolicy,
     IssueSeverity,
     IssueStatus,
     JobStatus,
@@ -43,6 +46,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     MetaData,
     Numeric,
     String,
@@ -262,6 +266,93 @@ class TraceabilityEdgeRecord(CoreRecordMixin, Base):
     target_id: Mapped[str] = mapped_column(String(36), nullable=False)
     relation: Mapped[str] = mapped_column(String(40), nullable=False)
     evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+
+class EngineeringDependencyEdgeRecord(CoreRecordMixin, Base):
+    """M18 engineering freshness graph edge, separate from traceability."""
+
+    __tablename__ = "engineering_dependency_edges"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            f"dependency_kind IN ({_enum_values(DependencyKind)})", name="dependency_kind"
+        ),
+        CheckConstraint(
+            f"invalidation_policy IN ({_enum_values(InvalidationPolicy)})",
+            name="invalidation_policy",
+        ),
+        CheckConstraint("length(bound_upstream_semantic_hash) = 64", name="semantic_hash_length"),
+        CheckConstraint(
+            "NOT (upstream_type = downstream_type AND upstream_id = downstream_id)",
+            name="not_self_dependency",
+        ),
+        UniqueConstraint(
+            "project_id",
+            "upstream_type",
+            "upstream_id",
+            "downstream_type",
+            "downstream_id",
+            "dependency_kind",
+            name="uq_engineering_dependency_edges_identity",
+        ),
+        Index(
+            "ix_engineering_dependency_edges_project_upstream",
+            "project_id",
+            "upstream_type",
+            "upstream_id",
+        ),
+        Index(
+            "ix_engineering_dependency_edges_project_downstream",
+            "project_id",
+            "downstream_type",
+            "downstream_id",
+        ),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    upstream_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    upstream_id: Mapped[str] = mapped_column(String(500), nullable=False)
+    downstream_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    downstream_id: Mapped[str] = mapped_column(String(500), nullable=False)
+    dependency_kind: Mapped[str] = mapped_column(String(30), nullable=False)
+    required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    invalidation_policy: Mapped[str] = mapped_column(String(80), nullable=False)
+    bound_upstream_revision: Mapped[int] = mapped_column(nullable=False)
+    bound_upstream_semantic_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason: Mapped[str] = mapped_column(String(2000), nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+
+class EngineeringDependencyNodeStateRecord(CoreRecordMixin, Base):
+    """Current graph-owned status for a project-scoped node."""
+
+    __tablename__ = "engineering_dependency_node_states"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(f"status IN ({_enum_values(DependencyNodeStatus)})", name="status"),
+        CheckConstraint("length(observed_semantic_hash) = 64", name="semantic_hash_length"),
+        UniqueConstraint(
+            "project_id",
+            "entity_type",
+            "entity_id",
+            name="uq_engineering_dependency_node_states_identity",
+        ),
+        Index(
+            "ix_engineering_dependency_node_states_project_status",
+            "project_id",
+            "status",
+        ),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    entity_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(500), nullable=False)
+    observed_revision: Mapped[int] = mapped_column(nullable=False)
+    observed_semantic_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    invalidated_by: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    reason_codes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    stale_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class TestIRRecord(CoreRecordMixin, Base):

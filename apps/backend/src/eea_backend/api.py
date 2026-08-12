@@ -12,6 +12,7 @@ from eea_application.ai import PromptRegistry, StructuredGenerationService
 from eea_application.architecture import ArchitectureService
 from eea_application.circuit import CircuitService
 from eea_application.components import ComponentMaterializer, ComponentRegistryService
+from eea_application.dependency_graph import DependencyGraphService
 from eea_application.domains import DomainExtensionService
 from eea_application.firmware import FirmwareBuildService, FirmwareService
 from eea_application.intelligence import DocumentService, MultiSourceDeviceProvider
@@ -38,11 +39,14 @@ from eea_core.components import (
 from eea_core.entities import Evidence, Project, TraceabilityEdge, utc_now
 from eea_core.enums import (
     ArtifactStatus,
+    ChangeObservation,
     ClaimConflictStatus,
     ClaimConflictStrategy,
     ClaimConflictType,
     ClaimLifecycle,
     DecisionStatus,
+    DependencyKind,
+    DependencyNodeStatus,
     DeviceCategory,
     DeviceMergeConflictType,
     DocumentParseStatus,
@@ -51,6 +55,8 @@ from eea_core.enums import (
     EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
+    ImpactAction,
+    InvalidationPolicy,
     IssueSeverity,
     IssueStatus,
     JobStatus,
@@ -96,6 +102,8 @@ from eea_backend.component_repositories import (
     SqlAlchemyComponentRepository,
     SqlAlchemyDependencyLockRepository,
 )
+from eea_backend.dependency_providers import build_dependency_provider_registry
+from eea_backend.dependency_repositories import SqlAlchemyDependencyGraphRepository
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
 from eea_backend.domain_repositories import SqlAlchemyDomainActivationRepository
 from eea_backend.firmware_repositories import SqlAlchemyFirmwareRepository
@@ -106,10 +114,12 @@ from eea_backend.m17_repositories import (
     SqlAlchemyTraceabilityRepository,
 )
 from eea_backend.mcu_config_repositories import SqlAlchemyMCUConfigRepository
+from eea_backend.models import ArtifactRecord
 from eea_backend.pin_planner_repositories import SqlAlchemyPinPlanRepository
 from eea_backend.protocol_repositories import SqlAlchemyProtocolRepository
 from eea_backend.repositories import (
     SqlAlchemyAIUsageRepository,
+    SqlAlchemyArtifactRepository,
     SqlAlchemyEvidenceRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemyPromptRepository,
@@ -124,6 +134,11 @@ from eea_backend.schemas import (
     ApiEnvelope,
     ArchitectureBundleData,
     ArchitectureGenerateRequest,
+    ArtifactData,
+    ArtifactDependenciesData,
+    ArtifactListData,
+    ArtifactRevalidateData,
+    ArtifactRevalidateRequest,
     BuildListData,
     BuildRequest,
     BuildRunData,
@@ -131,6 +146,7 @@ from eea_backend.schemas import (
     CircuitGenerateRequest,
     CircuitValidateRequest,
     CircuitValidationData,
+    ClaimLifecycleMutationRequest,
     ComponentCatalogData,
     ComponentDetailData,
     ComponentMaterializationData,
@@ -138,7 +154,10 @@ from eea_backend.schemas import (
     ComponentReleaseData,
     ComponentResolveRequest,
     CoverageData,
+    DependencyEdgeData,
+    DependencyListData,
     DependencyLockData,
+    DependencyNodeStateData,
     DeviceData,
     DevicePinData,
     DevicePinQueryData,
@@ -163,6 +182,7 @@ from eea_backend.schemas import (
     FirmwareBundleData,
     FirmwareGenerateRequest,
     FirmwareStaticAnalysisData,
+    ImpactAnalysisData,
     IssueData,
     IssueListData,
     IssueMutationRequest,
@@ -240,6 +260,308 @@ def _document_data(document: Document) -> DocumentData:
 
 def _evidence_data(evidence: Evidence) -> EvidenceData:
     return EvidenceData.model_validate(evidence.model_dump(mode="json"))
+
+
+def _artifact_data(artifact: object) -> ArtifactData:
+    return ArtifactData.model_validate(
+        artifact.model_dump(mode="json") if hasattr(artifact, "model_dump") else artifact
+    )
+
+
+def _dependency_service(session: Session) -> DependencyGraphService:
+    return DependencyGraphService(
+        SqlAlchemyDependencyGraphRepository(session),
+        build_dependency_provider_registry(session),
+    )
+
+
+def _dependency_edge_data(edge: object) -> object:
+    return {"edge": edge}
+
+
+@router.post(
+    "/claims/{claim_id}/lifecycle",
+    response_model=ApiEnvelope[dict[str, object]],
+    tags=["claims", "dependency-graph"],
+)
+def mutate_claim_lifecycle(
+    claim_id: UUID,
+    payload: ClaimLifecycleMutationRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[dict[str, object]]:
+    _service(session).get(payload.project_id)
+    claims = SqlAlchemyEngineeringClaimRepository(session)
+    claim = claims.get(claim_id)
+    if claim is None or (claim.project_id is not None and claim.project_id != payload.project_id):
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Claim is not available for this project",
+        )
+    if claim.revision != payload.expected_revision:
+        raise EngineeringError(
+            EngineeringErrorCode.REVISION_CONFLICT, "Claim revision does not match"
+        )
+    before = build_dependency_provider_registry(session).resolve(
+        payload.project_id, "Claim", str(claim_id)
+    )
+    updated = claim.model_copy(
+        update={
+            "lifecycle": payload.lifecycle,
+            "revision": claim.revision + 1,
+            "updated_at": utc_now(),
+        }
+    )
+    saved = claims.save(updated, expected_revision=claim.revision, commit=False)
+    if saved is None:
+        raise EngineeringError(
+            EngineeringErrorCode.REVISION_CONFLICT, "Claim changed during update"
+        )
+    after = build_dependency_provider_registry(session).resolve(
+        payload.project_id, "Claim", str(claim_id)
+    )
+    plan = _dependency_service(session).propagate(payload.project_id, before, after, commit=False)
+    session.commit()
+    return ApiEnvelope(
+        data={"claim": saved.model_dump(mode="json"), "impact_plan": plan.model_dump(mode="json")},
+        request_id=_request_id(request),
+    )
+
+
+@router.post(
+    "/entities/{entity_type}/{entity_id}/impact-analysis",
+    response_model=ApiEnvelope[ImpactAnalysisData],
+    tags=["dependency-graph"],
+)
+def dependency_impact_analysis(
+    entity_type: str,
+    entity_id: str,
+    request: Request,
+    project_id: UUID,
+    session: SessionDependency,
+) -> ApiEnvelope[ImpactAnalysisData]:
+    _service(session).get(project_id)
+    plan = _dependency_service(session).impact_analysis(project_id, entity_type, entity_id)
+    return ApiEnvelope(data=ImpactAnalysisData(plan=plan), request_id=_request_id(request))
+
+
+@router.get(
+    "/entities/{entity_type}/{entity_id}/dependencies",
+    response_model=ApiEnvelope[DependencyListData],
+    tags=["dependency-graph"],
+)
+def entity_dependencies(
+    entity_type: str,
+    entity_id: str,
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DependencyListData]:
+    _service(session).get(project_id)
+    repository = SqlAlchemyDependencyGraphRepository(session)
+    items = [
+        DependencyEdgeData(edge=edge)
+        for edge in repository.list_dependencies(project_id, entity_type, entity_id)
+    ]
+    return ApiEnvelope(data=DependencyListData(items=items), request_id=_request_id(request))
+
+
+@router.get(
+    "/entities/{entity_type}/{entity_id}/dependents",
+    response_model=ApiEnvelope[DependencyListData],
+    tags=["dependency-graph"],
+)
+def entity_dependents(
+    entity_type: str,
+    entity_id: str,
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DependencyListData]:
+    _service(session).get(project_id)
+    repository = SqlAlchemyDependencyGraphRepository(session)
+    items = [
+        DependencyEdgeData(edge=edge)
+        for edge in repository.list_dependents(project_id, entity_type, entity_id)
+    ]
+    return ApiEnvelope(data=DependencyListData(items=items), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/artifacts",
+    response_model=ApiEnvelope[ArtifactListData],
+    tags=["artifacts"],
+)
+def list_artifacts(
+    project_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[ArtifactListData]:
+    _service(session).get(project_id)
+    artifacts = SqlAlchemyArtifactRepository(session).list_for_project(project_id)
+    return ApiEnvelope(
+        data=ArtifactListData(items=[_artifact_data(item) for item in artifacts]),
+        request_id=_request_id(request),
+    )
+
+
+@router.get(
+    "/artifacts/{artifact_id}",
+    response_model=ApiEnvelope[ArtifactData],
+    tags=["artifacts"],
+)
+def get_artifact(
+    artifact_id: UUID,
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[ArtifactData]:
+    _service(session).get(project_id)
+    artifact = SqlAlchemyArtifactRepository(session).get(artifact_id, project_id=project_id)
+    if artifact is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Artifact is not available for this project",
+        )
+    return ApiEnvelope(data=_artifact_data(artifact), request_id=_request_id(request))
+
+
+@router.get(
+    "/artifacts/{artifact_id}/versions",
+    response_model=ApiEnvelope[ArtifactListData],
+    tags=["artifacts"],
+)
+def artifact_versions(
+    artifact_id: UUID,
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[ArtifactListData]:
+    _service(session).get(project_id)
+    repository = SqlAlchemyArtifactRepository(session)
+    artifact = repository.get(artifact_id, project_id=project_id)
+    if artifact is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Artifact is not available for this project",
+        )
+    return ApiEnvelope(
+        data=ArtifactListData(
+            items=[_artifact_data(item) for item in repository.list_versions(artifact)]
+        ),
+        request_id=_request_id(request),
+    )
+
+
+@router.get(
+    "/artifacts/{artifact_id}/dependencies",
+    response_model=ApiEnvelope[ArtifactDependenciesData],
+    tags=["artifacts"],
+)
+def artifact_dependencies(
+    artifact_id: UUID,
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[ArtifactDependenciesData]:
+    _service(session).get(project_id)
+    artifact = SqlAlchemyArtifactRepository(session).get(artifact_id, project_id=project_id)
+    if artifact is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Artifact is not available for this project",
+        )
+    repository = SqlAlchemyDependencyGraphRepository(session)
+    return ApiEnvelope(
+        data=ArtifactDependenciesData(
+            artifact=_artifact_data(artifact),
+            dependencies=[
+                DependencyEdgeData(edge=edge)
+                for edge in repository.list_dependencies(project_id, "Artifact", str(artifact_id))
+            ],
+            dependents=[
+                DependencyEdgeData(edge=edge)
+                for edge in repository.list_dependents(project_id, "Artifact", str(artifact_id))
+            ],
+        ),
+        request_id=_request_id(request),
+    )
+
+
+@router.get(
+    "/projects/{project_id}/artifacts/stale",
+    response_model=ApiEnvelope[ArtifactListData],
+    tags=["artifacts"],
+)
+def stale_artifacts(
+    project_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[ArtifactListData]:
+    _service(session).get(project_id)
+    repository = SqlAlchemyArtifactRepository(session)
+    graph = SqlAlchemyDependencyGraphRepository(session)
+    stale_ids = {
+        state.entity_id
+        for state in graph.list_node_states(project_id)
+        if state.entity_type == "Artifact"
+        and state.status in {DependencyNodeStatus.STALE, DependencyNodeStatus.INVALID}
+    }
+    artifacts = [
+        item
+        for item in repository.list_for_project(project_id)
+        if str(item.id) in stale_ids or item.status == ArtifactStatus.STALE
+    ]
+    return ApiEnvelope(
+        data=ArtifactListData(items=[_artifact_data(item) for item in artifacts]),
+        request_id=_request_id(request),
+    )
+
+
+@router.post(
+    "/artifacts/{artifact_id}/revalidate",
+    response_model=ApiEnvelope[ArtifactRevalidateData],
+    tags=["artifacts"],
+)
+def revalidate_artifact(
+    artifact_id: UUID,
+    payload: ArtifactRevalidateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[ArtifactRevalidateData]:
+    project_id = payload.project_id
+    if project_id is None:
+        artifact_record = session.scalar(
+            select(ArtifactRecord).where(ArtifactRecord.id == str(artifact_id))
+        )
+        project_id = UUID(artifact_record.project_id) if artifact_record else None
+    if project_id is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED, "Artifact is not available"
+        )
+    _service(session).get(project_id)
+    artifact_repository = SqlAlchemyArtifactRepository(session)
+    artifact = artifact_repository.get(artifact_id, project_id=project_id)
+    if artifact is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Artifact is not available for this project",
+        )
+    service = _dependency_service(session)
+    state = service.revalidate(project_id, "Artifact", str(artifact_id))
+    projection = (
+        ArtifactStatus.CURRENT
+        if state.status is DependencyNodeStatus.CURRENT
+        else (
+            ArtifactStatus.INVALID
+            if state.status is DependencyNodeStatus.INVALID
+            else ArtifactStatus.STALE
+        )
+    )
+    artifact = artifact_repository.save_status_projection(artifact, projection)
+    return ApiEnvelope(
+        data=ArtifactRevalidateData(
+            artifact=_artifact_data(artifact),
+            state=DependencyNodeStateData(state=state),
+        ),
+        request_id=_request_id(request),
+    )
 
 
 def _pin_data(pin: DevicePin) -> DevicePinData:
@@ -329,6 +651,18 @@ def _source_revision_exists(session: Session, project_id: UUID, source_revision_
         )
         is not None
     )
+
+
+def _latest_source_revision_id(session: Session, project_id: UUID) -> UUID | None:
+    from eea_backend.models import SourceRevisionRecord
+
+    value = session.scalar(
+        select(SourceRevisionRecord.id)
+        .where(SourceRevisionRecord.project_id == str(project_id))
+        .order_by(SourceRevisionRecord.created_at.desc(), SourceRevisionRecord.id.desc())
+        .limit(1)
+    )
+    return UUID(value) if value else None
 
 
 def _select_test_ir(session: Session, project_id: UUID, test_ir_id: UUID | None) -> TestIR | None:
@@ -714,7 +1048,10 @@ def enums(request: Request) -> ApiEnvelope[EnumCatalogData]:
             ClaimConflictStrategy,
             ClaimConflictType,
             ClaimLifecycle,
+            ChangeObservation,
             DecisionStatus,
+            DependencyKind,
+            DependencyNodeStatus,
             DeviceCategory,
             DeviceMergeConflictType,
             DocumentParseStatus,
@@ -724,6 +1061,8 @@ def enums(request: Request) -> ApiEnvelope[EnumCatalogData]:
             EvidenceType,
             IssueSeverity,
             IssueStatus,
+            ImpactAction,
+            InvalidationPolicy,
             JobStatus,
             Permission,
             ProjectStatus,
@@ -2420,6 +2759,20 @@ def generate_tests(
     generated = TestGenerationService().generate(project_id, requirements)
     tests = SqlAlchemyTestRepository(session)
     saved = tests.add_test_ir(generated.test_ir, commit=False)
+    dependency_service = _dependency_service(session)
+    for requirement_id in saved.requirement_ids:
+        dependency_service.bind(
+            project_id,
+            upstream_type="Requirement",
+            upstream_id=str(requirement_id),
+            downstream_type="TestIR",
+            downstream_id=str(saved.id),
+            dependency_kind=DependencyKind.VERIFICATION,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+            reason="TestIR requirement snapshot",
+            commit=False,
+        )
     edges = SqlAlchemyTraceabilityRepository(session)
     for case in saved.cases:
         for requirement_id in case.requirement_ids:
@@ -2516,6 +2869,31 @@ def run_tests(
         project_id=project_id, test_ir=test_ir, source_revision_id=payload.source_revision_id
     )
     saved = SqlAlchemyTestRepository(session).add_test_run(test_run, commit=False)
+    dependency_service = _dependency_service(session)
+    dependency_service.bind(
+        project_id,
+        upstream_type="TestIR",
+        upstream_id=str(saved.test_ir_id),
+        downstream_type="TestRun",
+        downstream_id=str(saved.id),
+        dependency_kind=DependencyKind.VERIFICATION,
+        required=True,
+        invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+        reason="TestRun executes TestIR",
+        commit=False,
+    )
+    dependency_service.bind(
+        project_id,
+        upstream_type="SourceRevision",
+        upstream_id=str(saved.source_revision_id),
+        downstream_type="TestRun",
+        downstream_id=str(saved.id),
+        dependency_kind=DependencyKind.INPUT,
+        required=True,
+        invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+        reason="TestRun source snapshot",
+        commit=False,
+    )
     edges = SqlAlchemyTraceabilityRepository(session)
     for result in saved.case_results:
         edges.add(
@@ -2563,15 +2941,7 @@ def get_test_coverage(
     tests = SqlAlchemyTestRepository(session)
     test_ir = _select_test_ir(session, project_id, None)
     if source_revision_id is None:
-        from eea_backend.models import SourceRevisionRecord
-
-        latest_source_revision_id = session.scalar(
-            select(SourceRevisionRecord.id)
-            .where(SourceRevisionRecord.project_id == str(project_id))
-            .order_by(SourceRevisionRecord.created_at.desc(), SourceRevisionRecord.id.desc())
-            .limit(1)
-        )
-        source_revision_id = UUID(latest_source_revision_id) if latest_source_revision_id else None
+        source_revision_id = _latest_source_revision_id(session, project_id)
     elif not _source_revision_exists(session, project_id, source_revision_id):
         raise EngineeringError(
             EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
@@ -2598,18 +2968,32 @@ def get_test_coverage(
     tags=["traceability"],
 )
 def get_traceability(
-    project_id: UUID, request: Request, session: SessionDependency
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+    source_revision_id: UUID | None = None,
 ) -> ApiEnvelope[TraceabilityData]:
     _service(session).get(project_id)
+    if source_revision_id is None:
+        source_revision_id = _latest_source_revision_id(session, project_id)
+    elif not _source_revision_exists(session, project_id, source_revision_id):
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "SourceRevision is not available for this project",
+        )
     tests = SqlAlchemyTestRepository(session)
     test_ir = _select_test_ir(session, project_id, None)
-    test_run = tests.latest_test_run(project_id, test_ir_id=test_ir.id if test_ir else None)
+    test_run = tests.latest_test_run(
+        project_id,
+        test_ir_id=test_ir.id if test_ir else None,
+        source_revision_id=source_revision_id,
+    )
     requirements = SqlAlchemyRequirementRepository(session).list_for_project(project_id)
     coverage = TestCoverageService().calculate(
         requirements,
         test_ir,
         test_run,
-        source_revision_id=test_run.source_revision_id if test_run else None,
+        source_revision_id=source_revision_id,
     )
     orphan_tests = [
         case.id for case in (test_ir.cases if test_ir else ()) if not case.requirement_ids
@@ -2669,7 +3053,11 @@ def create_review(
                 "TestIR bound to TestRun is not available for this project",
             )
     if test_run is None and test_ir is not None:
-        test_run = tests.latest_test_run(project_id, test_ir_id=test_ir.id)
+        test_run = tests.latest_test_run(
+            project_id,
+            test_ir_id=test_ir.id,
+            source_revision_id=payload.source_revision_id,
+        )
     builds = SqlAlchemyBuildRunRepository(session).list_for_project(project_id)
     build = next(
         (
@@ -2680,7 +3068,10 @@ def create_review(
         None,
     )
     if payload.build_run_id is None:
-        build = builds[0] if builds else None
+        build = next(
+            (item for item in builds if item.source_revision_id == payload.source_revision_id),
+            None,
+        )
     elif build is None:
         raise EngineeringError(
             EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
@@ -2696,7 +3087,10 @@ def create_review(
         None,
     )
     if payload.static_analysis_id is None:
-        static = analyses[0] if analyses else None
+        static = next(
+            (item for item in analyses if item.source_revision_id == payload.source_revision_id),
+            None,
+        )
     elif static is None:
         raise EngineeringError(
             EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
@@ -2737,6 +3131,33 @@ def create_review(
     saved = SqlAlchemyReviewRepository(session).add(
         review.model_copy(update={"issue_ids": tuple(issue_ids)}), commit=False
     )
+    dependency_service = _dependency_service(session)
+    if saved.test_run_id is not None:
+        dependency_service.bind(
+            project_id,
+            upstream_type="TestRun",
+            upstream_id=str(saved.test_run_id),
+            downstream_type="ReviewRun",
+            downstream_id=str(saved.id),
+            dependency_kind=DependencyKind.VERIFICATION,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+            reason="ReviewRun consumes TestRun",
+            commit=False,
+        )
+    if saved.test_ir_id is not None:
+        dependency_service.bind(
+            project_id,
+            upstream_type="TestIR",
+            upstream_id=str(saved.test_ir_id),
+            downstream_type="ReviewRun",
+            downstream_id=str(saved.id),
+            dependency_kind=DependencyKind.VERIFICATION,
+            required=True,
+            invalidation_policy=InvalidationPolicy.SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID,
+            reason="ReviewRun consumes TestIR",
+            commit=False,
+        )
     session.commit()
     return ApiEnvelope(data=saved, request_id=_request_id(request))
 

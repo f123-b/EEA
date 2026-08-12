@@ -1,5 +1,15 @@
 """Framework-independent core domain for EEA."""
 
+from eea_core.dependency_graph import (
+    ChangeObservation,
+    DependencyImpact,
+    DependencyNodeRef,
+    DependencyNodeState,
+    EngineeringDependencyEdge,
+    ImpactPlan,
+    ImpactPlanStep,
+    canonical_semantic_hash,
+)
 from eea_core.domain_extensions import (
     DomainActivation,
     DomainCompositionPlan,
@@ -30,6 +40,10 @@ from eea_core.testing import (
 
 __all__ = [
     "AutomationLevel",
+    "ChangeObservation",
+    "DependencyImpact",
+    "DependencyNodeRef",
+    "DependencyNodeState",
     "DomainActivation",
     "DomainCompositionPlan",
     "DomainDescriptor",
@@ -66,8 +80,12 @@ from eea_core.entities import (
 from eea_core.enums import (
     ArtifactStatus,
     DecisionStatus,
+    DependencyKind,
+    DependencyNodeStatus,
     EngineeringErrorCode,
     EvidenceType,
+    ImpactAction,
+    InvalidationPolicy,
     IssueSeverity,
     IssueStatus,
     JobStatus,
@@ -85,11 +103,18 @@ __all__ = [
     "Artifact",
     "ArtifactStatus",
     "DecisionStatus",
+    "DependencyKind",
+    "DependencyNodeStatus",
     "EngineeringDecision",
+    "EngineeringDependencyEdge",
     "EngineeringErrorCode",
     "EntityBase",
     "Evidence",
     "EvidenceType",
+    "ImpactAction",
+    "ImpactPlan",
+    "ImpactPlanStep",
+    "InvalidationPolicy",
     "Issue",
     "IssueSeverity",
     "IssueStatus",
@@ -106,4 +131,5 @@ __all__ = [
     "RequirementValueType",
     "TraceabilityEdge",
     "TraceabilityRelation",
+    "canonical_semantic_hash",
 ]
