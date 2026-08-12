@@ -2,17 +2,18 @@
 
 ## Status
 
-`M17 = IMPLEMENTED`
+`M17R = IMPLEMENTED`
 
-`M17R = PENDING_REVIEW`
+`READY_FOR_M17_FINAL_REVIEW = NO`
 
 `READY_FOR_M18 = NO`
 
 ## Known limitations
 
-- The default HTTP test-run route has no registered server-side arbitrary
-  executor. Requests that cannot be executed by a controlled executor return
-  `BLOCKED`; a client cannot submit `PASS` as a substitute for execution.
+- The default HTTP test-run route registers one project-scoped structured
+  controlled executor for the deterministic requirement contract. Unknown,
+  manual, malformed, or arbitrary command-shaped cases remain `BLOCKED`; a
+  client cannot submit `PASS` as a substitute for execution.
 - Manual or external test outcomes require trusted, project-scoped,
   traceable evidence before they can be used as acceptance evidence. Hardware
   commissioning remains outside M17 and belongs to the later M19 scope.

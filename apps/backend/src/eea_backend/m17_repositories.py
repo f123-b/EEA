@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from time import sleep
 from typing import Any, cast
 from uuid import UUID, uuid5
 
@@ -9,9 +10,9 @@ from eea_core.entities import Issue, TraceabilityEdge, utc_now
 from eea_core.enums import IssueStatus
 from eea_core.review import ReviewFinding, ReviewRun
 from eea_core.testing import TestIR, TestRun
-from sqlalchemy import desc, select, update
+from sqlalchemy import case, desc, select, update
 from sqlalchemy.engine import CursorResult
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from eea_backend.models import (
@@ -54,6 +55,12 @@ class SqlAlchemyTestRepository:
                 entity_metadata=test_ir.metadata,
                 project_id=str(test_ir.project_id),
                 requirement_ids=[str(item) for item in test_ir.requirement_ids],
+                requirement_revisions={
+                    str(key): value for key, value in test_ir.requirement_revisions.items()
+                },
+                requirement_snapshots=cast(
+                    list[dict[str, Any]], serialized["requirement_snapshots"]
+                ),
                 cases=cast(list[dict[str, Any]], serialized["cases"]),
                 input_hash=test_ir.input_hash,
                 generator_version=test_ir.generator_version,
@@ -137,11 +144,17 @@ class SqlAlchemyTestRepository:
         return self._to_test_run(record) if record else None
 
     def latest_test_run(
-        self, project_id: UUID, *, test_ir_id: UUID | None = None
+        self,
+        project_id: UUID,
+        *,
+        test_ir_id: UUID | None = None,
+        source_revision_id: UUID | None = None,
     ) -> TestRun | None:
         statement = select(TestRunRecord).where(TestRunRecord.project_id == str(project_id))
         if test_ir_id is not None:
             statement = statement.where(TestRunRecord.test_ir_id == str(test_ir_id))
+        if source_revision_id is not None:
+            statement = statement.where(TestRunRecord.source_revision_id == str(source_revision_id))
         record = self.session.scalar(statement.order_by(desc(TestRunRecord.created_at)).limit(1))
         return self._to_test_run(record) if record else None
 
@@ -163,6 +176,10 @@ class SqlAlchemyTestRepository:
                 **_entity_kwargs(record),
                 "project_id": UUID(record.project_id),
                 "requirement_ids": record.requirement_ids,
+                "requirement_revisions": {
+                    UUID(key): value for key, value in record.requirement_revisions.items()
+                },
+                "requirement_snapshots": record.requirement_snapshots,
                 "cases": record.cases,
                 "input_hash": record.input_hash,
                 "generator_version": record.generator_version,
@@ -198,16 +215,30 @@ class SqlAlchemyTraceabilityRepository:
         self.session = session
 
     def add(self, edge: TraceabilityEdge, *, commit: bool = True) -> TraceabilityEdge:
-        existing = self.session.scalar(
-            select(TraceabilityEdgeRecord).where(
-                TraceabilityEdgeRecord.project_id == str(edge.project_id),
-                TraceabilityEdgeRecord.source_type == edge.source_type,
-                TraceabilityEdgeRecord.source_id == str(edge.source_id),
-                TraceabilityEdgeRecord.target_type == edge.target_type,
-                TraceabilityEdgeRecord.target_id == str(edge.target_id),
-                TraceabilityEdgeRecord.relation == edge.relation.value,
-            )
+        for attempt in range(3):
+            try:
+                return self._add_once(edge, commit=commit)
+            except OperationalError as exc:
+                self.session.rollback()
+                if "locked" not in str(exc).lower() and "busy" not in str(exc).lower():
+                    raise
+                if attempt == 2:
+                    raise RuntimeError(
+                        "traceability edge upsert remained database-busy after controlled retries"
+                    ) from exc
+                sleep(0.02 * (attempt + 1))
+        raise AssertionError("unreachable")
+
+    def _add_once(self, edge: TraceabilityEdge, *, commit: bool) -> TraceabilityEdge:
+        identity = (
+            TraceabilityEdgeRecord.project_id == str(edge.project_id),
+            TraceabilityEdgeRecord.source_type == edge.source_type,
+            TraceabilityEdgeRecord.source_id == str(edge.source_id),
+            TraceabilityEdgeRecord.target_type == edge.target_type,
+            TraceabilityEdgeRecord.target_id == str(edge.target_id),
+            TraceabilityEdgeRecord.relation == edge.relation.value,
         )
+        existing = self.session.scalar(select(TraceabilityEdgeRecord).where(*identity))
         if existing is not None:
             existing.evidence_ids = sorted(
                 set(existing.evidence_ids) | {str(item) for item in edge.evidence_ids}
@@ -215,32 +246,35 @@ class SqlAlchemyTraceabilityRepository:
             if commit:
                 self.session.commit()
             return self._to_edge(existing)
-        self.session.add(
-            TraceabilityEdgeRecord(
-                id=str(edge.id),
-                schema_version=edge.schema_version,
-                revision=edge.revision,
-                created_at=edge.created_at,
-                updated_at=edge.updated_at,
-                entity_metadata=edge.metadata,
-                project_id=str(edge.project_id),
-                source_type=edge.source_type,
-                source_id=str(edge.source_id),
-                target_type=edge.target_type,
-                target_id=str(edge.target_id),
-                relation=edge.relation.value,
-                evidence_ids=[str(item) for item in edge.evidence_ids],
-            )
+        candidate = TraceabilityEdgeRecord(
+            id=str(edge.id),
+            schema_version=edge.schema_version,
+            revision=edge.revision,
+            created_at=edge.created_at,
+            updated_at=edge.updated_at,
+            entity_metadata=edge.metadata,
+            project_id=str(edge.project_id),
+            source_type=edge.source_type,
+            source_id=str(edge.source_id),
+            target_type=edge.target_type,
+            target_id=str(edge.target_id),
+            relation=edge.relation.value,
+            evidence_ids=[str(item) for item in edge.evidence_ids],
         )
+        try:
+            with self.session.begin_nested():
+                self.session.add(candidate)
+                self.session.flush()
+        except IntegrityError:
+            existing = self.session.scalar(select(TraceabilityEdgeRecord).where(*identity))
+            if existing is None:
+                raise
+            existing.evidence_ids = sorted(
+                set(existing.evidence_ids) | {str(item) for item in edge.evidence_ids}
+            )
         if commit:
-            try:
-                self.session.commit()
-            except IntegrityError:
-                self.session.rollback()
-                return self.add(edge, commit=True)
-        else:
-            self.session.flush()
-        return edge
+            self.session.commit()
+        return self._to_edge(existing or candidate)
 
     def list_for_project(self, project_id: UUID) -> list[TraceabilityEdge]:
         records = self.session.scalars(
@@ -353,16 +387,34 @@ class SqlAlchemyIssueRepository:
     def add_or_update(
         self, project_id: UUID, finding: ReviewFinding, *, review_id: UUID, commit: bool = False
     ) -> Issue:
+        for attempt in range(3):
+            try:
+                return self._add_or_update_once(
+                    project_id, finding, review_id=review_id, commit=commit
+                )
+            except OperationalError as exc:
+                self.session.rollback()
+                if "locked" not in str(exc).lower() and "busy" not in str(exc).lower():
+                    raise
+                if attempt == 2:
+                    raise RuntimeError(
+                        "issue upsert remained database-busy after controlled retries"
+                    ) from exc
+                sleep(0.02 * (attempt + 1))
+        raise AssertionError("unreachable")
+
+    def _add_or_update_once(
+        self, project_id: UUID, finding: ReviewFinding, *, review_id: UUID, commit: bool
+    ) -> Issue:
         now = utc_now()
-        existing = self.session.scalar(
-            select(IssueRecord).where(
-                IssueRecord.project_id == str(project_id),
-                IssueRecord.dedupe_key == finding.dedupe_key,
-            )
+        identity = (
+            IssueRecord.project_id == str(project_id),
+            IssueRecord.dedupe_key == finding.dedupe_key,
         )
+        existing = self.session.scalar(select(IssueRecord).where(*identity))
         if existing is None:
             issue_id = uuid5(project_id, f"m17-issue:{finding.dedupe_key}")
-            record = IssueRecord(
+            candidate = IssueRecord(
                 id=str(issue_id),
                 schema_version="1.0",
                 revision=1,
@@ -387,34 +439,69 @@ class SqlAlchemyIssueRepository:
                 occurrence_count=1,
                 last_review_id=str(review_id),
             )
-            self.session.add(record)
             try:
-                self.session.flush()
+                with self.session.begin_nested():
+                    self.session.add(candidate)
+                    self.session.flush()
+                record = candidate
             except IntegrityError:
-                self.session.rollback()
-                existing = self.session.scalar(
-                    select(IssueRecord).where(
-                        IssueRecord.project_id == str(project_id),
-                        IssueRecord.dedupe_key == finding.dedupe_key,
-                    )
-                )
+                existing = self.session.scalar(select(IssueRecord).where(*identity))
                 if existing is None:
                     raise
         if existing is not None:
-            existing.revision += 1
-            existing.updated_at = now
-            existing.last_seen_at = now
-            existing.last_review_id = str(review_id)
-            existing.occurrence_count += 1
-            existing.evidence_ids = sorted(
+            self.session.execute(
+                update(IssueRecord)
+                .where(*identity)
+                .values(
+                    revision=IssueRecord.revision + 1,
+                    updated_at=now,
+                    last_seen_at=now,
+                    last_review_id=str(review_id),
+                    occurrence_count=IssueRecord.occurrence_count + 1,
+                    status=case(
+                        (IssueRecord.status == IssueStatus.RESOLVED.value, IssueStatus.OPEN.value),
+                        else_=IssueRecord.status,
+                    ),
+                    resolution=case(
+                        (IssueRecord.status == IssueStatus.RESOLVED.value, None),
+                        else_=IssueRecord.resolution,
+                    ),
+                )
+            )
+            existing = self.session.scalar(select(IssueRecord).where(*identity))
+            if existing is None:
+                raise RuntimeError("issue disappeared during atomic update")
+            expected_revision = existing.revision
+            merged_evidence = sorted(
                 set(existing.evidence_ids) | {str(item) for item in finding.evidence_ids}
             )
-            existing.affected_refs = sorted(
-                set(existing.affected_refs) | set(finding.affected_refs)
+            merged_refs = sorted(set(existing.affected_refs) | set(finding.affected_refs))
+            evidence_result = cast(
+                CursorResult[Any],
+                self.session.execute(
+                    update(IssueRecord)
+                    .where(*identity, IssueRecord.revision == expected_revision)
+                    .values(evidence_ids=merged_evidence, affected_refs=merged_refs)
+                ),
             )
-            if existing.status == IssueStatus.RESOLVED.value:
-                existing.status = IssueStatus.OPEN.value
-                existing.resolution = None
+            if evidence_result.rowcount != 1:
+                self.session.refresh(existing)
+                self.session.execute(
+                    update(IssueRecord)
+                    .where(*identity, IssueRecord.revision == existing.revision)
+                    .values(
+                        evidence_ids=sorted(
+                            set(existing.evidence_ids)
+                            | {str(item) for item in finding.evidence_ids}
+                        ),
+                        affected_refs=sorted(
+                            set(existing.affected_refs) | set(finding.affected_refs)
+                        ),
+                    )
+                )
+            existing = self.session.scalar(select(IssueRecord).where(*identity))
+            if existing is None:
+                raise RuntimeError("issue disappeared during evidence merge")
             record = existing
         if commit:
             self.session.commit()

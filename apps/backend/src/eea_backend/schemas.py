@@ -1144,6 +1144,9 @@ class CoverageData(BaseModel):
     failing_requirement_ids: list[UUID]
     blocked_requirement_ids: list[UUID]
     unknown_requirement_ids: list[UUID]
+    stale_requirement_ids: list[UUID] = Field(default_factory=list)
+    stale_test_run: bool = False
+    source_revision_id: UUID | None = None
 
 
 class TraceabilityData(BaseModel):

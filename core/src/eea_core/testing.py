@@ -18,6 +18,14 @@ TEST_GENERATOR_VERSION = "m17-deterministic-1"
 TEST_POLICY_VERSION = "m17-review-1"
 
 
+def acceptance_criteria_hash(criteria: list[str]) -> str:
+    """Hash the ordered acceptance-criteria facts without interpreting their text."""
+
+    return hashlib.sha256(
+        json.dumps(criteria, ensure_ascii=False, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
 class TestType(StrEnum):
     REQUIREMENT = "REQUIREMENT"
     BUILD = "BUILD"
@@ -40,6 +48,18 @@ class TestExecutionStatus(StrEnum):
     UNKNOWN = "UNKNOWN"
     BLOCKED = "BLOCKED"
     SKIPPED = "SKIPPED"
+
+
+class RequirementTestSnapshot(BaseModel):
+    """The requirement facts used when a TestIR was generated."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    requirement_id: UUID
+    revision: int = Field(ge=1)
+    priority: str
+    status: str
+    acceptance_criteria_hash: Sha256
 
 
 class TestCase(BaseModel):
@@ -74,6 +94,8 @@ class TestIR(EntityBase):
 
     project_id: UUID
     requirement_ids: tuple[UUID, ...] = ()
+    requirement_revisions: dict[UUID, int] = Field(default_factory=dict)
+    requirement_snapshots: tuple[RequirementTestSnapshot, ...] = ()
     cases: tuple[TestCase, ...] = ()
     input_hash: Sha256
     generator_version: str = TEST_GENERATOR_VERSION
@@ -87,6 +109,8 @@ class TestIR(EntityBase):
         project_id: UUID,
         requirement_ids: tuple[UUID, ...],
         cases: tuple[TestCase, ...],
+        requirement_revisions: dict[UUID, int] | None = None,
+        requirement_snapshots: tuple[RequirementTestSnapshot, ...] = (),
         generator_version: str = TEST_GENERATOR_VERSION,
         policy_version: str = TEST_POLICY_VERSION,
         evidence_ids: tuple[UUID, ...] = (),
@@ -96,6 +120,8 @@ class TestIR(EntityBase):
             project_id=project_id,
             requirement_ids=requirement_ids,
             cases=cases,
+            requirement_revisions=requirement_revisions or {},
+            requirement_snapshots=requirement_snapshots,
             generator_version=generator_version,
             policy_version=policy_version,
             evidence_ids=evidence_ids,
@@ -104,6 +130,8 @@ class TestIR(EntityBase):
             id=uuid5(project_id, f"m17-test-ir:{input_hash}"),
             project_id=project_id,
             requirement_ids=requirement_ids,
+            requirement_revisions=requirement_revisions or {},
+            requirement_snapshots=requirement_snapshots,
             cases=cases,
             input_hash=input_hash,
             generator_version=generator_version,
@@ -123,6 +151,8 @@ class TestIR(EntityBase):
         project_id: UUID,
         requirement_ids: tuple[UUID, ...],
         cases: tuple[TestCase, ...],
+        requirement_revisions: dict[UUID, int] | None,
+        requirement_snapshots: tuple[RequirementTestSnapshot, ...],
         generator_version: str,
         policy_version: str,
         evidence_ids: tuple[UUID, ...],
@@ -130,6 +160,16 @@ class TestIR(EntityBase):
         return {
             "project_id": str(project_id),
             "requirement_ids": sorted(str(item) for item in requirement_ids),
+            "requirement_revisions": {
+                str(key): value
+                for key, value in sorted(
+                    (requirement_revisions or {}).items(), key=lambda item: str(item[0])
+                )
+            },
+            "requirement_snapshots": sorted(
+                (item.model_dump(mode="json") for item in requirement_snapshots),
+                key=lambda item: str(item["requirement_id"]),
+            ),
             "cases": sorted(
                 (cls.canonical_case(item) for item in cases), key=lambda item: str(item["id"])
             ),
@@ -145,6 +185,8 @@ class TestIR(EntityBase):
         project_id: UUID,
         requirement_ids: tuple[UUID, ...],
         cases: tuple[TestCase, ...],
+        requirement_revisions: dict[UUID, int] | None = None,
+        requirement_snapshots: tuple[RequirementTestSnapshot, ...] = (),
         generator_version: str,
         policy_version: str,
         evidence_ids: tuple[UUID, ...],
@@ -154,6 +196,8 @@ class TestIR(EntityBase):
                 project_id=project_id,
                 requirement_ids=requirement_ids,
                 cases=cases,
+                requirement_revisions=requirement_revisions,
+                requirement_snapshots=requirement_snapshots,
                 generator_version=generator_version,
                 policy_version=policy_version,
                 evidence_ids=evidence_ids,
@@ -229,11 +273,13 @@ __all__ = [
     "TEST_POLICY_VERSION",
     "TEST_SCHEMA_VERSION",
     "AutomationLevel",
+    "RequirementTestSnapshot",
     "TestCase",
     "TestCaseResult",
     "TestExecutionStatus",
     "TestIR",
     "TestRun",
     "TestType",
+    "acceptance_criteria_hash",
     "deterministic_case_id",
 ]

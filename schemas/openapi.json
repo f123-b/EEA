@@ -2986,6 +2986,31 @@
             "title": "Release Critical Requirements",
             "type": "integer"
           },
+          "source_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Revision Id"
+          },
+          "stale_requirement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Stale Requirement Ids",
+            "type": "array"
+          },
+          "stale_test_run": {
+            "default": false,
+            "title": "Stale Test Run",
+            "type": "boolean"
+          },
           "total_requirements": {
             "title": "Total Requirements",
             "type": "integer"
@@ -9395,6 +9420,44 @@
         "title": "RequirementStructuredAnalysisRequest",
         "type": "object"
       },
+      "RequirementTestSnapshot": {
+        "additionalProperties": false,
+        "description": "The requirement facts used when a TestIR was generated.",
+        "properties": {
+          "acceptance_criteria_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Acceptance Criteria Hash",
+            "type": "string"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "string"
+          },
+          "requirement_id": {
+            "format": "uuid",
+            "title": "Requirement Id",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requirement_id",
+          "revision",
+          "priority",
+          "status",
+          "acceptance_criteria_hash"
+        ],
+        "title": "RequirementTestSnapshot",
+        "type": "object"
+      },
       "RequirementType": {
         "enum": [
           "FUNCTIONAL",
@@ -9816,7 +9879,7 @@
             "title": "Static Analysis Id"
           },
           "status": {
-            "$ref": "#/components/schemas/TestExecutionStatus"
+            "$ref": "#/components/schemas/ReviewStatus"
           },
           "test_ir_id": {
             "anyOf": [
@@ -9868,6 +9931,17 @@
         ],
         "title": "ReviewRun",
         "type": "object"
+      },
+      "ReviewStatus": {
+        "description": "Final review state; execution lifecycle states never leak into it.",
+        "enum": [
+          "PASS",
+          "FAIL",
+          "UNKNOWN",
+          "BLOCKED"
+        ],
+        "title": "ReviewStatus",
+        "type": "string"
       },
       "SchemaData": {
         "properties": {
@@ -11049,6 +11123,24 @@
               "type": "string"
             },
             "title": "Requirement Ids",
+            "type": "array"
+          },
+          "requirement_revisions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "format": "uuid"
+            },
+            "title": "Requirement Revisions",
+            "type": "object"
+          },
+          "requirement_snapshots": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RequirementTestSnapshot"
+            },
+            "title": "Requirement Snapshots",
             "type": "array"
           },
           "revision": {
@@ -15151,6 +15243,23 @@
               "format": "uuid",
               "title": "Project Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_revision_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Revision Id"
             }
           }
         ],

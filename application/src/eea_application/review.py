@@ -13,7 +13,12 @@ from eea_core.requirements import Requirement
 from eea_core.review import ReviewFinding, ReviewPolicy, ReviewRun, aggregate_status
 from eea_core.schematic import ErcReport
 from eea_core.static_analysis import FirmwareStaticAnalysis
-from eea_core.testing import TestExecutionStatus, TestIR, TestRun
+from eea_core.testing import (
+    TestExecutionStatus,
+    TestIR,
+    TestRun,
+    acceptance_criteria_hash,
+)
 
 
 class CoverageResult:
@@ -29,6 +34,10 @@ class CoverageResult:
         failing_requirement_ids: tuple[UUID, ...],
         blocked_requirement_ids: tuple[UUID, ...],
         unknown_requirement_ids: tuple[UUID, ...],
+        stale_requirement_ids: tuple[UUID, ...] = (),
+        stale_test_run: bool = False,
+        source_revision_id: UUID | None = None,
+        invalid_result_case_ids: tuple[UUID, ...] = (),
     ) -> None:
         self.total_requirements = total_requirements
         self.release_critical_requirements = release_critical_requirements
@@ -39,6 +48,9 @@ class CoverageResult:
         self.failing_requirement_ids = failing_requirement_ids
         self.blocked_requirement_ids = blocked_requirement_ids
         self.unknown_requirement_ids = unknown_requirement_ids
+        self.stale_requirement_ids = stale_requirement_ids
+        self.stale_test_run = stale_test_run
+        self.source_revision_id = source_revision_id
         self.design_coverage_ratio = (
             covered_requirements / total_requirements if total_requirements else 1.0
         )
@@ -53,6 +65,8 @@ class TestCoverageService:
         requirements: list[Requirement],
         test_ir: TestIR | None,
         test_run: TestRun | None,
+        *,
+        source_revision_id: UUID | None = None,
     ) -> CoverageResult:
         cases = test_ir.cases if test_ir else ()
         results = (
@@ -64,27 +78,73 @@ class TestCoverageService:
         blocked: set[UUID] = set()
         unknown: set[UUID] = set()
         unexecuted: set[UUID] = set()
+        stale: set[UUID] = set()
+        invalid_result_case_ids: set[UUID] = set()
+        snapshot_map = {
+            item.requirement_id: item for item in (test_ir.requirement_snapshots if test_ir else ())
+        }
         for requirement in requirements:
             required_cases = [
                 case for case in cases if requirement.id in case.requirement_ids and case.required
             ]
             if required_cases:
                 covered.add(requirement.id)
+            snapshot = snapshot_map.get(requirement.id)
+            snapshot_is_stale = snapshot is not None and (
+                snapshot.revision != requirement.revision
+                or snapshot.priority != requirement.priority.value
+                or snapshot.status != requirement.status.value
+                or snapshot.acceptance_criteria_hash
+                != acceptance_criteria_hash(requirement.acceptance_criteria)
+            )
+            revision_is_stale = snapshot is None and (
+                test_ir is None
+                or test_ir.requirement_revisions.get(requirement.id) != requirement.revision
+            )
+            if snapshot_is_stale or revision_is_stale:
+                stale.add(requirement.id)
             statuses = [results[case.id].status for case in required_cases if case.id in results]
-            if len(statuses) != len(required_cases):
+            result_counts = {
+                case.id: sum(result.test_case_id == case.id for result in test_run.case_results)
+                if test_run
+                else 0
+                for case in required_cases
+            }
+            invalid_for_requirement = {
+                case_id for case_id, count in result_counts.items() if count != 1
+            }
+            invalid_result_case_ids.update(invalid_for_requirement)
+            if len(statuses) != len(required_cases) or invalid_for_requirement:
                 unexecuted.add(requirement.id)
-            if required_cases and len(statuses) == len(required_cases):
-                if all(status is TestExecutionStatus.PASS for status in statuses):
-                    verified.add(requirement.id)
-                if TestExecutionStatus.FAIL in statuses:
-                    failing.add(requirement.id)
-                if TestExecutionStatus.BLOCKED in statuses:
-                    blocked.add(requirement.id)
-                if (
-                    TestExecutionStatus.UNKNOWN in statuses
-                    or TestExecutionStatus.SKIPPED in statuses
-                ):
-                    unknown.add(requirement.id)
+            if TestExecutionStatus.FAIL in statuses:
+                failing.add(requirement.id)
+            if TestExecutionStatus.BLOCKED in statuses or TestExecutionStatus.SKIPPED in statuses:
+                blocked.add(requirement.id)
+            if TestExecutionStatus.UNKNOWN in statuses:
+                unknown.add(requirement.id)
+            if (
+                required_cases
+                and len(statuses) == len(required_cases)
+                and not invalid_for_requirement
+                and not stale.intersection({requirement.id})
+                and all(status is TestExecutionStatus.PASS for status in statuses)
+            ):
+                verified.add(requirement.id)
+        stale_test_run = bool(
+            test_run
+            and (
+                test_ir is None
+                or test_run.test_ir_id != test_ir.id
+                or test_run.test_ir_revision != test_ir.revision
+                or test_run.test_input_hash != test_ir.input_hash
+                or (
+                    source_revision_id is not None
+                    and test_run.source_revision_id != source_revision_id
+                )
+            )
+        )
+        if stale_test_run:
+            verified.clear()
         release = [
             item
             for item in requirements
@@ -103,6 +163,11 @@ class TestCoverageService:
             failing_requirement_ids=tuple(sorted(failing, key=str)),
             blocked_requirement_ids=tuple(sorted(blocked, key=str)),
             unknown_requirement_ids=tuple(sorted(unknown, key=str)),
+            stale_requirement_ids=tuple(sorted(stale, key=str)),
+            stale_test_run=stale_test_run,
+            source_revision_id=source_revision_id
+            or (test_run.source_revision_id if test_run else None),
+            invalid_result_case_ids=tuple(sorted(invalid_result_case_ids, key=str)),
         )
 
 
@@ -136,6 +201,7 @@ class ReviewEngine:
             status: TestExecutionStatus,
             severity: IssueSeverity,
             affected: tuple[str, ...] = (),
+            evidence_ids: tuple[UUID, ...] = (),
         ) -> None:
             finding = ReviewFinding(
                 code=code,
@@ -146,6 +212,7 @@ class ReviewEngine:
                 status=status,
                 severity=severity,
                 affected_refs=affected,
+                evidence_ids=evidence_ids,
             ).with_dedupe_key(project_id)
             findings.append(finding)
             statuses.append(status)
@@ -158,10 +225,9 @@ class ReviewEngine:
         ]
         cases = test_ir.cases if test_ir else ()
         for requirement in release_requirements:
-            required_cases = [
+            if not [
                 case for case in cases if requirement.id in case.requirement_ids and case.required
-            ]
-            if not required_cases:
+            ]:
                 add(
                     "P0_TEST_MISSING",
                     "Release-critical requirement has no test",
@@ -171,6 +237,7 @@ class ReviewEngine:
                     TestExecutionStatus.FAIL,
                     IssueSeverity.CRITICAL,
                     (requirement.code,),
+                    tuple(requirement.source_evidence_ids),
                 )
 
         if policy.require_tests:
@@ -187,14 +254,15 @@ class ReviewEngine:
             elif (
                 test_ir is None
                 or test_run.test_ir_id != test_ir.id
+                or test_run.test_ir_revision != test_ir.revision
                 or test_run.test_input_hash != test_ir.input_hash
             ):
                 add(
-                    "TEST_IR_MISMATCH",
+                    "STALE_TEST_IR",
                     "Test execution is stale",
-                    "TestRun does not match the selected TestIR revision or hash",
+                    "TestRun does not match the selected TestIR id, revision, or hash",
                     "TestRun",
-                    str(test_run.id),
+                    str(test_ir.id) if test_ir else "missing",
                     TestExecutionStatus.BLOCKED,
                     IssueSeverity.CRITICAL,
                 )
@@ -209,26 +277,78 @@ class ReviewEngine:
                     IssueSeverity.CRITICAL,
                 )
             else:
-                for test_result in test_run.case_results:
-                    if test_result.status is not TestExecutionStatus.PASS:
+                required_ids = {case.id for case in cases if case.required}
+                result_map = {result.test_case_id: result for result in test_run.case_results}
+                missing = sorted(required_ids - result_map.keys(), key=str)
+                counts = {
+                    case_id: sum(result.test_case_id == case_id for result in test_run.case_results)
+                    for case_id in required_ids
+                }
+                duplicate = sorted(
+                    (case_id for case_id, count in counts.items() if count > 1), key=str
+                )
+                if missing or duplicate:
+                    add(
+                        "MISSING_REQUIRED_TEST_RESULT",
+                        "Required test result is missing",
+                        "TestRun does not contain exactly one result for every required TestCase",
+                        "TestRun",
+                        str(test_ir.id),
+                        TestExecutionStatus.BLOCKED,
+                        IssueSeverity.CRITICAL,
+                        tuple(str(item) for item in (*missing, *duplicate)),
+                    )
+                for result in test_run.case_results:
+                    if (
+                        result.test_case_id in required_ids
+                        and result.status is not TestExecutionStatus.PASS
+                    ):
                         add(
-                            "TEST_RESULT_" + test_result.status.value,
+                            "TEST_RESULT_" + result.status.value,
                             "Test case is not PASS",
-                            test_result.message
-                            or f"Test case status is {test_result.status.value}",
+                            result.message or f"Test case status is {result.status.value}",
                             "TestCaseResult",
-                            test_result.test_case_code,
-                            test_result.status,
+                            result.test_case_code,
+                            result.status,
                             IssueSeverity.CRITICAL,
+                            evidence_ids=result.evidence_ids,
                         )
                 statuses.append(test_run.status)
 
-        def source_status(status: object) -> TestExecutionStatus:
-            value = getattr(status, "value", status)
-            return TestExecutionStatus(str(value))
+        def source_status(value: object) -> TestExecutionStatus:
+            raw = str(getattr(value, "value", value))
+            if raw in {"PENDING", "RUNNING"}:
+                return TestExecutionStatus.BLOCKED
+            return TestExecutionStatus(raw)
 
-        if policy.require_build:
-            if build_run is None:
+        def build_finding(run: BuildRun) -> None:
+            status = source_status(run.status)
+            statuses.append(status)
+            if status is not TestExecutionStatus.PASS:
+                add(
+                    "BUILD_" + str(run.status.value),
+                    "Build gate is not PASS",
+                    f"BuildRun status is {run.status.value}",
+                    "BuildRun",
+                    f"{run.firmware_id}:{run.profile.value}",
+                    status,
+                    IssueSeverity.CRITICAL,
+                    (str(run.firmware_id), run.profile.value),
+                )
+            if run.source_revision_id != source_revision_id:
+                add(
+                    "SOURCE_REVISION_MISMATCH",
+                    "Source revision mismatch",
+                    "BuildRun source revision differs from review source revision",
+                    "BuildRun",
+                    f"{run.firmware_id}:{run.profile.value}",
+                    TestExecutionStatus.BLOCKED,
+                    IssueSeverity.CRITICAL,
+                    (str(run.source_revision_id), str(source_revision_id)),
+                )
+
+        if build_run is None:
+            if policy.require_build:
                 add(
                     "MISSING_REQUIRED_INPUT",
                     "Required build is missing",
@@ -238,32 +358,48 @@ class ReviewEngine:
                     TestExecutionStatus.BLOCKED,
                     IssueSeverity.CRITICAL,
                 )
-            else:
-                build_status = source_status(build_run.status)
-                statuses.append(build_status)
-                if build_status is not TestExecutionStatus.PASS:
-                    add(
-                        "BUILD_" + build_status.value,
-                        "Build gate is not PASS",
-                        f"BuildRun status is {build_status.value}",
-                        "BuildRun",
-                        str(build_run.id),
-                        build_status,
-                        IssueSeverity.CRITICAL,
-                    )
-                if build_run.source_revision_id != source_revision_id:
-                    add(
-                        "SOURCE_REVISION_MISMATCH",
-                        "Source revision mismatch",
-                        "BuildRun source revision differs from review source revision",
-                        "BuildRun",
-                        str(build_run.id),
-                        TestExecutionStatus.BLOCKED,
-                        IssueSeverity.CRITICAL,
-                    )
+        else:
+            build_finding(build_run)
 
-        if policy.require_static_analysis:
-            if static_analysis is None:
+        def analysis_finding(analysis: FirmwareStaticAnalysis) -> None:
+            analysis_status = source_status(analysis.status)
+            statuses.append(analysis_status)
+            if analysis_status is not TestExecutionStatus.PASS:
+                add(
+                    "STATIC_ANALYSIS_" + analysis.status.value,
+                    "Static analysis gate is not PASS",
+                    f"Static analysis status is {analysis.status.value}",
+                    "FirmwareStaticAnalysis",
+                    f"{analysis.firmware_id}:{analysis.ruleset_version}",
+                    analysis_status,
+                    IssueSeverity.CRITICAL,
+                )
+            for rule in analysis.rule_results:
+                if rule.status in {"FAIL", "UNKNOWN"}:
+                    add(
+                        "RULE_" + rule.status,
+                        "Static analysis rule is not PASS",
+                        f"Rule {rule.rule_id} status is {rule.status}",
+                        "RuleResult",
+                        f"{analysis.firmware_id}:{rule.rule_id}",
+                        TestExecutionStatus(rule.status),
+                        rule.severity,
+                        tuple(rule.affected_refs),
+                        tuple(rule.evidence_ids),
+                    )
+            if analysis.source_revision_id != source_revision_id:
+                add(
+                    "SOURCE_REVISION_MISMATCH",
+                    "Source revision mismatch",
+                    "FirmwareStaticAnalysis source revision differs from review source revision",
+                    "FirmwareStaticAnalysis",
+                    f"{analysis.firmware_id}:{analysis.ruleset_version}",
+                    TestExecutionStatus.BLOCKED,
+                    IssueSeverity.CRITICAL,
+                )
+
+        if static_analysis is None:
+            if policy.require_static_analysis:
                 add(
                     "MISSING_REQUIRED_INPUT",
                     "Required static analysis is missing",
@@ -273,62 +409,25 @@ class ReviewEngine:
                     TestExecutionStatus.BLOCKED,
                     IssueSeverity.CRITICAL,
                 )
-            else:
-                analysis_status = source_status(static_analysis.status)
-                statuses.append(analysis_status)
-                if analysis_status is not TestExecutionStatus.PASS:
-                    add(
-                        "STATIC_ANALYSIS_" + analysis_status.value,
-                        "Static analysis gate is not PASS",
-                        f"Static analysis status is {analysis_status.value}",
-                        "FirmwareStaticAnalysis",
-                        str(static_analysis.id),
-                        analysis_status,
-                        IssueSeverity.CRITICAL,
-                    )
-                for static_rule in static_analysis.rule_results:
-                    if static_rule.status in {"FAIL", "UNKNOWN"}:
-                        rule_status = TestExecutionStatus(static_rule.status)
-                        add(
-                            "RULE_" + static_rule.status,
-                            "Static analysis rule is not PASS",
-                            f"Rule {static_rule.rule_id} status is {static_rule.status}",
-                            "RuleResult",
-                            static_rule.rule_id,
-                            rule_status,
-                            static_rule.severity,
-                            tuple(static_rule.affected_refs),
-                        )
-                if static_analysis.source_revision_id != source_revision_id:
-                    add(
-                        "SOURCE_REVISION_MISMATCH",
-                        "Source revision mismatch",
-                        (
-                            "FirmwareStaticAnalysis source revision differs from "
-                            "review source revision"
-                        ),
-                        "FirmwareStaticAnalysis",
-                        str(static_analysis.id),
-                        TestExecutionStatus.BLOCKED,
-                        IssueSeverity.CRITICAL,
-                    )
+        else:
+            analysis_finding(static_analysis)
 
         for rule in rule_results or []:
             if rule.status in {"FAIL", "UNKNOWN"}:
-                rule_status = TestExecutionStatus(rule.status)
                 add(
                     "RULE_" + rule.status,
                     "Deterministic rule is not PASS",
                     f"Rule {rule.rule_id} status is {rule.status}",
                     "RuleResult",
                     rule.rule_id,
-                    rule_status,
+                    TestExecutionStatus(rule.status),
                     rule.severity,
                     tuple(rule.affected_refs),
+                    tuple(rule.evidence_ids),
                 )
 
-        if policy.require_erc:
-            if erc_report is None:
+        if erc_report is None:
+            if policy.require_erc:
                 add(
                     "MISSING_REQUIRED_INPUT",
                     "Required ERC report is missing",
@@ -338,51 +437,166 @@ class ReviewEngine:
                     TestExecutionStatus.BLOCKED,
                     IssueSeverity.CRITICAL,
                 )
-            else:
-                erc_status = source_status(erc_report.status)
-                statuses.append(erc_status)
-                if erc_status is not TestExecutionStatus.PASS:
+        else:
+            erc_status = source_status(erc_report.status)
+            statuses.append(erc_status)
+            if erc_status is not TestExecutionStatus.PASS:
+                add(
+                    "ERC_" + erc_report.status,
+                    "ERC gate is not PASS",
+                    f"ERC status is {erc_report.status}",
+                    "ErcReport",
+                    f"{erc_report.schematic_id}:{erc_report.schematic_revision}",
+                    erc_status,
+                    IssueSeverity.CRITICAL,
+                    evidence_ids=tuple(erc_report.evidence_ids),
+                )
+            for issue in erc_report.issues:
+                if issue.severity.value in {"CRITICAL", "HIGH"}:
                     add(
-                        "ERC_" + erc_status.value,
-                        "ERC gate is not PASS",
-                        f"ERC status is {erc_status.value}",
-                        "ErcReport",
-                        str(erc_report.id),
-                        erc_status,
-                        IssueSeverity.CRITICAL,
+                        "ERC_ISSUE",
+                        issue.title,
+                        issue.description or issue.title,
+                        "ErcIssue",
+                        f"{erc_report.schematic_id}:{issue.code}",
+                        TestExecutionStatus.FAIL,
+                        issue.severity,
+                        tuple(issue.affected_refs),
+                        tuple(issue.evidence_ids),
                     )
-                for issue in erc_report.issues:
-                    if issue.severity.value in {"CRITICAL", "HIGH"}:
-                        add(
-                            "ERC_ISSUE",
-                            issue.title,
-                            issue.description or issue.title,
-                            "ErcIssue",
-                            issue.code,
-                            TestExecutionStatus.FAIL,
-                            issue.severity,
-                            tuple(issue.affected_refs),
+
+        if test_ir:
+            snapshots = {item.requirement_id: item for item in test_ir.requirement_snapshots}
+            stale = [
+                item
+                for item in requirements
+                if (
+                    (
+                        snapshots.get(item.id) is not None
+                        and (
+                            snapshots[item.id].revision != item.revision
+                            or snapshots[item.id].priority != item.priority.value
+                            or snapshots[item.id].status != item.status.value
+                            or snapshots[item.id].acceptance_criteria_hash
+                            != acceptance_criteria_hash(item.acceptance_criteria)
                         )
+                    )
+                    or (
+                        snapshots.get(item.id) is None
+                        and test_ir.requirement_revisions.get(item.id) != item.revision
+                    )
+                )
+            ]
+            if stale:
+                add(
+                    "STALE_TEST_IR",
+                    "TestIR requirement snapshot is stale",
+                    "Requirement revision, priority, or status differs from the TestIR snapshot",
+                    "TestIR",
+                    str(test_ir.id),
+                    TestExecutionStatus.BLOCKED,
+                    IssueSeverity.CRITICAL,
+                    tuple(item.code for item in stale),
+                    tuple(
+                        evidence_id for item in stale for evidence_id in item.source_evidence_ids
+                    ),
+                )
 
         if not statuses:
             statuses.append(TestExecutionStatus.UNKNOWN)
-        status = aggregate_status(statuses)
+        input_payload = {
+            "project_id": str(project_id),
+            "source_revision_id": str(source_revision_id),
+            "requirements": sorted(
+                (
+                    {
+                        "id": str(item.id),
+                        "revision": item.revision,
+                        "priority": item.priority.value,
+                        "status": item.status.value,
+                        "acceptance_criteria_hash": acceptance_criteria_hash(
+                            item.acceptance_criteria
+                        ),
+                        "source_evidence_ids": sorted(
+                            str(value) for value in item.source_evidence_ids
+                        ),
+                    }
+                    for item in requirements
+                ),
+                key=lambda item: item["id"],
+            ),
+            "test_ir": {
+                "id": str(test_ir.id),
+                "revision": test_ir.revision,
+                "input_hash": test_ir.input_hash,
+            }
+            if test_ir
+            else None,
+            "test_run": {
+                "id": str(test_run.id),
+                "test_ir_revision": test_run.test_ir_revision,
+                "test_input_hash": test_run.test_input_hash,
+                "source_revision_id": str(test_run.source_revision_id),
+                "status": test_run.status.value,
+                "case_results": sorted(
+                    (item.model_dump(mode="json") for item in test_run.case_results),
+                    key=lambda item: str(item["test_case_id"]),
+                ),
+            }
+            if test_run
+            else None,
+            "build": {
+                "id": str(build_run.id),
+                "source_revision_id": str(build_run.source_revision_id),
+                "status": build_run.status.value,
+                "build_input_hash": build_run.build_input_hash,
+            }
+            if build_run
+            else None,
+            "static": {
+                "id": str(static_analysis.id),
+                "source_revision_id": str(static_analysis.source_revision_id),
+                "input_hash": static_analysis.input_hash,
+                "status": static_analysis.status.value,
+                "ruleset_version": static_analysis.ruleset_version,
+                "rule_results": sorted(
+                    (item.model_dump(mode="json") for item in static_analysis.rule_results),
+                    key=lambda item: item["rule_id"],
+                ),
+            }
+            if static_analysis
+            else None,
+            "erc": {
+                "id": str(erc_report.id),
+                "schematic_id": str(erc_report.schematic_id),
+                "schematic_revision": erc_report.schematic_revision,
+                "status": erc_report.status,
+                "issues": sorted(
+                    (item.model_dump(mode="json") for item in erc_report.issues),
+                    key=lambda item: item["code"],
+                ),
+            }
+            if erc_report
+            else None,
+            "policy": policy.model_dump(mode="json"),
+            "rule_results": sorted(
+                (
+                    {
+                        "rule_id": item.rule_id,
+                        "rule_version": item.rule_version,
+                        "stage": item.stage,
+                        "status": item.status,
+                        "severity": item.severity.value,
+                        "affected_refs": sorted(item.affected_refs),
+                        "evidence_ids": sorted(str(value) for value in item.evidence_ids),
+                    }
+                    for item in (rule_results or [])
+                ),
+                key=lambda item: item["rule_id"],
+            ),
+        }
         input_hash = hashlib.sha256(
-            json.dumps(
-                {
-                    "project_id": str(project_id),
-                    "source_revision_id": str(source_revision_id),
-                    "requirements": sorted(str(item.id) for item in requirements),
-                    "test_ir": str(test_ir.id) if test_ir else None,
-                    "test_run": str(test_run.id) if test_run else None,
-                    "build": str(build_run.id) if build_run else None,
-                    "static": str(static_analysis.id) if static_analysis else None,
-                    "erc": str(erc_report.id) if erc_report else None,
-                    "policy": policy.model_dump(mode="json"),
-                },
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode()
+            json.dumps(input_payload, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
         return ReviewRun(
             project_id=project_id,
@@ -394,7 +608,7 @@ class ReviewEngine:
             test_run_id=test_run.id if test_run else None,
             test_ir_id=test_ir.id if test_ir else None,
             test_ir_revision=test_ir.revision if test_ir else None,
-            status=status,
+            status=aggregate_status(statuses),
             findings=tuple(findings),
         )
 

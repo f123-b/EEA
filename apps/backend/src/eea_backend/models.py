@@ -273,6 +273,8 @@ class TestIRRecord(CoreRecordMixin, Base):
 
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
     requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    requirement_revisions: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+    requirement_snapshots: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
     cases: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
     input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     generator_version: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -308,9 +310,7 @@ class ReviewRunRecord(CoreRecordMixin, Base):
     __tablename__ = "review_runs"
     __table_args__ = (
         CheckConstraint("revision >= 1", name="revision_positive"),
-        CheckConstraint(
-            "status IN ('PASS', 'FAIL', 'UNKNOWN', 'BLOCKED', 'SKIPPED')", name="status"
-        ),
+        CheckConstraint("status IN ('PASS', 'FAIL', 'UNKNOWN', 'BLOCKED')", name="status"),
     )
 
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)

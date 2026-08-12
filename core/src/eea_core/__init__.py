@@ -15,8 +15,10 @@ from eea_core.protocol import (
     ProtocolMessage,
     ProtocolTransport,
 )
+from eea_core.review import ReviewStatus
 from eea_core.testing import (
     AutomationLevel,
+    RequirementTestSnapshot,
     TestCase,
     TestCaseResult,
     TestExecutionStatus,
@@ -38,6 +40,8 @@ __all__ = [
     "ProtocolIR",
     "ProtocolMessage",
     "ProtocolTransport",
+    "RequirementTestSnapshot",
+    "ReviewStatus",
     "TestCase",
     "TestCaseResult",
     "TestExecutionStatus",

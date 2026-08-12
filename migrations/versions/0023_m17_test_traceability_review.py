@@ -28,6 +28,8 @@ def upgrade() -> None:
         *_common_columns(),
         sa.Column("project_id", sa.String(length=36), nullable=False),
         sa.Column("requirement_ids", sa.JSON(), nullable=False),
+        sa.Column("requirement_revisions", sa.JSON(), nullable=False),
+        sa.Column("requirement_snapshots", sa.JSON(), nullable=False),
         sa.Column("cases", sa.JSON(), nullable=False),
         sa.Column("input_hash", sa.String(length=64), nullable=False),
         sa.Column("generator_version", sa.String(length=100), nullable=False),
@@ -85,9 +87,7 @@ def upgrade() -> None:
         sa.Column("findings", sa.JSON(), nullable=False),
         sa.Column("issue_ids", sa.JSON(), nullable=False),
         sa.CheckConstraint("revision >= 1", name="revision_positive"),
-        sa.CheckConstraint(
-            "status IN ('PASS', 'FAIL', 'UNKNOWN', 'BLOCKED', 'SKIPPED')", name="status"
-        ),
+        sa.CheckConstraint("status IN ('PASS', 'FAIL', 'UNKNOWN', 'BLOCKED')", name="status"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"]),
         sa.ForeignKeyConstraint(["source_revision_id"], ["source_revisions.id"]),
         sa.PrimaryKeyConstraint("id"),

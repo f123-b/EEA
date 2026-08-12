@@ -26,7 +26,7 @@ from eea_application.requirements import (
 from eea_application.review import ReviewEngine, TestCoverageService
 from eea_application.schematic import SchematicService
 from eea_application.static_analysis import FirmwareStaticAnalysisService
-from eea_application.testing import TestExecutorRegistry, TestGenerationService, TestRunService
+from eea_application.testing import TestGenerationService, TestRunService
 from eea_core.architecture import ArchitectureBundle
 from eea_core.build import BuildRun
 from eea_core.circuit import CircuitBundle
@@ -306,6 +306,9 @@ def _coverage_data(coverage: Any) -> CoverageData:
             "failing_requirement_ids": coverage.failing_requirement_ids,
             "blocked_requirement_ids": coverage.blocked_requirement_ids,
             "unknown_requirement_ids": coverage.unknown_requirement_ids,
+            "stale_requirement_ids": coverage.stale_requirement_ids,
+            "stale_test_run": coverage.stale_test_run,
+            "source_revision_id": coverage.source_revision_id,
         }
     )
 
@@ -2507,9 +2510,9 @@ def run_tests(
             "TestIR is not available for this project",
             details={"test_ir_id": str(payload.test_ir_id) if payload.test_ir_id else None},
         )
-    # M17 exposes only controlled, application-owned executors. With no registered
-    # executor for a case, the registry returns BLOCKED; it never trusts client PASS.
-    test_run = TestRunService(TestExecutorRegistry()).run(
+    registry = request.app.state.test_executor_registry
+    registry.ensure_project(project_id)
+    test_run = TestRunService(registry).run(
         project_id=project_id, test_ir=test_ir, source_revision_id=payload.source_revision_id
     )
     saved = SqlAlchemyTestRepository(session).add_test_run(test_run, commit=False)
@@ -2551,14 +2554,40 @@ def list_test_results(
     tags=["tests"],
 )
 def get_test_coverage(
-    project_id: UUID, request: Request, session: SessionDependency
+    project_id: UUID,
+    request: Request,
+    session: SessionDependency,
+    source_revision_id: UUID | None = None,
 ) -> ApiEnvelope[CoverageData]:
     _service(session).get(project_id)
     tests = SqlAlchemyTestRepository(session)
     test_ir = _select_test_ir(session, project_id, None)
-    test_run = tests.latest_test_run(project_id, test_ir_id=test_ir.id if test_ir else None)
+    if source_revision_id is None:
+        from eea_backend.models import SourceRevisionRecord
+
+        latest_source_revision_id = session.scalar(
+            select(SourceRevisionRecord.id)
+            .where(SourceRevisionRecord.project_id == str(project_id))
+            .order_by(SourceRevisionRecord.created_at.desc(), SourceRevisionRecord.id.desc())
+            .limit(1)
+        )
+        source_revision_id = UUID(latest_source_revision_id) if latest_source_revision_id else None
+    elif not _source_revision_exists(session, project_id, source_revision_id):
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "SourceRevision is not available for this project",
+            details={"source_revision_id": str(source_revision_id)},
+        )
+    test_run = tests.latest_test_run(
+        project_id,
+        test_ir_id=test_ir.id if test_ir else None,
+        source_revision_id=source_revision_id,
+    )
     coverage = TestCoverageService().calculate(
-        SqlAlchemyRequirementRepository(session).list_for_project(project_id), test_ir, test_run
+        SqlAlchemyRequirementRepository(session).list_for_project(project_id),
+        test_ir,
+        test_run,
+        source_revision_id=source_revision_id,
     )
     return ApiEnvelope(data=_coverage_data(coverage), request_id=_request_id(request))
 
@@ -2576,7 +2605,12 @@ def get_traceability(
     test_ir = _select_test_ir(session, project_id, None)
     test_run = tests.latest_test_run(project_id, test_ir_id=test_ir.id if test_ir else None)
     requirements = SqlAlchemyRequirementRepository(session).list_for_project(project_id)
-    coverage = TestCoverageService().calculate(requirements, test_ir, test_run)
+    coverage = TestCoverageService().calculate(
+        requirements,
+        test_ir,
+        test_run,
+        source_revision_id=test_run.source_revision_id if test_run else None,
+    )
     orphan_tests = [
         case.id for case in (test_ir.cases if test_ir else ()) if not case.requirement_ids
     ]

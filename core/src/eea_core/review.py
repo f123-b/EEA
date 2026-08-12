@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,6 +14,15 @@ from eea_core.enums import IssueSeverity
 from eea_core.testing import TestExecutionStatus
 
 REVIEW_POLICY_VERSION = "m17-review-1"
+
+
+class ReviewStatus(StrEnum):
+    """Final review state; execution lifecycle states never leak into it."""
+
+    PASS = "PASS"
+    FAIL = "FAIL"
+    UNKNOWN = "UNKNOWN"
+    BLOCKED = "BLOCKED"
 
 
 class ReviewPolicy(BaseModel):
@@ -45,7 +55,6 @@ class ReviewFinding(BaseModel):
             "project_id": str(project_id),
             "code": self.code,
             "source_kind": self.source_kind,
-            "source_ref": self.source_ref,
             "affected_refs": sorted(self.affected_refs),
         }
         key = hashlib.sha256(
@@ -68,24 +77,26 @@ class ReviewRun(EntityBase):
     test_ir_revision: int | None = Field(default=None, ge=1)
     protocol_id: UUID | None = None
     protocol_revision: int | None = Field(default=None, ge=1)
-    status: TestExecutionStatus
+    status: ReviewStatus
     findings: tuple[ReviewFinding, ...] = ()
     issue_ids: tuple[UUID, ...] = ()
 
 
-def aggregate_status(statuses: list[TestExecutionStatus]) -> TestExecutionStatus:
-    """Frozen precedence: FAIL > BLOCKED > UNKNOWN > SKIPPED > PASS."""
+def aggregate_status(statuses: list[TestExecutionStatus]) -> ReviewStatus:
+    """Map execution states to the frozen four-state review result."""
 
     for candidate in (
         TestExecutionStatus.FAIL,
         TestExecutionStatus.BLOCKED,
         TestExecutionStatus.UNKNOWN,
-        TestExecutionStatus.SKIPPED,
-        TestExecutionStatus.PASS,
     ):
         if candidate in statuses:
-            return candidate
-    return TestExecutionStatus.UNKNOWN
+            return ReviewStatus(candidate.value)
+    if TestExecutionStatus.SKIPPED in statuses:
+        return ReviewStatus.BLOCKED
+    if TestExecutionStatus.PASS in statuses:
+        return ReviewStatus.PASS
+    return ReviewStatus.UNKNOWN
 
 
 __all__ = [
@@ -93,5 +104,6 @@ __all__ = [
     "ReviewFinding",
     "ReviewPolicy",
     "ReviewRun",
+    "ReviewStatus",
     "aggregate_status",
 ]
