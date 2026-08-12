@@ -454,7 +454,11 @@ class SqlAlchemyIssueRepository:
                 .where(*identity)
                 .values(
                     revision=IssueRecord.revision + 1,
-                    updated_at=now,
+                    updated_at=case(
+                        (IssueRecord.updated_at > now, IssueRecord.updated_at),
+                        (IssueRecord.created_at > now, IssueRecord.created_at),
+                        else_=now,
+                    ),
                     last_seen_at=now,
                     last_review_id=str(review_id),
                     occurrence_count=IssueRecord.occurrence_count + 1,

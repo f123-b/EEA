@@ -55,7 +55,7 @@ tests with the authoritative Python 3.12.4 interpreter passes (`8 passed,
 
 `M17R = IMPLEMENTED`
 
-`READY_FOR_M17_FINAL_REVIEW = YES`
+`READY_FOR_M17_FINAL_REVIEW = NO`
 
 `READY_FOR_M18 = NO`
 
