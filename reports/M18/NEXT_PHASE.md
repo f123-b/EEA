@@ -2,12 +2,39 @@
 
 Date: 2026-08-13
 
-## Immediate gate
+## Acceptance complete
 
-Perform final human review of the implementation and Draft PR #5. Review should
-confirm the dependency contract, provider allowlist, transaction boundaries,
-project isolation, explicit bootstrap references, recovery semantics, and
-generated contracts.
+M18, M18R, and M18R.1 acceptance is complete.
+
+Reviewed implementation HEAD:
+
+`2cce5b7ac9facf12ff2ef8f7c743446ec8cb368e`
+
+`M18 = ACCEPTED`
+
+`M18R = ACCEPTED`
+
+`M18R.1 = ACCEPTED`
+
+`READY_FOR_M18_FINAL_REVIEW = YES`
+
+`READY_FOR_M18A = YES`
+
+`M18A = NOT_STARTED`
+
+## Next milestone: M18A Transactional Outbox & Recovery
+
+M18A scope is frozen for the next phase only:
+
+- Transactional Outbox
+- processed events
+- SideEffectJournal
+- RecoveryService
+- crash injection
+- SQL commit → crash 后可重放
+- repeated consumption 不产生 duplicate Artifact
+
+This acceptance commit does not implement M18A.
 
 ## Follow-up candidates
 
@@ -17,12 +44,3 @@ generated contracts.
 - Add production-scale latency and graph-size measurements once deployment
   infrastructure is available.
 - Define the next milestone only after M18R final review.
-
-`M18R = IMPLEMENTED`
-
-`READY_FOR_M18_FINAL_REVIEW = YES`
-
-`M18A = NOT_STARTED`
-
-M18R.1 is implemented on the existing Draft PR and is ready for final human
-review. Do not begin M18A from this handoff.

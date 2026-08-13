@@ -1,4 +1,4 @@
-# M18R Semantic Freshness, Runtime Binding & Recovery Test Report
+# M18 Final Acceptance Test Report
 
 Date: 2026-08-13
 
@@ -6,7 +6,7 @@ Repository: `f123-b/EEA`
 
 Branch: `codex/m18-dependency-impact-graph`
 
-Pull request: `#5` (Draft; not merged)
+Pull request: `#5`
 
 Base: `main` at `532d095b912cfa4926474bc0295c84990dde21e5`
 
@@ -81,13 +81,60 @@ Verification result:
 - `pnpm typecheck`: **PASS**.
 - `pnpm build`: **PASS**.
 
+## Final acceptance
+
+Reviewed implementation HEAD:
+
+`2cce5b7ac9facf12ff2ef8f7c743446ec8cb368e`
+
+M18 FINAL REVIEW = PASS
+
+M18R = PASS
+
+M18R.1 = PASS
+
+P0 blockers = 0
+
+P1 blockers = 0
+
+Acceptance basis:
+
+- M18 focused suite PASS
+- M18R/M18R.1 real DB/API benchmarks PASS
+- semantic/non-semantic freshness PASS
+- Errata Claim propagation PASS
+- unrelated-node isolation PASS
+- Pin invalid-state preservation PASS
+- Protocol regenerate recovery PASS
+- Protocol historical bootstrap PASS
+- FirmwareIR → BuildRun PASS
+- FirmwareIR → StaticAnalysis PASS
+- Build/Static/Review vertical propagation PASS
+- Requirement re-analysis propagation PASS
+- Artifact terminal lifecycle projection PASS
+- migration 0024 PASS
+- Ruff PASS
+- mypy PASS
+- OpenAPI/TypeScript PASS
+- Desktop gates PASS
+- GitHub Linux CI PASS
+
+The existing Windows M5 sandbox subprocess environment note is retained as an
+environment-specific issue and is not an M18 failure.
+
 ## Status
 
-`M18R = IMPLEMENTED`
+`M18 = ACCEPTED`
+
+`M18R = ACCEPTED`
+
+`M18R.1 = ACCEPTED`
 
 `READY_FOR_M18_FINAL_REVIEW = YES`
 
+`READY_FOR_M18A = YES`
+
 `M18A = NOT_STARTED`
 
-This report records implementation and automated verification on the existing
-Draft PR. No merge action was performed.
+This report records final acceptance of the reviewed implementation HEAD.
+M18A is not implemented by this acceptance.
