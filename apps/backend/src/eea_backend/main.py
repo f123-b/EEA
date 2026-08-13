@@ -11,6 +11,7 @@ from eea_adapters.secrets import KeyringSecretService
 from eea_adapters.static_analysis import CppcheckAdapter
 from eea_application.claims import ClaimPredicateRegistry
 from eea_application.domains import DomainExtensionRegistry
+from eea_application.reliability import NoopCrashInjector
 from eea_application.requirements import (
     build_claim_predicate_definitions,
     build_foc_benchmark_profile,
@@ -32,6 +33,7 @@ from eea_backend.database import check_database, create_database_engine
 from eea_backend.dependency_bootstrap import reconcile_project_dependencies
 from eea_backend.errors import engineering_error_handler, validation_error_handler
 from eea_backend.models import ProjectRecord
+from eea_backend.recovery import RecoveryService
 from eea_backend.repositories import SqlAlchemyPromptRepository
 from eea_backend.requirement_repositories import SqlAlchemyRequirementProfileRepository
 from eea_backend.schemas import ApiEnvelope, HealthResponse, VersionData
@@ -140,6 +142,9 @@ def create_app(
                     seed_builtin_requirement_contracts(session)
                     for project_id in session.scalars(select(ProjectRecord.id)):
                         reconcile_project_dependencies(session, UUID(project_id))
+        with engine.connect() as connection:
+            if inspect(connection).has_table("outbox_events"):
+                RecoveryService(lambda: Session(engine)).startup_recover(batch_limit=100)
         yield
         engine.dispose()
 
@@ -159,6 +164,7 @@ def create_app(
     )
     application.state.static_analysis_provider = CppcheckAdapter()
     application.state.test_executor_registry = TestExecutorRegistry()
+    application.state.crash_injector = NoopCrashInjector()
     component_source = resolved_settings.stm32cube_g4_source
     if component_source is None:
         candidate = Path(".eea-component-cache/source/STM32CubeG4-v1.6.3")

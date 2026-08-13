@@ -877,6 +877,29 @@
         "title": "ApiEnvelope[MCUConfigValidationData]",
         "type": "object"
       },
+      "ApiEnvelope_OutboxStatusData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OutboxStatusData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[OutboxStatusData]",
+        "type": "object"
+      },
       "ApiEnvelope_PinAssignmentMutationData_": {
         "properties": {
           "data": {
@@ -1059,6 +1082,52 @@
           "request_id"
         ],
         "title": "ApiEnvelope[ProtocolValidationResult]",
+        "type": "object"
+      },
+      "ApiEnvelope_RecoveryReconcileData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RecoveryReconcileData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[RecoveryReconcileData]",
+        "type": "object"
+      },
+      "ApiEnvelope_RecoveryStatusData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RecoveryStatusData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[RecoveryStatusData]",
         "type": "object"
       },
       "ApiEnvelope_RequirementAnalysisData_": {
@@ -8279,6 +8348,44 @@
         "title": "MemoryLayout",
         "type": "object"
       },
+      "OutboxStatusData": {
+        "properties": {
+          "dead_letter": {
+            "title": "Dead Letter",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "processed": {
+            "title": "Processed",
+            "type": "integer"
+          },
+          "processing": {
+            "title": "Processing",
+            "type": "integer"
+          },
+          "retry": {
+            "title": "Retry",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "processing",
+          "retry",
+          "processed",
+          "dead_letter",
+          "total"
+        ],
+        "title": "OutboxStatusData",
+        "type": "object"
+      },
       "PWMConfig": {
         "additionalProperties": false,
         "properties": {
@@ -9890,6 +9997,110 @@
           "input_hash"
         ],
         "title": "ProtocolValidationResult",
+        "type": "object"
+      },
+      "RecoveryReconcileData": {
+        "properties": {
+          "dispatched": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Dispatched",
+            "type": "object"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecoveryStatusData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reclaimed": {
+            "title": "Reclaimed",
+            "type": "integer"
+          },
+          "reconcile_required": {
+            "title": "Reconcile Required",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reclaimed",
+          "dispatched",
+          "reconcile_required"
+        ],
+        "title": "RecoveryReconcileData",
+        "type": "object"
+      },
+      "RecoveryReconcileRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 100,
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          }
+        },
+        "title": "RecoveryReconcileRequest",
+        "type": "object"
+      },
+      "RecoveryStatusData": {
+        "properties": {
+          "dead_letter": {
+            "title": "Dead Letter",
+            "type": "integer"
+          },
+          "interrupted_jobs": {
+            "default": 0,
+            "title": "Interrupted Jobs",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "reconcile_required": {
+            "title": "Reconcile Required",
+            "type": "integer"
+          },
+          "retry": {
+            "title": "Retry",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "CLEAN",
+              "RECOVERY_REQUIRED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "pending",
+          "retry",
+          "dead_letter",
+          "reconcile_required"
+        ],
+        "title": "RecoveryStatusData",
         "type": "object"
       },
       "RequirementAnalysisData": {
@@ -14490,6 +14701,55 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/consistency": {
+      "get": {
+        "operationId": "project_consistency_api_v1_projects__project_id__consistency_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_RecoveryStatusData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Project Consistency",
+        "tags": [
+          "projects",
+          "reliability"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/dependencies": {
       "get": {
         "operationId": "get_latest_dependencies_api_v1_projects__project_id__dependencies_get",
@@ -17513,6 +17773,107 @@
         "summary": "Schema",
         "tags": [
           "schemas"
+        ]
+      }
+    },
+    "/api/v1/system/outbox/status": {
+      "get": {
+        "operationId": "outbox_status_api_v1_system_outbox_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_OutboxStatusData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Outbox Status",
+        "tags": [
+          "system",
+          "reliability"
+        ]
+      }
+    },
+    "/api/v1/system/recovery/reconcile": {
+      "post": {
+        "operationId": "reconcile_recovery_api_v1_system_recovery_reconcile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryReconcileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_RecoveryReconcileData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reconcile Recovery",
+        "tags": [
+          "system",
+          "reliability"
+        ]
+      }
+    },
+    "/api/v1/system/recovery/status": {
+      "get": {
+        "operationId": "recovery_status_api_v1_system_recovery_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_RecoveryStatusData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Recovery Status",
+        "tags": [
+          "system",
+          "reliability"
         ]
       }
     },

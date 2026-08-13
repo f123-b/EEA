@@ -113,6 +113,32 @@ def render_typescript_contract() -> str:
             "  description: string;\n"
             "  status: ProjectStatus;\n"
             "}\n",
+            "export interface OutboxStatusData {\n"
+            "  pending: number;\n"
+            "  processing: number;\n"
+            "  retry: number;\n"
+            "  processed: number;\n"
+            "  dead_letter: number;\n"
+            "  total: number;\n"
+            "}\n",
+            "export interface RecoveryStatusData {\n"
+            '  status: "CLEAN" | "RECOVERY_REQUIRED";\n'
+            "  pending: number;\n"
+            "  retry: number;\n"
+            "  dead_letter: number;\n"
+            "  reconcile_required: number;\n"
+            "  interrupted_jobs: number;\n"
+            "}\n",
+            "export interface RecoveryReconcileRequest {\n"
+            "  project_id?: string | null;\n"
+            "  limit?: number;\n"
+            "}\n",
+            "export interface RecoveryReconcileData {\n"
+            "  reclaimed: number;\n"
+            "  dispatched: Record<string, number>;\n"
+            "  reconcile_required: number;\n"
+            "  project: RecoveryStatusData | null;\n"
+            "}\n",
             "export interface DomainRuleContribution {\n"
             "  rule_id: string;\n"
             "  rule_version: string;\n"

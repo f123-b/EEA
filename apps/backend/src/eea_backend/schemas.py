@@ -129,6 +129,38 @@ class HealthResponse(BaseModel):
     database: Literal["ok"]
 
 
+class OutboxStatusData(BaseModel):
+    pending: int
+    processing: int
+    retry: int
+    processed: int
+    dead_letter: int
+    total: int
+
+
+class RecoveryStatusData(BaseModel):
+    status: Literal["CLEAN", "RECOVERY_REQUIRED"]
+    pending: int
+    retry: int
+    dead_letter: int
+    reconcile_required: int
+    interrupted_jobs: int = 0
+
+
+class RecoveryReconcileRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID | None = None
+    limit: int = Field(default=100, ge=1, le=1000)
+
+
+class RecoveryReconcileData(BaseModel):
+    reclaimed: int
+    dispatched: dict[str, int]
+    reconcile_required: int
+    project: RecoveryStatusData | None = None
+
+
 class ErrorData(BaseModel):
     code: EngineeringErrorCode
     message: str

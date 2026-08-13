@@ -382,6 +382,36 @@ export interface ProjectData {
   status: ProjectStatus;
 }
 
+export interface OutboxStatusData {
+  pending: number;
+  processing: number;
+  retry: number;
+  processed: number;
+  dead_letter: number;
+  total: number;
+}
+
+export interface RecoveryStatusData {
+  status: "CLEAN" | "RECOVERY_REQUIRED";
+  pending: number;
+  retry: number;
+  dead_letter: number;
+  reconcile_required: number;
+  interrupted_jobs: number;
+}
+
+export interface RecoveryReconcileRequest {
+  project_id?: string | null;
+  limit?: number;
+}
+
+export interface RecoveryReconcileData {
+  reclaimed: number;
+  dispatched: Record<string, number>;
+  reconcile_required: number;
+  project: RecoveryStatusData | null;
+}
+
 export interface DomainRuleContribution {
   rule_id: string;
   rule_version: string;

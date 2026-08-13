@@ -25,6 +25,13 @@ the frozen documentation changelogs under `docs/`.
   `READY_FOR_M18_FINAL_REVIEW = YES`, `READY_FOR_M18A = YES`, and
   `M18A = NOT_STARTED`. M18A scope is documented for the next milestone only;
   no M18A implementation was started.
+- M18A Transactional Outbox & Recovery: added migration `0025_m18a_transactional_outbox_recovery`,
+  durable OutboxEvent/ProcessedEvent/SideEffectJournal records, producer idempotency,
+  atomic ProjectCreated/ArtifactCreated/BuildCompleted publication, bounded leasing and
+  retry/dead-letter recovery, deterministic handler allowlisting, crash-injection replay
+  boundaries, interrupted-job reconciliation, reliability status/reconcile APIs, and
+  synchronized OpenAPI/TypeScript contracts. `M18A = IMPLEMENTED`; `READY_FOR_M18A_REVIEW = YES`;
+  M18B remains `NOT_STARTED`. M18A implementation does not include M18B or later milestones.
 - M17 Test/Traceability/Review: added Core-neutral declarative TestIR and immutable TestRun
   contracts, deterministic requirement-based test generation, project-scoped controlled
   fail-closed executors, revision/source freshness checks, design/verification coverage,

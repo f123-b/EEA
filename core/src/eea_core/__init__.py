@@ -98,6 +98,16 @@ from eea_core.enums import (
     RequirementValueType,
     TraceabilityRelation,
 )
+from eea_core.reliability import (
+    OutboxEvent,
+    OutboxEventStatus,
+    ProcessedEvent,
+    SideEffectJournal,
+    SideEffectStatus,
+    canonical_json,
+    payload_sha256,
+    stable_event_key,
+)
 
 __all__ = [
     "Artifact",
@@ -120,8 +130,11 @@ __all__ = [
     "IssueStatus",
     "Job",
     "JobStatus",
+    "OutboxEvent",
+    "OutboxEventStatus",
     "Permission",
     "PermissionAuditRecord",
+    "ProcessedEvent",
     "Project",
     "ProjectStatus",
     "RequirementFieldStatus",
@@ -129,7 +142,12 @@ __all__ = [
     "RequirementStatus",
     "RequirementType",
     "RequirementValueType",
+    "SideEffectJournal",
+    "SideEffectStatus",
     "TraceabilityEdge",
     "TraceabilityRelation",
+    "canonical_json",
     "canonical_semantic_hash",
+    "payload_sha256",
+    "stable_event_key",
 ]

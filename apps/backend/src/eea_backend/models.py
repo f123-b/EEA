@@ -39,6 +39,7 @@ from eea_core.enums import (
     StaticAnalysisStatus,
     TraceabilityRelation,
 )
+from eea_core.reliability import OutboxEventStatus, SideEffectStatus
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -1341,3 +1342,99 @@ class DocumentIRRecord(CoreRecordMixin, Base):
     tables: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
     figures: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
     extracted_claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+
+class OutboxEventRecord(Base):
+    """Durable event envelope used for at-least-once delivery."""
+
+    __tablename__ = "outbox_events"
+    __table_args__ = (
+        CheckConstraint("attempt_count >= 0", name="attempt_count_non_negative"),
+        CheckConstraint("max_attempts >= 1", name="max_attempts_positive"),
+        CheckConstraint("length(payload_hash) = 64", name="payload_hash_length"),
+        CheckConstraint(f"status IN ({_enum_values(OutboxEventStatus)})", name="status"),
+        UniqueConstraint("event_key", name="uq_outbox_events_event_key"),
+        Index("ix_outbox_events_status_available", "status", "available_at"),
+        Index("ix_outbox_events_status_lease", "status", "lease_expires_at"),
+        Index("ix_outbox_events_project_status", "project_id", "status"),
+        Index("ix_outbox_events_event_type", "event_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    schema_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    event_type: Mapped[str] = mapped_column(String(200), nullable=False)
+    event_version: Mapped[int] = mapped_column(nullable=False)
+    aggregate_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    aggregate_id: Mapped[str] = mapped_column(String(500), nullable=False)
+    aggregate_revision: Mapped[int | None] = mapped_column()
+    event_key: Mapped[str] = mapped_column(String(700), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    correlation_id: Mapped[str | None] = mapped_column(String(36))
+    causation_id: Mapped[str | None] = mapped_column(String(36))
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    attempt_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(nullable=False, default=8)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    lease_owner: Mapped[str | None] = mapped_column(String(200))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revision: Mapped[int] = mapped_column(nullable=False, default=1)
+
+
+class ProcessedEventRecord(Base):
+    """Consumer-level idempotency marker."""
+
+    __tablename__ = "processed_events"
+    __table_args__ = (
+        CheckConstraint("length(event_payload_hash) = 64", name="event_payload_hash_length"),
+        CheckConstraint(
+            "result_hash IS NULL OR length(result_hash) = 64", name="result_hash_length"
+        ),
+        UniqueConstraint("event_id", "consumer_id", name="uq_processed_events_identity"),
+        Index("ix_processed_events_consumer_processed", "consumer_id", "processed_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    event_id: Mapped[str] = mapped_column(ForeignKey("outbox_events.id"), nullable=False)
+    consumer_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    event_payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    result_ref: Mapped[str | None] = mapped_column(String(2000))
+    result_hash: Mapped[str | None] = mapped_column(String(64))
+
+
+class SideEffectJournalRecord(Base):
+    """Effect-level idempotency and unknown-outcome reconciliation marker."""
+
+    __tablename__ = "side_effect_journal"
+    __table_args__ = (
+        CheckConstraint("length(request_hash) = 64", name="request_hash_length"),
+        CheckConstraint(
+            "result_hash IS NULL OR length(result_hash) = 64", name="result_hash_length"
+        ),
+        CheckConstraint(f"status IN ({_enum_values(SideEffectStatus)})", name="status"),
+        UniqueConstraint(
+            "event_id", "consumer_id", "effect_key", name="uq_side_effect_journal_identity"
+        ),
+        Index("ix_side_effect_journal_status_event", "status", "event_id", "consumer_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    event_id: Mapped[str] = mapped_column(ForeignKey("outbox_events.id"), nullable=False)
+    consumer_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    effect_key: Mapped[str] = mapped_column(String(300), nullable=False)
+    effect_type: Mapped[str] = mapped_column(String(200), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    attempt_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    result_ref: Mapped[str | None] = mapped_column(String(2000))
+    result_hash: Mapped[str | None] = mapped_column(String(64))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    prepared_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

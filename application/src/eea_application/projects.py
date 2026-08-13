@@ -19,9 +19,12 @@ class ProjectService:
         name: str,
         description: str = "",
         metadata: dict[str, object] | None = None,
+        commit: bool = True,
     ) -> Project:
         project = Project(name=name, description=description, metadata=metadata or {})
-        return self._repository.add(project)
+        if commit:
+            return self._repository.add(project)
+        return self._repository.add(project, commit=False)
 
     def get(self, project_id: UUID) -> Project:
         project = self._repository.get(project_id)

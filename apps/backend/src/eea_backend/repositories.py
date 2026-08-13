@@ -190,7 +190,7 @@ class SqlAlchemyProjectRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def add(self, project: Project) -> Project:
+    def add(self, project: Project, *, commit: bool = True) -> Project:
         record = ProjectRecord(
             id=str(project.id),
             schema_version=project.schema_version,
@@ -204,8 +204,11 @@ class SqlAlchemyProjectRepository:
             deleted_at=project.deleted_at,
         )
         self._session.add(record)
-        self._session.commit()
-        self._session.refresh(record)
+        if commit:
+            self._session.commit()
+            self._session.refresh(record)
+        else:
+            self._session.flush()
         return _to_project(record)
 
     def get(self, project_id: UUID, *, include_deleted: bool = False) -> Project | None:
