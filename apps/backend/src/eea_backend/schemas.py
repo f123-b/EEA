@@ -12,6 +12,11 @@ from eea_core.components import (
     ComponentRequirement,
     ResolvedComponent,
 )
+from eea_core.dependency_graph import (
+    DependencyNodeState,
+    EngineeringDependencyEdge,
+    ImpactPlan,
+)
 from eea_core.domain_extensions import (
     DomainContextContribution,
     DomainGeneratorContribution,
@@ -23,11 +28,14 @@ from eea_core.enums import (
     ArtifactStatus,
     BuildProfile,
     BuildStatus,
+    ChangeObservation,
     ClaimConflictStatus,
     ClaimConflictStrategy,
     ClaimConflictType,
     ClaimLifecycle,
     DecisionStatus,
+    DependencyKind,
+    DependencyNodeStatus,
     DeviceCategory,
     DeviceMergeConflictType,
     DocumentParseStatus,
@@ -38,6 +46,8 @@ from eea_core.enums import (
     EngineeringDimension,
     EngineeringErrorCode,
     EvidenceType,
+    ImpactAction,
+    InvalidationPolicy,
     IssueSeverity,
     IssueStatus,
     JobStatus,
@@ -312,6 +322,9 @@ class EnumValues(BaseModel):
     claim_conflict_strategy: list[ClaimConflictStrategy] = Field(alias="ClaimConflictStrategy")
     claim_conflict_type: list[ClaimConflictType] = Field(alias="ClaimConflictType")
     claim_lifecycle: list[ClaimLifecycle] = Field(alias="ClaimLifecycle")
+    change_observation: list[ChangeObservation] = Field(alias="ChangeObservation")
+    dependency_kind: list[DependencyKind] = Field(alias="DependencyKind")
+    dependency_node_status: list[DependencyNodeStatus] = Field(alias="DependencyNodeStatus")
     decision_status: list[DecisionStatus] = Field(alias="DecisionStatus")
     device_category: list[DeviceCategory] = Field(alias="DeviceCategory")
     device_merge_conflict_type: list[DeviceMergeConflictType] = Field(
@@ -324,6 +337,8 @@ class EnumValues(BaseModel):
     evidence_type: list[EvidenceType] = Field(alias="EvidenceType")
     issue_severity: list[IssueSeverity] = Field(alias="IssueSeverity")
     issue_status: list[IssueStatus] = Field(alias="IssueStatus")
+    impact_action: list[ImpactAction] = Field(alias="ImpactAction")
+    invalidation_policy: list[InvalidationPolicy] = Field(alias="InvalidationPolicy")
     job_status: list[JobStatus] = Field(alias="JobStatus")
     permission: list[Permission] = Field(alias="Permission")
     project_status: list[ProjectStatus] = Field(alias="ProjectStatus")
@@ -366,6 +381,39 @@ class RequirementProfileData(BaseModel):
     fields: list[dict[str, object]]
     evidence_contracts: list[dict[str, object]]
     active: bool
+
+
+class RequirementData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    code: str
+    title: str
+    requirement_type: RequirementType
+    priority: RequirementPriority
+    statement: str
+    rationale: str
+    acceptance_criteria: list[str]
+    source_evidence_ids: list[UUID]
+    status: RequirementStatus
+
+
+class RequirementUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int = Field(ge=1)
+    title: str | None = Field(default=None, min_length=1, max_length=300)
+    requirement_type: RequirementType | None = None
+    priority: RequirementPriority | None = None
+    statement: str | None = Field(default=None, min_length=1, max_length=8000)
+    rationale: str | None = Field(default=None, max_length=8000)
+    acceptance_criteria: list[str] | None = Field(default=None, max_length=50)
+    source_evidence_ids: list[UUID] | None = None
+    status: RequirementStatus | None = None
 
 
 class RequirementStructuredAnalysisRequest(BaseModel):
@@ -645,6 +693,57 @@ class ArtifactData(BaseModel):
     tool_versions: dict[str, str]
     knowledge_snapshot: str | None
     status: ArtifactStatus
+
+
+class DependencyEdgeData(BaseModel):
+    edge: EngineeringDependencyEdge
+
+
+class DependencyNodeStateData(BaseModel):
+    state: DependencyNodeState
+
+
+class DependencyListData(BaseModel):
+    items: list[DependencyEdgeData]
+
+
+class ImpactAnalysisData(BaseModel):
+    plan: ImpactPlan
+
+
+class ImpactAnalysisRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID
+
+
+class ArtifactListData(BaseModel):
+    items: list[ArtifactData]
+
+
+class ArtifactDependenciesData(BaseModel):
+    artifact: ArtifactData
+    dependencies: list[DependencyEdgeData]
+    dependents: list[DependencyEdgeData]
+
+
+class ArtifactRevalidateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID | None = None
+
+
+class ArtifactRevalidateData(BaseModel):
+    artifact: ArtifactData
+    state: DependencyNodeStateData | None = None
+
+
+class ClaimLifecycleMutationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID
+    expected_revision: int = Field(ge=1)
+    lifecycle: ClaimLifecycle
 
 
 class SchematicData(BaseModel):

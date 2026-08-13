@@ -5,8 +5,8 @@ from typing import Any, cast
 from uuid import UUID
 
 from eea_core.ai import AIUsage, AIUsageRecord, PromptDefinition
-from eea_core.entities import Evidence, Project
-from eea_core.enums import EngineeringErrorCode, ProjectStatus
+from eea_core.entities import Artifact, Evidence, Project, utc_now
+from eea_core.enums import ArtifactStatus, EngineeringErrorCode, ProjectStatus
 from sqlalchemy import desc, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
@@ -14,10 +14,91 @@ from sqlalchemy.orm import Session
 
 from eea_backend.models import (
     AIUsageRecordModel,
+    ArtifactRecord,
     EvidenceRecord,
     ProjectRecord,
     PromptDefinitionRecord,
 )
+
+
+def _to_artifact(record: ArtifactRecord) -> Artifact:
+    return Artifact.model_validate(
+        {
+            "id": record.id,
+            "schema_version": record.schema_version,
+            "revision": record.revision,
+            "created_at": record.created_at,
+            "updated_at": record.updated_at,
+            "metadata": record.entity_metadata,
+            "project_id": record.project_id,
+            "logical_name": record.logical_name,
+            "artifact_type": record.artifact_type,
+            "version_label": record.version_label,
+            "content_hash": record.content_hash,
+            "input_hash": record.input_hash,
+            "storage_uri": record.storage_uri,
+            "parent_artifact_id": record.parent_artifact_id,
+            "dependency_ids": record.dependency_ids,
+            "dependency_hashes": record.dependency_hashes,
+            "created_by": record.created_by,
+            "source_job_id": record.source_job_id,
+            "generator_version": record.generator_version,
+            "tool_versions": record.tool_versions,
+            "knowledge_snapshot": record.knowledge_snapshot,
+            "status": record.status,
+        }
+    )
+
+
+class SqlAlchemyArtifactRepository:
+    """Project-scoped artifact lookup used by M18 compatibility APIs."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, artifact_id: UUID, *, project_id: UUID | None = None) -> Artifact | None:
+        statement = select(ArtifactRecord).where(ArtifactRecord.id == str(artifact_id))
+        if project_id is not None:
+            statement = statement.where(ArtifactRecord.project_id == str(project_id))
+        record = self._session.scalar(statement)
+        return _to_artifact(record) if record else None
+
+    def list_for_project(self, project_id: UUID) -> list[Artifact]:
+        records = self._session.scalars(
+            select(ArtifactRecord)
+            .where(ArtifactRecord.project_id == str(project_id))
+            .order_by(ArtifactRecord.logical_name, ArtifactRecord.created_at, ArtifactRecord.id)
+        )
+        return [_to_artifact(record) for record in records]
+
+    def list_versions(self, artifact: Artifact) -> list[Artifact]:
+        records = self._session.scalars(
+            select(ArtifactRecord)
+            .where(
+                ArtifactRecord.project_id == str(artifact.project_id),
+                ArtifactRecord.logical_name == artifact.logical_name,
+            )
+            .order_by(ArtifactRecord.created_at, ArtifactRecord.id)
+        )
+        return [_to_artifact(record) for record in records]
+
+    def save_status_projection(
+        self, artifact: Artifact, status: ArtifactStatus, *, commit: bool = True
+    ) -> Artifact:
+        record = self._session.scalar(
+            select(ArtifactRecord).where(
+                ArtifactRecord.id == str(artifact.id),
+                ArtifactRecord.project_id == str(artifact.project_id),
+            )
+        )
+        if record is None:
+            raise ValueError("artifact is not available in the requested project")
+        record.status = status.value
+        record.revision += 1
+        record.updated_at = utc_now()
+        if commit:
+            self._session.commit()
+        return _to_artifact(record)
 
 
 def _to_evidence(record: EvidenceRecord) -> Evidence:

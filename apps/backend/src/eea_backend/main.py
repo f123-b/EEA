@@ -3,7 +3,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from eea_adapters.ai import LiteLLMProvider
 from eea_adapters.components import Stm32CubeG4Provider
@@ -23,13 +23,15 @@ from eea_ports.ai import AIProvider
 from eea_ports.secrets import SecretReference
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from sqlalchemy import inspect
+from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
 from eea_backend.api import router as core_router
 from eea_backend.claim_repositories import SqlAlchemyClaimPredicateRepository
 from eea_backend.database import check_database, create_database_engine
+from eea_backend.dependency_bootstrap import reconcile_project_dependencies
 from eea_backend.errors import engineering_error_handler, validation_error_handler
+from eea_backend.models import ProjectRecord
 from eea_backend.repositories import SqlAlchemyPromptRepository
 from eea_backend.requirement_repositories import SqlAlchemyRequirementProfileRepository
 from eea_backend.schemas import ApiEnvelope, HealthResponse, VersionData
@@ -136,6 +138,8 @@ def create_app(
             ):
                 with Session(engine) as session:
                     seed_builtin_requirement_contracts(session)
+                    for project_id in session.scalars(select(ProjectRecord.id)):
+                        reconcile_project_dependencies(session, UUID(project_id))
         yield
         engine.dispose()
 

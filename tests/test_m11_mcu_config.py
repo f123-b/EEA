@@ -7,6 +7,7 @@ import pytest
 from eea_application.mcu_config import MCUConfigService
 from eea_application.requirements import RequirementAnalysisService, RequirementProfileRegistry
 from eea_application.schematic import SchematicService
+from eea_backend.models import EngineeringDependencyEdgeRecord
 from eea_backend.repositories import SqlAlchemyEvidenceRepository
 from eea_backend.requirement_repositories import (
     SqlAlchemyRequirementProfileRepository,
@@ -29,6 +30,7 @@ from eea_core.mcu_config import (
 from eea_core.requirements import RequirementAnalysisDraft, RequirementDraft
 from eea_core.schematic import SchematicIR
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 PROJECT_ID = UUID(int=110)
@@ -455,3 +457,14 @@ def test_m12_firmware_and_build_api_binds_source_snapshots(client: TestClient) -
     fetched_build = client.get(f"/api/v1/projects/{project_id}/builds/{build_data['id']}")
     assert fetched_build.status_code == 200
     assert fetched_build.json()["data"]["build_input_hash"] == build_data["build_input_hash"]
+    with Session(client.app.state.engine) as session:
+        build_edges = list(
+            session.scalars(
+                select(EngineeringDependencyEdgeRecord).where(
+                    EngineeringDependencyEdgeRecord.project_id == str(project_id),
+                    EngineeringDependencyEdgeRecord.downstream_type == "BuildRun",
+                    EngineeringDependencyEdgeRecord.downstream_id == build_data["id"],
+                )
+            )
+        )
+    assert {item.upstream_type for item in build_edges} == {"FirmwareIR", "SourceRevision"}

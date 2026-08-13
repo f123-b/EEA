@@ -7,11 +7,14 @@ from eea_adapters.static_analysis import TreeSitterCppSourceAnalyzer
 from eea_adapters.static_analysis.cppcheck import CppcheckAdapter
 from eea_application.firmware import FirmwareService
 from eea_application.static_analysis import FirmwareStaticAnalysisService
+from eea_backend.models import EngineeringDependencyEdgeRecord
 from eea_core.enums import StaticAnalysisStatus
 from eea_core.firmware import FirmwareInterrupt, FirmwareModule, FirmwareSourceFile
 from eea_core.sandbox import CommandResult
 from eea_core.static_analysis import StaticAnalysisToolResult
 from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 from test_m11_mcu_config import _create_sources_for_api
 from test_m12_firmware import _config
 
@@ -321,3 +324,14 @@ def test_m13_static_analysis_api_persists_normalized_results(client: TestClient)
     fetched = client.get(f"/api/v1/projects/{project_id}/analysis/static/{analysis['id']}")
     assert fetched.status_code == 200, fetched.text
     assert fetched.json()["data"]["input_hash"] == analysis["input_hash"]
+    with Session(client.app.state.engine) as session:
+        edges = list(
+            session.scalars(
+                select(EngineeringDependencyEdgeRecord).where(
+                    EngineeringDependencyEdgeRecord.project_id == str(project_id),
+                    EngineeringDependencyEdgeRecord.downstream_type == "StaticAnalysis",
+                    EngineeringDependencyEdgeRecord.downstream_id == analysis["id"],
+                )
+            )
+        )
+    assert {item.upstream_type for item in edges} == {"FirmwareIR", "SourceRevision"}

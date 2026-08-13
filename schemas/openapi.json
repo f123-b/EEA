@@ -141,6 +141,98 @@
         "title": "ApiEnvelope[ArchitectureBundleData]",
         "type": "object"
       },
+      "ApiEnvelope_ArtifactData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ArtifactData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ArtifactData]",
+        "type": "object"
+      },
+      "ApiEnvelope_ArtifactDependenciesData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ArtifactDependenciesData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ArtifactDependenciesData]",
+        "type": "object"
+      },
+      "ApiEnvelope_ArtifactListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ArtifactListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ArtifactListData]",
+        "type": "object"
+      },
+      "ApiEnvelope_ArtifactRevalidateData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ArtifactRevalidateData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ArtifactRevalidateData]",
+        "type": "object"
+      },
       "ApiEnvelope_BuildListData_": {
         "properties": {
           "data": {
@@ -300,6 +392,29 @@
           "request_id"
         ],
         "title": "ApiEnvelope[CoverageData]",
+        "type": "object"
+      },
+      "ApiEnvelope_DependencyListData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DependencyListData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[DependencyListData]",
         "type": "object"
       },
       "ApiEnvelope_DependencyLockData_": {
@@ -647,6 +762,29 @@
         "title": "ApiEnvelope[FirmwareStaticAnalysisData]",
         "type": "object"
       },
+      "ApiEnvelope_ImpactAnalysisData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ImpactAnalysisData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ImpactAnalysisData]",
+        "type": "object"
+      },
       "ApiEnvelope_IssueData_": {
         "properties": {
           "data": {
@@ -944,6 +1082,29 @@
           "request_id"
         ],
         "title": "ApiEnvelope[RequirementAnalysisData]",
+        "type": "object"
+      },
+      "ApiEnvelope_RequirementData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RequirementData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[RequirementData]",
         "type": "object"
       },
       "ApiEnvelope_RequirementProfileData_": {
@@ -1268,6 +1429,31 @@
         "title": "ApiEnvelope[VersionData]",
         "type": "object"
       },
+      "ApiEnvelope_dict_str__object__": {
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[dict[str, object]]",
+        "type": "object"
+      },
       "ApiEnvelope_list_ComponentMaterializationData__": {
         "properties": {
           "data": {
@@ -1486,6 +1672,91 @@
           "status"
         ],
         "title": "ArtifactData",
+        "type": "object"
+      },
+      "ArtifactDependenciesData": {
+        "properties": {
+          "artifact": {
+            "$ref": "#/components/schemas/ArtifactData"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdgeData"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "dependents": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdgeData"
+            },
+            "title": "Dependents",
+            "type": "array"
+          }
+        },
+        "required": [
+          "artifact",
+          "dependencies",
+          "dependents"
+        ],
+        "title": "ArtifactDependenciesData",
+        "type": "object"
+      },
+      "ArtifactListData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactData"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ArtifactListData",
+        "type": "object"
+      },
+      "ArtifactRevalidateData": {
+        "properties": {
+          "artifact": {
+            "$ref": "#/components/schemas/ArtifactData"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DependencyNodeStateData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "artifact"
+        ],
+        "title": "ArtifactRevalidateData",
+        "type": "object"
+      },
+      "ArtifactRevalidateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          }
+        },
+        "title": "ArtifactRevalidateRequest",
         "type": "object"
       },
       "ArtifactStatus": {
@@ -1916,6 +2187,15 @@
         },
         "title": "CANTransportConfig",
         "type": "object"
+      },
+      "ChangeObservation": {
+        "enum": [
+          "NON_SEMANTIC",
+          "SEMANTIC_CHANGED",
+          "SOURCE_INVALID"
+        ],
+        "title": "ChangeObservation",
+        "type": "string"
       },
       "CircuitBundleData": {
         "properties": {
@@ -2433,6 +2713,31 @@
         ],
         "title": "ClaimLifecycle",
         "type": "string"
+      },
+      "ClaimLifecycleMutationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/ClaimLifecycle"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "expected_revision",
+          "lifecycle"
+        ],
+        "title": "ClaimLifecycleMutationRequest",
+        "type": "object"
       },
       "ClockIR": {
         "additionalProperties": false,
@@ -3189,6 +3494,105 @@
         "title": "DecisionStatus",
         "type": "string"
       },
+      "DependencyEdgeData": {
+        "properties": {
+          "edge": {
+            "$ref": "#/components/schemas/EngineeringDependencyEdge"
+          }
+        },
+        "required": [
+          "edge"
+        ],
+        "title": "DependencyEdgeData",
+        "type": "object"
+      },
+      "DependencyImpact": {
+        "additionalProperties": false,
+        "properties": {
+          "dependency_path": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyNodeRef"
+            },
+            "title": "Dependency Path",
+            "type": "array"
+          },
+          "depth": {
+            "minimum": 1.0,
+            "title": "Depth",
+            "type": "integer"
+          },
+          "node": {
+            "$ref": "#/components/schemas/DependencyNodeRef"
+          },
+          "projected_status": {
+            "$ref": "#/components/schemas/DependencyNodeStatus"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "recommended_action": {
+            "$ref": "#/components/schemas/ImpactAction"
+          },
+          "status_before": {
+            "$ref": "#/components/schemas/DependencyNodeStatus"
+          },
+          "via_edge_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Via Edge Id"
+          }
+        },
+        "required": [
+          "node",
+          "depth",
+          "status_before",
+          "projected_status",
+          "reason",
+          "recommended_action"
+        ],
+        "title": "DependencyImpact",
+        "type": "object"
+      },
+      "DependencyKind": {
+        "description": "Engineering Dependency Graph edge semantics (M18).",
+        "enum": [
+          "INPUT",
+          "DERIVATION",
+          "GENERATION",
+          "CONFIGURATION",
+          "SELECTION",
+          "VERIFICATION",
+          "EVIDENCE"
+        ],
+        "title": "DependencyKind",
+        "type": "string"
+      },
+      "DependencyListData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdgeData"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DependencyListData",
+        "type": "object"
+      },
       "DependencyLockData": {
         "properties": {
           "created_at": {
@@ -3283,6 +3687,170 @@
         ],
         "title": "DependencyLockData",
         "type": "object"
+      },
+      "DependencyNodeRef": {
+        "additionalProperties": false,
+        "description": "Stable, project-scoped reference to a graph node snapshot.",
+        "properties": {
+          "entity_id": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "semantic_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Semantic Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_type",
+          "entity_id",
+          "revision",
+          "semantic_hash"
+        ],
+        "title": "DependencyNodeRef",
+        "type": "object"
+      },
+      "DependencyNodeState": {
+        "additionalProperties": false,
+        "description": "Latest observed graph state for one project-scoped node.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entity_id": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invalidated_by": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Invalidated By",
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "observed_revision": {
+            "minimum": 1.0,
+            "title": "Observed Revision",
+            "type": "integer"
+          },
+          "observed_semantic_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Observed Semantic Hash",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "revision": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "default": "1.0.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "stale_since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Since"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DependencyNodeStatus",
+            "default": "CURRENT"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "entity_type",
+          "entity_id",
+          "observed_revision",
+          "observed_semantic_hash"
+        ],
+        "title": "DependencyNodeState",
+        "type": "object"
+      },
+      "DependencyNodeStateData": {
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/DependencyNodeState"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "DependencyNodeStateData",
+        "type": "object"
+      },
+      "DependencyNodeStatus": {
+        "description": "Graph-owned status; it does not rewrite historical run statuses.",
+        "enum": [
+          "CURRENT",
+          "STALE",
+          "INVALID",
+          "UNKNOWN"
+        ],
+        "title": "DependencyNodeStatus",
+        "type": "string"
       },
       "DeviceCategory": {
         "enum": [
@@ -4580,6 +5148,123 @@
         "title": "DomainValidationResult",
         "type": "object"
       },
+      "EngineeringDependencyEdge": {
+        "additionalProperties": false,
+        "description": "A uniform upstream -> downstream engineering dependency.",
+        "properties": {
+          "bound_upstream_revision": {
+            "minimum": 1.0,
+            "title": "Bound Upstream Revision",
+            "type": "integer"
+          },
+          "bound_upstream_semantic_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Bound Upstream Semantic Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dependency_kind": {
+            "$ref": "#/components/schemas/DependencyKind"
+          },
+          "downstream_id": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Downstream Id",
+            "type": "string"
+          },
+          "downstream_type": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+            "title": "Downstream Type",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invalidation_policy": {
+            "$ref": "#/components/schemas/InvalidationPolicy"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "revision": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "default": "1.0.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "upstream_id": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Upstream Id",
+            "type": "string"
+          },
+          "upstream_type": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+            "title": "Upstream Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "upstream_type",
+          "upstream_id",
+          "downstream_type",
+          "downstream_id",
+          "dependency_kind",
+          "invalidation_policy",
+          "bound_upstream_revision",
+          "bound_upstream_semantic_hash",
+          "reason"
+        ],
+        "title": "EngineeringDependencyEdge",
+        "type": "object"
+      },
       "EngineeringDimension": {
         "description": "FIX-02 frozen dimensions used by every normalized engineering value.",
         "enum": [
@@ -4840,6 +5525,13 @@
             "title": "Automationlevel",
             "type": "array"
           },
+          "ChangeObservation": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeObservation"
+            },
+            "title": "Changeobservation",
+            "type": "array"
+          },
           "ClaimConflictStatus": {
             "items": {
               "$ref": "#/components/schemas/ClaimConflictStatus"
@@ -4873,6 +5565,20 @@
               "$ref": "#/components/schemas/DecisionStatus"
             },
             "title": "Decisionstatus",
+            "type": "array"
+          },
+          "DependencyKind": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyKind"
+            },
+            "title": "Dependencykind",
+            "type": "array"
+          },
+          "DependencyNodeStatus": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyNodeStatus"
+            },
+            "title": "Dependencynodestatus",
             "type": "array"
           },
           "DeviceCategory": {
@@ -4922,6 +5628,20 @@
               "$ref": "#/components/schemas/EvidenceType"
             },
             "title": "Evidencetype",
+            "type": "array"
+          },
+          "ImpactAction": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactAction"
+            },
+            "title": "Impactaction",
+            "type": "array"
+          },
+          "InvalidationPolicy": {
+            "items": {
+              "$ref": "#/components/schemas/InvalidationPolicy"
+            },
+            "title": "Invalidationpolicy",
             "type": "array"
           },
           "IssueSeverity": {
@@ -5036,6 +5756,9 @@
           "ClaimConflictStrategy",
           "ClaimConflictType",
           "ClaimLifecycle",
+          "ChangeObservation",
+          "DependencyKind",
+          "DependencyNodeStatus",
           "DecisionStatus",
           "DeviceCategory",
           "DeviceMergeConflictType",
@@ -5046,6 +5769,8 @@
           "EvidenceType",
           "IssueSeverity",
           "IssueStatus",
+          "ImpactAction",
+          "InvalidationPolicy",
           "JobStatus",
           "Permission",
           "ProjectStatus",
@@ -6646,6 +7371,113 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "ImpactAction": {
+        "enum": [
+          "REVALIDATE",
+          "REGENERATE",
+          "REBUILD",
+          "RERUN_TEST",
+          "RERUN_REVIEW",
+          "MANUAL_REVIEW"
+        ],
+        "title": "ImpactAction",
+        "type": "string"
+      },
+      "ImpactAnalysisData": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/ImpactPlan"
+          }
+        },
+        "required": [
+          "plan"
+        ],
+        "title": "ImpactAnalysisData",
+        "type": "object"
+      },
+      "ImpactPlan": {
+        "additionalProperties": false,
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "impacts": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyImpact"
+            },
+            "title": "Impacts",
+            "type": "array"
+          },
+          "policy_version": {
+            "default": "m18-dependency-policy-1",
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": "1.0.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/DependencyNodeRef"
+          },
+          "source_status": {
+            "$ref": "#/components/schemas/DependencyNodeStatus"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactPlanStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "source",
+          "source_status"
+        ],
+        "title": "ImpactPlan",
+        "type": "object"
+      },
+      "ImpactPlanStep": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ImpactAction"
+          },
+          "dependency_path": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyNodeRef"
+            },
+            "title": "Dependency Path",
+            "type": "array"
+          },
+          "depth": {
+            "minimum": 1.0,
+            "title": "Depth",
+            "type": "integer"
+          },
+          "node": {
+            "$ref": "#/components/schemas/DependencyNodeRef"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "node",
+          "depth",
+          "reason"
+        ],
+        "title": "ImpactPlanStep",
+        "type": "object"
+      },
       "InterruptConfigIR": {
         "additionalProperties": false,
         "properties": {
@@ -6725,6 +7557,18 @@
         ],
         "title": "InterruptConfigIR",
         "type": "object"
+      },
+      "InvalidationPolicy": {
+        "description": "How an upstream semantic or validity change affects a dependent.",
+        "enum": [
+          "NONE",
+          "SEMANTIC_CHANGE_STALE",
+          "SOURCE_INVALID_STALE",
+          "SOURCE_INVALID_INVALID",
+          "SEMANTIC_CHANGE_STALE_SOURCE_INVALID_INVALID"
+        ],
+        "title": "InvalidationPolicy",
+        "type": "string"
       },
       "IssueData": {
         "properties": {
@@ -9222,6 +10066,103 @@
         "title": "RequirementCompletenessData",
         "type": "object"
       },
+      "RequirementData": {
+        "properties": {
+          "acceptance_criteria": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Acceptance Criteria",
+            "type": "array"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/RequirementPriority"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "requirement_type": {
+            "$ref": "#/components/schemas/RequirementType"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Source Evidence Ids",
+            "type": "array"
+          },
+          "statement": {
+            "title": "Statement",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RequirementStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "code",
+          "title",
+          "requirement_type",
+          "priority",
+          "statement",
+          "rationale",
+          "acceptance_criteria",
+          "source_evidence_ids",
+          "status"
+        ],
+        "title": "RequirementData",
+        "type": "object"
+      },
       "RequirementFieldStatus": {
         "enum": [
           "PRESENT",
@@ -9469,6 +10410,119 @@
         ],
         "title": "RequirementType",
         "type": "string"
+      },
+      "RequirementUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance_criteria": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptance Criteria"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequirementPriority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "maxLength": 8000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "requirement_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequirementType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_evidence_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Evidence Ids"
+          },
+          "statement": {
+            "anyOf": [
+              {
+                "maxLength": 8000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequirementStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "RequirementUpdateRequest",
+        "type": "object"
       },
       "RequirementValueType": {
         "enum": [
@@ -11521,6 +12575,297 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/artifacts/{artifact_id}": {
+      "get": {
+        "operationId": "get_artifact_api_v1_artifacts__artifact_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ArtifactData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Artifact",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/{artifact_id}/dependencies": {
+      "get": {
+        "operationId": "artifact_dependencies_api_v1_artifacts__artifact_id__dependencies_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ArtifactDependenciesData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Artifact Dependencies",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/{artifact_id}/revalidate": {
+      "post": {
+        "operationId": "revalidate_artifact_api_v1_artifacts__artifact_id__revalidate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactRevalidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ArtifactRevalidateData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Revalidate Artifact",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/{artifact_id}/versions": {
+      "get": {
+        "operationId": "artifact_versions_api_v1_artifacts__artifact_id__versions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ArtifactListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Artifact Versions",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/claims/{claim_id}/lifecycle": {
+      "post": {
+        "operationId": "mutate_claim_lifecycle_api_v1_claims__claim_id__lifecycle_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimLifecycleMutationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mutate Claim Lifecycle",
+        "tags": [
+          "claims",
+          "dependency-graph"
+        ]
+      }
+    },
     "/api/v1/components": {
       "get": {
         "operationId": "list_components_api_v1_components_get",
@@ -11758,6 +13103,204 @@
         "summary": "Query Device Pin",
         "tags": [
           "devices"
+        ]
+      }
+    },
+    "/api/v1/entities/{entity_type}/{entity_id}/dependencies": {
+      "get": {
+        "operationId": "entity_dependencies_api_v1_entities__entity_type___entity_id__dependencies_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_type",
+            "required": true,
+            "schema": {
+              "title": "Entity Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DependencyListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Entity Dependencies",
+        "tags": [
+          "dependency-graph"
+        ]
+      }
+    },
+    "/api/v1/entities/{entity_type}/{entity_id}/dependents": {
+      "get": {
+        "operationId": "entity_dependents_api_v1_entities__entity_type___entity_id__dependents_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_type",
+            "required": true,
+            "schema": {
+              "title": "Entity Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DependencyListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Entity Dependents",
+        "tags": [
+          "dependency-graph"
+        ]
+      }
+    },
+    "/api/v1/entities/{entity_type}/{entity_id}/impact-analysis": {
+      "post": {
+        "operationId": "dependency_impact_analysis_api_v1_entities__entity_type___entity_id__impact_analysis_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_type",
+            "required": true,
+            "schema": {
+              "title": "Entity Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ImpactAnalysisData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Dependency Impact Analysis",
+        "tags": [
+          "dependency-graph"
         ]
       }
     },
@@ -12520,6 +14063,102 @@
         "summary": "Generate Architecture",
         "tags": [
           "architecture"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/artifacts": {
+      "get": {
+        "operationId": "list_artifacts_api_v1_projects__project_id__artifacts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ArtifactListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Artifacts",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/artifacts/stale": {
+      "get": {
+        "operationId": "stale_artifacts_api_v1_projects__project_id__artifacts_stale_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ArtifactListData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Stale Artifacts",
+        "tags": [
+          "artifacts"
         ]
       }
     },
@@ -14821,6 +16460,75 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/requirements/{requirement_id}": {
+      "patch": {
+        "operationId": "update_requirement_api_v1_projects__project_id__requirements__requirement_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_RequirementData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Requirement",
+        "tags": [
+          "requirements",
+          "dependency-graph"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/review": {
       "post": {
         "operationId": "create_review_api_v1_projects__project_id__review_post",
@@ -15486,6 +17194,23 @@
               "format": "uuid",
               "title": "Project Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_revision_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Revision Id"
             }
           }
         ],

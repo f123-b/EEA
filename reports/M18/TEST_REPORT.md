@@ -1,0 +1,140 @@
+# M18 Final Acceptance Test Report
+
+Date: 2026-08-13
+
+Repository: `f123-b/EEA`
+
+Branch: `codex/m18-dependency-impact-graph`
+
+Pull request: `#5`
+
+Base: `main` at `532d095b912cfa4926474bc0295c84990dde21e5`
+
+Migration: `0024_m18_engineering_dependency_graph`
+
+## Scope
+
+M18R closes semantic freshness, runtime binding, recovery, persistence, and
+fail-closed graph gaps in the existing M18 implementation. The dependency graph
+is project-scoped and separate from `TraceabilityEdge`; bindings are created
+from explicit durable references through an allowlisted provider registry.
+
+## Real DB/API acceptance benchmarks
+
+The acceptance set is implemented by
+`tests/test_m18r_real_benchmarks.py` and the M18 graph suite. It covers the
+M18R.1 mutation, regeneration, bootstrap, runtime binding, reconciliation, and
+terminal-lifecycle categories:
+
+1. Revision-only input changes do not propagate stale state.
+2. `NONE` invalidation policy does not propagate a semantic change.
+3. Ordered sequences produce different semantic hashes when reordered.
+4. Set-like references normalize order before hashing.
+5. Claim `verification_levels` participate in semantic identity.
+6. Artifact storage-location changes are non-semantic.
+7. Historical artifact dependency hash mismatch is detected as stale.
+8. Successful revalidation recovers a stale node to current.
+9. One-edge rebind cannot clear another mismatched incoming edge.
+10. All incoming bindings matching permits current recovery.
+11. Concurrent invalidation merges evidence instead of losing updates.
+12. Concurrent invalid status takes precedence over stale.
+13. Graph stale status is projected by artifact detail/list/stale APIs.
+14. Historical dependency hash H1 versus current H2 is covered against real DB.
+15. Runtime-created graph nodes work without an application restart.
+16. Bootstrap persists complete explicit-reference edges.
+17. Bootstrap reports gaps and does not swallow real graph errors.
+18. Bootstrap is idempotent.
+19. Requirement mutation stales the real TestIR → TestRun → ReviewRun chain.
+20. Errata Claim → PinAssignment → MCUConfigIR → FirmwareIR propagates INVALID.
+21. An unrelated PinAssignment is not included in that impact plan.
+22. SourceRevision → TestRun is represented by explicit durable input.
+23. SourceRevision → BuildRun and Build/StaticAnalysis → ReviewRun are explicit.
+24. Persisted ProtocolIR outputs fan out to four durable output nodes and stale.
+25. Global Claim lifecycle mutation is denied by project scope.
+26. Unknown dependency API entity types fail closed with capability unavailable.
+27. Diamond impacts are deduplicated and retain the stronger projected status.
+28. Pin lock/unlock preserve an invalid incoming Claim state.
+29. Protocol regeneration rebinds all four outputs to the latest input hash.
+30. Historical protocol output hashes remain stale during bootstrap.
+31. FirmwareIR binds to BuildRun at runtime and bootstrap.
+32. FirmwareIR binds to StaticAnalysis at runtime.
+33. Firmware invalidation propagates through BuildRun, StaticAnalysis, and ReviewRun.
+34. Requirement analysis reconciliation stales TestIR, TestRun, and ReviewRun.
+35. DEPRECATED and ARCHIVED artifact projections remain terminal and error-free.
+
+Verification result:
+
+- `pytest --no-cov -q tests/test_m18_dependency_graph.py tests/test_m18r_real_benchmarks.py tests/test_m18_api.py`: **22 passed**.
+- `pytest -q`: **300 passed, 3 skipped, 2 pre-existing M5 failures**; coverage
+  **84.21%**. The two Windows M5 sandbox subprocess failures occur because the
+  local interpreter redirector does not provide the runtime behavior those tests
+  assume; no M18R test fails.
+- `ruff check .`: **PASS**.
+- `ruff format --check .`: **PASS**.
+- `mypy core/src application/src apps/backend/src`: **PASS**.
+- Clean database upgrade plus `alembic check`: **PASS**. The repository-local
+  database also upgrades successfully; its existing schema drift is unrelated
+  to M18R.1.
+- `eea openapi export --check`: **PASS**.
+- `eea openapi typescript --check`: **PASS**.
+- `pnpm lint`: **PASS**.
+- `pnpm typecheck`: **PASS**.
+- `pnpm build`: **PASS**.
+
+## Final acceptance
+
+Reviewed implementation HEAD:
+
+`2cce5b7ac9facf12ff2ef8f7c743446ec8cb368e`
+
+M18 FINAL REVIEW = PASS
+
+M18R = PASS
+
+M18R.1 = PASS
+
+P0 blockers = 0
+
+P1 blockers = 0
+
+Acceptance basis:
+
+- M18 focused suite PASS
+- M18R/M18R.1 real DB/API benchmarks PASS
+- semantic/non-semantic freshness PASS
+- Errata Claim propagation PASS
+- unrelated-node isolation PASS
+- Pin invalid-state preservation PASS
+- Protocol regenerate recovery PASS
+- Protocol historical bootstrap PASS
+- FirmwareIR → BuildRun PASS
+- FirmwareIR → StaticAnalysis PASS
+- Build/Static/Review vertical propagation PASS
+- Requirement re-analysis propagation PASS
+- Artifact terminal lifecycle projection PASS
+- migration 0024 PASS
+- Ruff PASS
+- mypy PASS
+- OpenAPI/TypeScript PASS
+- Desktop gates PASS
+- GitHub Linux CI PASS
+
+The existing Windows M5 sandbox subprocess environment note is retained as an
+environment-specific issue and is not an M18 failure.
+
+## Status
+
+`M18 = ACCEPTED`
+
+`M18R = ACCEPTED`
+
+`M18R.1 = ACCEPTED`
+
+`READY_FOR_M18_FINAL_REVIEW = YES`
+
+`READY_FOR_M18A = YES`
+
+`M18A = NOT_STARTED`
+
+This report records final acceptance of the reviewed implementation HEAD.
+M18A is not implemented by this acceptance.

@@ -7,6 +7,24 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18R Semantic Freshness, Runtime Binding & Recovery Closure: added canonical
+  semantic freshness rules, explicit provider-backed dependency binding,
+  historical artifact hash revalidation, CAS merge/recovery semantics, complete
+  bootstrap reconciliation, persisted generated protocol output nodes, runtime
+  impact propagation for requirement/claim and engineering IR mutations,
+  fail-closed dependency APIs, migration `0024_m18_engineering_dependency_graph`,
+  and real DB/API acceptance benchmarks. M18R.1 closes mutation snapshot ordering,
+  invalid-source recovery, protocol output rebind/regeneration, historical
+  protocol bootstrap hashes, FirmwareIR runtime/bootstrap bindings to BuildRun
+  and StaticAnalysis, vertical Build/Static/Review freshness, requirement
+  analysis reconciliation, and terminal artifact projections. `M18R.1 = IMPLEMENTED`;
+  `READY_FOR_M18_FINAL_REVIEW = YES`; `M18A = NOT_STARTED`.
+- M18 Final Acceptance: reviewed implementation HEAD
+  `2cce5b7ac9facf12ff2ef8f7c743446ec8cb368e`; `M18 = ACCEPTED`,
+  `M18R = ACCEPTED`, and `M18R.1 = ACCEPTED`. Acceptance gates are green,
+  `READY_FOR_M18_FINAL_REVIEW = YES`, `READY_FOR_M18A = YES`, and
+  `M18A = NOT_STARTED`. M18A scope is documented for the next milestone only;
+  no M18A implementation was started.
 - M17 Test/Traceability/Review: added Core-neutral declarative TestIR and immutable TestRun
   contracts, deterministic requirement-based test generation, project-scoped controlled
   fail-closed executors, revision/source freshness checks, design/verification coverage,
