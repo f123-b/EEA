@@ -1,8 +1,10 @@
 """M18A focused acceptance coverage: durable events, recovery, and idempotency."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import uuid4
+from threading import Barrier
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 from alembic import command
@@ -13,11 +15,13 @@ from eea_application.reliability import (
     HandlerRegistration,
     InjectedCrashError,
     OutboxHandlerRegistry,
+    new_recovery_worker_id,
 )
 from eea_backend.database import create_database_engine
 from eea_backend.main import create_app
 from eea_backend.models import (
     ArtifactRecord,
+    EngineeringDependencyNodeStateRecord,
     JobRecord,
     OutboxEventRecord,
     ProcessedEventRecord,
@@ -26,14 +30,19 @@ from eea_backend.models import (
 )
 from eea_backend.recovery import RecoveryService
 from eea_backend.reliability_repositories import (
+    BusyRetryPolicy,
     SqlAlchemyOutboxRepository,
+    SqlAlchemyProcessedEventRepository,
     SqlAlchemySideEffectJournalRepository,
 )
+from eea_backend.repositories import SqlAlchemyArtifactRepository
 from eea_backend.settings import Settings
-from eea_core.entities import Project
-from eea_core.enums import JobStatus
+from eea_core.entities import Artifact, Project, utc_now
+from eea_core.enums import ArtifactStatus, DependencyNodeStatus, JobStatus
 from eea_core.reliability import (
+    OutboxEvent,
     OutboxEventStatus,
+    ProcessedEvent,
     SideEffectJournal,
     SideEffectStatus,
     payload_sha256,
@@ -118,16 +127,18 @@ def test_project_business_and_outbox_commit_together(tmp_path: Path) -> None:
 def test_project_commit_crash_replay_and_api(tmp_path: Path) -> None:
     settings = Settings(data_dir=tmp_path)
     _migrate(settings)
-    with TestClient(create_app(settings)) as client:
+    application = create_app(settings)
+    with TestClient(application) as client:
         created = client.post("/api/v1/projects", json={"name": "replay"}).json()["data"]
-        assert client.get("/api/v1/system/outbox/status").json()["data"]["pending"] == 1
+        application.state.outbox_dispatcher.dispatch_once()
+        assert client.get("/api/v1/system/outbox/status").json()["data"]["processed"] == 1
         result = client.post("/api/v1/system/recovery/reconcile", json={"limit": 100})
         assert result.status_code == 200
         status = client.get("/api/v1/system/outbox/status").json()["data"]
         assert status["processed"] == 1
         assert (
             client.get(f"/api/v1/projects/{created['id']}/consistency").json()["data"]["status"]
-            == "CLEAN"
+            == "CONSISTENT"
         )
 
 
@@ -216,7 +227,23 @@ def test_artifact_consumer_is_idempotent_on_replay(tmp_path: Path) -> None:
         "content_hash": "a" * 64,
         "input_hash": "b" * 64,
     }
-    _, event = _project_and_event(engine, event_type="artifact.created", payload=payload)
+    project, event = _project_and_event(engine, event_type="artifact.created", payload=payload)
+    with Session(engine) as session:
+        SqlAlchemyArtifactRepository(session).add(
+            Artifact(
+                id=UUID(artifact_id),
+                project_id=project.id,
+                logical_name="generated",
+                artifact_type="firmware",
+                version_label="v1",
+                content_hash="a" * 64,
+                input_hash="b" * 64,
+                storage_uri="test://artifact",
+                created_by="test",
+                status=ArtifactStatus.CURRENT,
+            ),
+            commit=True,
+        )
     first = RecoveryService(
         lambda: Session(engine),
         crash_injector=PointCrashInjector(
@@ -388,7 +415,9 @@ def test_side_effect_journal_preserves_unknown_outcome(tmp_path: Path) -> None:
                     request_hash=payload_sha256({"request": "two"}),
                 )
             )
-    assert RecoveryService(lambda: Session(engine)).reconcile_side_effects() == 1
+    service = RecoveryService(lambda: Session(engine))
+    assert service.reconcile_side_effects() == 0
+    assert service.inspect_reconcile_required() == 1
 
 
 def test_interrupted_job_requires_explicit_reconciliation(tmp_path: Path) -> None:
@@ -421,3 +450,552 @@ def test_interrupted_job_requires_explicit_reconciliation(tmp_path: Path) -> Non
         job = session.scalar(select(JobRecord))
         assert job.status == JobStatus.FAILED_NEEDS_RECONCILE.value
         assert "explicit reconciliation" in job.error_message
+
+
+def test_normal_runtime_dispatcher_delivers_without_manual_reconcile(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    application = create_app(settings)
+    with TestClient(application) as client:
+        response = client.post("/api/v1/projects", json={"name": "normal-dispatch"})
+        assert response.status_code == 201
+        # This is the deterministic trigger helper for the lifecycle-owned
+        # dispatcher; the recovery HTTP endpoint is deliberately not used.
+        application.state.outbox_dispatcher.dispatch_once()
+        data = client.get("/api/v1/system/outbox/status").json()["data"]
+        assert data["processed"] == 1
+
+
+def test_app_worker_identity_is_unique_and_reused_by_recovery_paths(tmp_path: Path) -> None:
+    app_a = create_app(Settings(data_dir=tmp_path / "a"))
+    app_b = create_app(Settings(data_dir=tmp_path / "b"))
+    assert app_a.state.recovery_worker_id != app_b.state.recovery_worker_id
+    assert app_a.state.recovery_service.worker_id == app_a.state.recovery_worker_id
+    assert app_a.state.outbox_dispatcher.service.worker_id == app_a.state.recovery_worker_id
+    assert new_recovery_worker_id() != new_recovery_worker_id()
+
+
+def test_producer_race_same_key_same_payload_is_one_event(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    barrier = Barrier(2)
+    key = "race:Project:shared:1"
+    payload = {"value": "same"}
+
+    def enqueue_once() -> str:
+        with Session(engine) as session:
+            barrier.wait()
+            event = EventOutboxService(SqlAlchemyOutboxRepository(session)).enqueue(
+                event_type="race.event",
+                aggregate_type="Project",
+                aggregate_id="shared",
+                aggregate_revision=1,
+                event_key=key,
+                payload=payload,
+                commit=True,
+            )
+            return str(event.id)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: enqueue_once(), range(2)))
+    assert len(set(results)) == 1
+    with Session(engine) as session:
+        assert len(list(session.scalars(select(OutboxEventRecord)))) == 1
+
+
+def test_outbox_savepoint_leaves_outer_transaction_usable_after_unique_race(
+    tmp_path: Path,
+) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    _, existing = _project_and_event(engine, event_type="outer.event", payload={"value": "same"})
+    with Session(engine) as session:
+        candidate = OutboxEvent(
+            event_type="outer.event",
+            aggregate_type="Project",
+            aggregate_id="outer",
+            aggregate_revision=1,
+            event_key=existing.event_key,
+            payload={"value": "same", "project_id": str(existing.project_id)},
+            payload_hash=payload_sha256({"value": "same", "project_id": str(existing.project_id)}),
+        )
+        session.add(
+            ProjectRecord(
+                id=str(uuid4()),
+                schema_version="1.0",
+                revision=1,
+                created_at=utc_now(),
+                updated_at=utc_now(),
+                entity_metadata={},
+                name="outer-survives",
+                description="",
+                status="DRAFT",
+                deleted_at=None,
+            )
+        )
+        session.flush()
+        result = SqlAlchemyOutboxRepository(session).add(candidate, commit=False)
+        assert result.id == existing.id
+        session.commit()
+    with Session(engine) as session:
+        assert session.scalar(select(ProjectRecord).where(ProjectRecord.name == "outer-survives"))
+
+
+def test_event_key_different_payload_fails_closed(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    with Session(engine) as session:
+        service = EventOutboxService(SqlAlchemyOutboxRepository(session))
+        service.enqueue(
+            event_type="same-key.event",
+            aggregate_type="Project",
+            aggregate_id="p",
+            aggregate_revision=1,
+            event_key="same-key",
+            payload={"value": 1},
+            commit=True,
+        )
+        with pytest.raises(ValueError, match="payload_hash"):
+            service.enqueue(
+                event_type="same-key.event",
+                aggregate_type="Project",
+                aggregate_id="p",
+                aggregate_revision=1,
+                event_key="same-key",
+                payload={"value": 2},
+                commit=True,
+            )
+
+
+def test_artifact_created_missing_authority_never_fabricates(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    project = Project(id=uuid4(), name="missing-authority")
+    with Session(engine) as session:
+        from eea_backend.repositories import SqlAlchemyProjectRepository
+
+        SqlAlchemyProjectRepository(session).add(project, commit=True)
+        event = EventOutboxService(SqlAlchemyOutboxRepository(session)).enqueue(
+            event_type="artifact.created",
+            aggregate_type="Artifact",
+            aggregate_id=str(uuid4()),
+            aggregate_revision=1,
+            payload={
+                "project_id": str(project.id),
+                "artifact_id": str(uuid4()),
+                "logical_name": "missing",
+                "artifact_type": "derived",
+                "version_label": "v1",
+                "content_hash": "a" * 64,
+                "input_hash": "b" * 64,
+            },
+            project_id=project.id,
+            max_attempts=1,
+            commit=True,
+        )
+    result = RecoveryService(lambda: Session(engine)).dispatch_ready_events(limit=1)
+    assert result["dead_letter"] == 1
+    with Session(engine) as session:
+        assert len(list(session.scalars(select(ArtifactRecord)))) == 0
+        assert (
+            session.get(OutboxEventRecord, str(event.id)).status
+            == OutboxEventStatus.DEAD_LETTER.value
+        )
+
+
+def _derived_artifact_handler(session: Session, event: OutboxEvent) -> str:
+    artifact_id = uuid5(NAMESPACE_URL, f"derived-artifact:{event.id}")
+    project_id = UUID(str(event.payload["project_id"]))
+    artifact = Artifact(
+        id=artifact_id,
+        project_id=project_id,
+        logical_name=f"derived-{event.id}",
+        artifact_type="derived-test",
+        version_label="v1",
+        content_hash=payload_sha256({"artifact": str(artifact_id)}),
+        input_hash=payload_sha256({"event": str(event.id)}),
+        storage_uri=f"derived://{artifact_id}",
+        created_by="test-derived-handler",
+    )
+    SqlAlchemyArtifactRepository(session).add(artifact, commit=False)
+    journal = SqlAlchemySideEffectJournalRepository(session)
+    item = journal.prepare(
+        SideEffectJournal(
+            event_id=event.id,
+            consumer_id="test-derived-artifact.create@1",
+            effect_key="derived-artifact",
+            effect_type="content-addressed-db",
+            request_hash=payload_sha256({"event_id": str(event.id), "artifact": str(artifact_id)}),
+        )
+    )
+    journal.mark_applied(item, result_ref=str(artifact_id), now=utc_now())
+    return str(artifact_id)
+
+
+def test_derived_artifact_replayed_ten_times_is_one_logical_effect(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    project, event = _project_and_event(engine, event_type="test.derived-artifact.create")
+    service = RecoveryService(
+        lambda: Session(engine),
+        registry=OutboxHandlerRegistry(
+            (
+                HandlerRegistration(
+                    "test-derived-artifact.create@1",
+                    "test.derived-artifact.create",
+                    frozenset({1}),
+                    _derived_artifact_handler,
+                ),
+            )
+        ),
+    )
+    assert project.id == event.project_id
+    for _ in range(10):
+        with Session(engine) as session:
+            session.execute(
+                update(OutboxEventRecord)
+                .where(OutboxEventRecord.id == str(event.id))
+                .values(
+                    status=OutboxEventStatus.PENDING.value, lease_owner=None, lease_expires_at=None
+                )
+            )
+            session.commit()
+        assert service.dispatch_ready_events(limit=1)["processed"] == 1
+    with Session(engine) as session:
+        assert len(list(session.scalars(select(ArtifactRecord)))) == 1
+        assert len(list(session.scalars(select(ProcessedEventRecord)))) == 1
+        assert len(list(session.scalars(select(SideEffectJournalRecord)))) == 1
+
+
+def test_project_scoped_reconcile_does_not_touch_other_project(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    project_a, event_a = _project_and_event(engine, event_type="unsupported.a")
+    project_b, event_b = _project_and_event(engine, event_type="unsupported.b")
+    with Session(engine) as session:
+        session.execute(
+            update(OutboxEventRecord)
+            .where(OutboxEventRecord.id.in_([str(event_a.id), str(event_b.id)]))
+            .values(max_attempts=1)
+        )
+        session.commit()
+    service = RecoveryService(lambda: Session(engine), registry=OutboxHandlerRegistry())
+    service.recover_expired_outbox_leases(project_id=project_a.id)
+    assert service.dispatch_ready_events(limit=10, project_id=project_a.id)["dead_letter"] == 1
+    with Session(engine) as session:
+        assert (
+            session.get(OutboxEventRecord, str(event_a.id)).status
+            == OutboxEventStatus.DEAD_LETTER.value
+        )
+        assert (
+            session.get(OutboxEventRecord, str(event_b.id)).status
+            == OutboxEventStatus.PENDING.value
+        )
+    assert project_b.id != project_a.id
+
+
+def test_project_scoped_interrupted_job_reconcile_isolated(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    project_a, _ = _project_and_event(engine)
+    project_b, _ = _project_and_event(engine)
+    now = datetime.now(UTC) - timedelta(hours=1)
+    with Session(engine) as session:
+        for project in (project_a, project_b):
+            session.add(
+                JobRecord(
+                    id=str(uuid4()),
+                    created_at=now,
+                    updated_at=now,
+                    entity_metadata={},
+                    project_id=str(project.id),
+                    job_type="safe-test-job",
+                    status=JobStatus.RUNNING.value,
+                    progress=0.1,
+                    phase="running",
+                    result_ref=None,
+                    error_code=None,
+                    error_message=None,
+                    budget_usage={},
+                    resource_lock_ids=[],
+                )
+            )
+        session.commit()
+    assert (
+        RecoveryService(lambda: Session(engine)).reconcile_interrupted_jobs(project_id=project_a.id)
+        == 1
+    )
+    with Session(engine) as session:
+        statuses = list(session.scalars(select(JobRecord).order_by(JobRecord.project_id)))
+        status_by_project = {row.project_id: row.status for row in statuses}
+        assert status_by_project[str(project_a.id)] == JobStatus.FAILED_NEEDS_RECONCILE.value
+        assert status_by_project[str(project_b.id)] == JobStatus.RUNNING.value
+
+
+def test_processed_event_concurrent_insert_is_idempotent(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    _, event = _project_and_event(engine)
+    barrier = Barrier(2)
+
+    def insert_marker() -> bool:
+        with Session(engine) as session:
+            barrier.wait()
+            _, inserted = SqlAlchemyProcessedEventRepository(session).add_idempotent(
+                ProcessedEvent(
+                    event_id=event.id,
+                    consumer_id="race-consumer",
+                    event_payload_hash=event.payload_hash,
+                )
+            )
+            session.commit()
+            return inserted
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: insert_marker(), range(2)))
+    assert sorted(results) == [False, True]
+    with Session(engine) as session:
+        assert len(list(session.scalars(select(ProcessedEventRecord)))) == 1
+
+
+def test_side_effect_prepare_concurrent_insert_is_idempotent(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    _, event = _project_and_event(engine)
+    barrier = Barrier(2)
+    request_hash = payload_sha256({"effect": "race"})
+
+    def prepare_marker() -> UUID:
+        with Session(engine) as session:
+            barrier.wait()
+            item = SqlAlchemySideEffectJournalRepository(session).prepare(
+                SideEffectJournal(
+                    event_id=event.id,
+                    consumer_id="race-consumer",
+                    effect_key="race-effect",
+                    effect_type="content-addressed-db",
+                    request_hash=request_hash,
+                )
+            )
+            session.commit()
+            return item.id
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: prepare_marker(), range(2)))
+    assert results[0] == results[1]
+    with Session(engine) as session:
+        assert len(list(session.scalars(select(SideEffectJournalRecord)))) == 1
+
+
+def test_two_recovery_workers_simultaneously_produce_one_effect(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    project, event = _project_and_event(engine, event_type="test.derived-artifact.create")
+    registry = OutboxHandlerRegistry(
+        (
+            HandlerRegistration(
+                "test-derived-artifact.create@1",
+                "test.derived-artifact.create",
+                frozenset({1}),
+                _derived_artifact_handler,
+            ),
+        )
+    )
+    barrier = Barrier(2)
+
+    def run_worker(worker_id: str) -> dict[str, int]:
+        barrier.wait()
+        return RecoveryService(
+            lambda: Session(engine), registry=registry, worker_id=worker_id
+        ).dispatch_ready_events(limit=1)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(run_worker, worker) for worker in ("A", "B")]
+        results = [future.result() for future in futures]
+    assert sum(result["processed"] for result in results) == 1
+    with Session(engine) as session:
+        assert project.id == event.project_id
+        assert (
+            session.get(OutboxEventRecord, str(event.id)).status
+            == OutboxEventStatus.PROCESSED.value
+        )
+        assert len(list(session.scalars(select(ArtifactRecord)))) == 1
+        assert len(list(session.scalars(select(ProcessedEventRecord)))) == 1
+        assert len(list(session.scalars(select(SideEffectJournalRecord)))) == 1
+
+
+def test_lease_takeover_rejects_stale_owner_finalize(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    _, event = _project_and_event(engine)
+    clock = FrozenClock()
+    with Session(engine) as session:
+        repository = SqlAlchemyOutboxRepository(session)
+        assert repository.claim(worker_id="A", now=clock.now(), lease_seconds=1)
+    clock.advance(2)
+    with Session(engine) as session:
+        assert SqlAlchemyOutboxRepository(session).reclaim_expired(now=clock.now()) == 1
+        takeover = SqlAlchemyOutboxRepository(session).claim(
+            worker_id="B", now=clock.now(), lease_seconds=30
+        )
+        assert takeover is not None
+        assert (
+            SqlAlchemyOutboxRepository(session).finalize(
+                event.id,
+                worker_id="A",
+                status=OutboxEventStatus.PROCESSED,
+                now=clock.now(),
+            )
+            is False
+        )
+        assert SqlAlchemyOutboxRepository(session).finalize(
+            event.id,
+            worker_id="B",
+            status=OutboxEventStatus.PROCESSED,
+            now=clock.now(),
+        )
+
+
+def test_unsupported_event_version_is_fail_closed(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    _, event = _project_and_event(engine, event_type="versioned.event")
+    with Session(engine) as session:
+        session.execute(
+            update(OutboxEventRecord)
+            .where(OutboxEventRecord.id == str(event.id))
+            .values(event_version=2, max_attempts=1)
+        )
+        session.commit()
+    registry = OutboxHandlerRegistry(
+        (
+            HandlerRegistration(
+                "versioned-consumer", "versioned.event", frozenset({1}), lambda _s, _e: "ok"
+            ),
+        )
+    )
+    assert (
+        RecoveryService(lambda: Session(engine), registry=registry).dispatch_ready_events(limit=1)[
+            "dead_letter"
+        ]
+        == 1
+    )
+
+
+def test_safe_side_effect_reconciler_applies_only_registered_effect(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    _, event = _project_and_event(engine)
+    with Session(engine) as session:
+        journal = SqlAlchemySideEffectJournalRepository(session)
+        item = journal.prepare(
+            SideEffectJournal(
+                event_id=event.id,
+                consumer_id="safe",
+                effect_key="safe-effect",
+                effect_type="safe-db",
+                request_hash=payload_sha256({"safe": 1}),
+            )
+        )
+        journal.mark_reconcile_required(item, error="unknown", now=utc_now())
+        session.commit()
+    from eea_backend.recovery import SafeSideEffectReconcilerRegistry
+
+    registry = SafeSideEffectReconcilerRegistry(
+        {"safe-db": lambda _session, _item: "verified-result"}
+    )
+    service = RecoveryService(lambda: Session(engine), safe_reconcilers=registry)
+    assert service.reconcile_side_effects() == 1
+    assert service.inspect_reconcile_required() == 0
+
+
+def test_status_diagnostics_expose_recovery_fields(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    application = create_app(settings)
+    with TestClient(application) as client:
+        outbox = client.get("/api/v1/system/outbox/status").json()["data"]
+        recovery = client.get("/api/v1/system/recovery/status").json()["data"]
+        assert {
+            "pending",
+            "processing",
+            "retry",
+            "processed",
+            "dead_letter",
+            "total",
+            "expired_processing_count",
+            "oldest_pending_at",
+            "oldest_pending_age_seconds",
+            "side_effect_reconcile_required_count",
+        } <= set(outbox)
+        assert {
+            "healthy",
+            "pending_recovery_count",
+            "expired_lease_count",
+            "dead_letter_count",
+            "reconcile_required_effect_count",
+            "interrupted_job_count",
+            "startup_recovery_completed",
+            "last_recovery_summary",
+        } <= set(recovery)
+
+
+def test_project_consistency_separates_recovery_from_engineering_degraded(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    project, _ = _project_and_event(engine, event_type="project.created")
+    with Session(engine) as session:
+        session.add(
+            EngineeringDependencyNodeStateRecord(
+                id=str(uuid4()),
+                schema_version="1.0",
+                revision=1,
+                created_at=utc_now(),
+                updated_at=utc_now(),
+                entity_metadata={},
+                project_id=str(project.id),
+                entity_type="Artifact",
+                entity_id="stale-artifact",
+                observed_revision=1,
+                observed_semantic_hash="a" * 64,
+                status=DependencyNodeStatus.STALE.value,
+                invalidated_by=[],
+                reason_codes=["TEST"],
+                stale_since=utc_now(),
+            )
+        )
+        session.commit()
+    service = RecoveryService(lambda: Session(engine))
+    assert service.dispatch_ready_events(project_id=project.id, limit=1)["processed"] == 1
+    data = service.reconcile_project(project.id)
+    assert data["status"] == "DEGRADED"
+    assert data["transactional_recovery"]["pending"] == 0
+    assert data["engineering_freshness"]["stale"] == 1
+
+
+def test_canonical_datetime_is_timezone_independent() -> None:
+    naive = {"at": datetime(2026, 1, 1, 12, 0, 0)}
+    aware = {"at": datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)}
+    assert payload_sha256(naive) == payload_sha256(aware)
+
+
+def test_busy_retry_policy_is_bounded_and_injectable() -> None:
+    calls: list[float] = []
+    policy = BusyRetryPolicy(attempts=3, delay_seconds=0.25, sleep=calls.append)
+    for attempt in range(policy.attempts - 1):
+        policy.sleep(policy.delay_seconds * (attempt + 1))
+    assert calls == [0.25, 0.5]

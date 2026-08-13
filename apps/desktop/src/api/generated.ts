@@ -389,15 +389,43 @@ export interface OutboxStatusData {
   processed: number;
   dead_letter: number;
   total: number;
+  expired_processing_count: number;
+  oldest_pending_at: string | null;
+  oldest_pending_age_seconds: number;
+  side_effect_reconcile_required_count: number;
 }
 
 export interface RecoveryStatusData {
-  status: "CLEAN" | "RECOVERY_REQUIRED";
+  healthy: boolean;
+  pending_recovery_count: number;
+  expired_lease_count: number;
+  dead_letter_count: number;
+  reconcile_required_effect_count: number;
+  interrupted_job_count: number;
+  startup_recovery_completed: boolean;
+  last_recovery_summary: Record<string, unknown>;
+}
+
+export interface TransactionalRecoveryData {
   pending: number;
+  processing: number;
   retry: number;
   dead_letter: number;
   reconcile_required: number;
   interrupted_jobs: number;
+}
+
+export interface EngineeringFreshnessData {
+  stale: number;
+  invalid: number;
+}
+
+export type ProjectConsistencyStatus = "CONSISTENT" | "DEGRADED" | "RECOVERY_REQUIRED";
+
+export interface ProjectConsistencyData {
+  status: ProjectConsistencyStatus;
+  transactional_recovery: TransactionalRecoveryData;
+  engineering_freshness: EngineeringFreshnessData;
 }
 
 export interface RecoveryReconcileRequest {
@@ -407,9 +435,11 @@ export interface RecoveryReconcileRequest {
 
 export interface RecoveryReconcileData {
   reclaimed: number;
+  interrupted_jobs: number;
+  reconciled_side_effects: number;
   dispatched: Record<string, number>;
   reconcile_required: number;
-  project: RecoveryStatusData | null;
+  project: ProjectConsistencyData | null;
 }
 
 export interface DomainRuleContribution {

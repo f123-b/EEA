@@ -63,6 +63,57 @@ class SqlAlchemyArtifactRepository:
         record = self._session.scalar(statement)
         return _to_artifact(record) if record else None
 
+    def add(self, artifact: Artifact, *, commit: bool = True) -> Artifact:
+        """Persist a derived artifact without poisoning the caller transaction."""
+
+        record = ArtifactRecord(
+            id=str(artifact.id),
+            schema_version=artifact.schema_version,
+            revision=artifact.revision,
+            created_at=artifact.created_at,
+            updated_at=artifact.updated_at,
+            entity_metadata=artifact.metadata,
+            project_id=str(artifact.project_id),
+            logical_name=artifact.logical_name,
+            artifact_type=artifact.artifact_type,
+            version_label=artifact.version_label,
+            content_hash=artifact.content_hash,
+            input_hash=artifact.input_hash,
+            storage_uri=artifact.storage_uri,
+            parent_artifact_id=str(artifact.parent_artifact_id)
+            if artifact.parent_artifact_id
+            else None,
+            dependency_ids=[str(value) for value in artifact.dependency_ids],
+            dependency_hashes=artifact.dependency_hashes,
+            created_by=artifact.created_by,
+            source_job_id=str(artifact.source_job_id) if artifact.source_job_id else None,
+            generator_version=artifact.generator_version,
+            tool_versions=artifact.tool_versions,
+            knowledge_snapshot=artifact.knowledge_snapshot,
+            status=artifact.status.value,
+        )
+        existing = self._session.get(ArtifactRecord, str(artifact.id))
+        if existing is not None:
+            return _to_artifact(existing)
+        try:
+            with self._session.begin_nested():
+                self._session.add(record)
+                self._session.flush()
+        except IntegrityError:
+            existing = self._session.scalar(
+                select(ArtifactRecord).where(
+                    ArtifactRecord.project_id == str(artifact.project_id),
+                    ArtifactRecord.logical_name == artifact.logical_name,
+                    ArtifactRecord.version_label == artifact.version_label,
+                )
+            )
+            if existing is None:
+                raise ValueError("derived artifact identity race could not be resolved") from None
+            return _to_artifact(existing)
+        if commit:
+            self._session.commit()
+        return _to_artifact(record)
+
     def list_for_project(self, project_id: UUID) -> list[Artifact]:
         records = self._session.scalars(
             select(ArtifactRecord)

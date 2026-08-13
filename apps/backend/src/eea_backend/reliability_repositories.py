@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -14,7 +17,7 @@ from eea_core.reliability import (
     SideEffectStatus,
 )
 from sqlalchemy import and_, or_, select, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from eea_backend.models import OutboxEventRecord, ProcessedEventRecord, SideEffectJournalRecord
@@ -24,6 +27,32 @@ def _utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+@dataclass(frozen=True)
+class BusyRetryPolicy:
+    """Small bounded retry policy for SQLite's explicit busy/locked failures."""
+
+    attempts: int = 3
+    delay_seconds: float = 0.01
+    sleep: Callable[[float], None] = time.sleep
+
+
+def _is_sqlite_busy(error: OperationalError) -> bool:
+    message = str(getattr(error, "orig", error)).lower()
+    return "database is locked" in message or "database table is locked" in message
+
+
+def commit_with_busy_retry(session: Session, policy: BusyRetryPolicy) -> None:
+    for attempt in range(policy.attempts):
+        try:
+            session.commit()
+            return
+        except OperationalError as error:
+            session.rollback()
+            if not _is_sqlite_busy(error) or attempt + 1 >= policy.attempts:
+                raise
+            policy.sleep(policy.delay_seconds * (attempt + 1))
 
 
 def _event(record: OutboxEventRecord) -> OutboxEvent:
@@ -56,8 +85,9 @@ def _event(record: OutboxEventRecord) -> OutboxEvent:
 
 
 class SqlAlchemyOutboxRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, busy_retry: BusyRetryPolicy | None = None) -> None:
         self.session = session
+        self.busy_retry = busy_retry or BusyRetryPolicy()
 
     def add(self, event: OutboxEvent, *, commit: bool = True) -> OutboxEvent:
         record = OutboxEventRecord(
@@ -86,18 +116,24 @@ class SqlAlchemyOutboxRepository:
             updated_at=event.updated_at,
             revision=event.revision,
         )
-        self.session.add(record)
-        try:
+        for attempt in range(self.busy_retry.attempts):
+            try:
+                with self.session.begin_nested():
+                    self.session.add(record)
+                    self.session.flush()
+            except IntegrityError:
+                existing = self.get_by_key(event.event_key)
+                if existing and existing.payload_hash == event.payload_hash:
+                    return existing
+                raise ValueError("event_key already exists with a different payload_hash") from None
+            except OperationalError as error:
+                if not _is_sqlite_busy(error) or attempt + 1 >= self.busy_retry.attempts:
+                    raise
+                self.busy_retry.sleep(self.busy_retry.delay_seconds * (attempt + 1))
+                continue
             if commit:
-                self.session.commit()
-            else:
-                self.session.flush()
-        except IntegrityError:
-            self.session.rollback()
-            existing = self.get_by_key(event.event_key)
-            if existing and existing.payload_hash == event.payload_hash:
-                return existing
-            raise ValueError("event_key already exists with a different payload_hash") from None
+                commit_with_busy_retry(self.session, self.busy_retry)
+            break
         return _event(record)
 
     def get(self, event_id: UUID) -> OutboxEvent | None:
@@ -118,8 +154,44 @@ class SqlAlchemyOutboxRepository:
             statement = statement.where(OutboxEventRecord.project_id == str(project_id))
         return [_event(record) for record in self.session.scalars(statement)]
 
+    def diagnostics(self, *, now: datetime, project_id: UUID | None = None) -> dict[str, object]:
+        statement = select(OutboxEventRecord)
+        if project_id is not None:
+            statement = statement.where(OutboxEventRecord.project_id == str(project_id))
+        rows = list(self.session.scalars(statement))
+        processing = [row for row in rows if row.status == OutboxEventStatus.PROCESSING.value]
+        pending = [
+            row
+            for row in rows
+            if row.status in {OutboxEventStatus.PENDING.value, OutboxEventStatus.RETRY.value}
+        ]
+        oldest_pending = min((row.available_at for row in pending), default=None)
+        expired = sum(
+            row.lease_expires_at is not None and _utc(row.lease_expires_at) < _utc(now)
+            for row in processing
+        )
+        age = (
+            max(0.0, (_utc(now) - _utc(oldest_pending)).total_seconds()) if oldest_pending else 0.0
+        )
+        return {
+            "expired_processing_count": expired,
+            "oldest_pending_at": _utc(oldest_pending) if oldest_pending else None,
+            "oldest_pending_age_seconds": age,
+            "pending_recovery_count": len(pending) + expired,
+            "processing_count": len(processing),
+            "dead_letter_count": sum(
+                row.status == OutboxEventStatus.DEAD_LETTER.value for row in rows
+            ),
+            "total": len(rows),
+        }
+
     def claim(
-        self, *, worker_id: str, now: datetime, lease_seconds: int = 30
+        self,
+        *,
+        worker_id: str,
+        now: datetime,
+        lease_seconds: int = 30,
+        project_id: UUID | None = None,
     ) -> OutboxEvent | None:
         eligible = or_(
             and_(
@@ -133,38 +205,73 @@ class SqlAlchemyOutboxRepository:
                 OutboxEventRecord.lease_expires_at < now,
             ),
         )
-        candidate = self.session.scalar(
-            select(OutboxEventRecord)
-            .where(eligible)
-            .order_by(
-                OutboxEventRecord.available_at, OutboxEventRecord.created_at, OutboxEventRecord.id
+        if project_id is not None:
+            eligible = and_(eligible, OutboxEventRecord.project_id == str(project_id))
+        for attempt in range(self.busy_retry.attempts):
+            candidate = self.session.scalar(
+                select(OutboxEventRecord)
+                .where(eligible)
+                .order_by(
+                    OutboxEventRecord.available_at,
+                    OutboxEventRecord.created_at,
+                    OutboxEventRecord.id,
+                )
+                .limit(1)
             )
-            .limit(1)
-        )
-        if candidate is None:
-            return None
-        expires = now + timedelta(seconds=lease_seconds)
+            if candidate is None:
+                return None
+            expires = now + timedelta(seconds=lease_seconds)
+            try:
+                result = self.session.execute(
+                    update(OutboxEventRecord)
+                    .where(
+                        OutboxEventRecord.id == candidate.id,
+                        OutboxEventRecord.revision == candidate.revision,
+                        eligible,
+                    )
+                    .execution_options(synchronize_session=False)
+                    .values(
+                        status=OutboxEventStatus.PROCESSING.value,
+                        lease_owner=worker_id,
+                        lease_expires_at=expires,
+                        attempt_count=OutboxEventRecord.attempt_count + 1,
+                        updated_at=now,
+                        revision=OutboxEventRecord.revision + 1,
+                    )
+                )
+                commit_with_busy_retry(self.session, self.busy_retry)
+            except OperationalError as error:
+                if not _is_sqlite_busy(error) or attempt + 1 >= self.busy_retry.attempts:
+                    raise
+                self.session.rollback()
+                self.busy_retry.sleep(self.busy_retry.delay_seconds * (attempt + 1))
+                continue
+            if getattr(result, "rowcount", 0) != 1:
+                return None
+            return self.get(UUID(candidate.id))
+        return None
+
+    def renew(
+        self,
+        event_id: UUID,
+        *,
+        worker_id: str,
+        now: datetime,
+        lease_seconds: int = 30,
+    ) -> bool:
         result = self.session.execute(
             update(OutboxEventRecord)
             .where(
-                OutboxEventRecord.id == candidate.id,
-                OutboxEventRecord.revision == candidate.revision,
-                eligible,
+                OutboxEventRecord.id == str(event_id),
+                OutboxEventRecord.status == OutboxEventStatus.PROCESSING.value,
+                OutboxEventRecord.lease_owner == worker_id,
+                OutboxEventRecord.lease_expires_at >= now,
             )
             .execution_options(synchronize_session=False)
-            .values(
-                status=OutboxEventStatus.PROCESSING.value,
-                lease_owner=worker_id,
-                lease_expires_at=expires,
-                attempt_count=OutboxEventRecord.attempt_count + 1,
-                updated_at=now,
-                revision=OutboxEventRecord.revision + 1,
-            )
+            .values(lease_expires_at=now + timedelta(seconds=lease_seconds), updated_at=now)
         )
-        self.session.commit()
-        if getattr(result, "rowcount", 0) != 1:
-            return None
-        return self.get(UUID(candidate.id))
+        commit_with_busy_retry(self.session, self.busy_retry)
+        return bool(getattr(result, "rowcount", 0) == 1)
 
     def finalize(
         self,
@@ -201,16 +308,19 @@ class SqlAlchemyOutboxRepository:
             .execution_options(synchronize_session=False)
             .values(**values)
         )
-        self.session.commit()
+        commit_with_busy_retry(self.session, self.busy_retry)
         return bool(getattr(result, "rowcount", 0) == 1)
 
-    def reclaim_expired(self, *, now: datetime, limit: int = 100) -> int:
+    def reclaim_expired(
+        self, *, now: datetime, limit: int = 100, project_id: UUID | None = None
+    ) -> int:
         rows = list(
             self.session.scalars(
                 select(OutboxEventRecord)
                 .where(
                     OutboxEventRecord.status == OutboxEventStatus.PROCESSING.value,
                     OutboxEventRecord.lease_expires_at < now,
+                    *([OutboxEventRecord.project_id == str(project_id)] if project_id else []),
                 )
                 .limit(limit)
             )
@@ -226,13 +336,14 @@ class SqlAlchemyOutboxRepository:
             row.updated_at = now
             row.last_error = row.last_error or "lease expired during processing"
             row.revision += 1
-        self.session.commit()
+        commit_with_busy_retry(self.session, self.busy_retry)
         return len(rows)
 
 
 class SqlAlchemyProcessedEventRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, busy_retry: BusyRetryPolicy | None = None) -> None:
         self.session = session
+        self.busy_retry = busy_retry or BusyRetryPolicy()
 
     def get(self, event_id: UUID, consumer_id: str) -> ProcessedEvent | None:
         record = self.session.scalar(
@@ -253,25 +364,46 @@ class SqlAlchemyProcessedEventRepository:
             result_hash=record.result_hash,
         )
 
-    def add(self, item: ProcessedEvent) -> ProcessedEvent:
-        self.session.add(
-            ProcessedEventRecord(
-                id=str(item.id),
-                event_id=str(item.event_id),
-                consumer_id=item.consumer_id,
-                event_payload_hash=item.event_payload_hash,
-                processed_at=item.processed_at,
-                result_ref=item.result_ref,
-                result_hash=item.result_hash,
-            )
+    def add_idempotent(self, item: ProcessedEvent) -> tuple[ProcessedEvent, bool]:
+        record = ProcessedEventRecord(
+            id=str(item.id),
+            event_id=str(item.event_id),
+            consumer_id=item.consumer_id,
+            event_payload_hash=item.event_payload_hash,
+            processed_at=item.processed_at,
+            result_ref=item.result_ref,
+            result_hash=item.result_hash,
         )
-        self.session.flush()
-        return item
+        for attempt in range(self.busy_retry.attempts):
+            try:
+                with self.session.begin_nested():
+                    self.session.add(record)
+                    self.session.flush()
+            except IntegrityError:
+                existing = self.get(item.event_id, item.consumer_id)
+                if existing is None:
+                    raise ValueError(
+                        "processed event identity race could not be resolved"
+                    ) from None
+                if existing.event_payload_hash != item.event_payload_hash:
+                    raise ValueError("processed event payload hash mismatch") from None
+                return existing, False
+            except OperationalError as error:
+                if not _is_sqlite_busy(error) or attempt + 1 >= self.busy_retry.attempts:
+                    raise
+                self.busy_retry.sleep(self.busy_retry.delay_seconds * (attempt + 1))
+                continue
+            return item, True
+        raise RuntimeError("bounded SQLite busy retry exhausted")
+
+    def add(self, item: ProcessedEvent) -> ProcessedEvent:
+        return self.add_idempotent(item)[0]
 
 
 class SqlAlchemySideEffectJournalRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, busy_retry: BusyRetryPolicy | None = None) -> None:
         self.session = session
+        self.busy_retry = busy_retry or BusyRetryPolicy()
 
     def get(self, event_id: UUID, consumer_id: str, effect_key: str) -> SideEffectJournal | None:
         record = self.session.scalar(
@@ -306,26 +438,41 @@ class SqlAlchemySideEffectJournalRepository:
             if existing.request_hash != item.request_hash:
                 raise ValueError("side-effect request_hash mismatch")
             return existing
-        self.session.add(
-            SideEffectJournalRecord(
-                id=str(item.id),
-                event_id=str(item.event_id),
-                consumer_id=item.consumer_id,
-                effect_key=item.effect_key,
-                effect_type=item.effect_type,
-                request_hash=item.request_hash,
-                status=item.status.value,
-                attempt_count=item.attempt_count,
-                result_ref=item.result_ref,
-                result_hash=item.result_hash,
-                last_error=item.last_error,
-                prepared_at=item.prepared_at,
-                applied_at=item.applied_at,
-                updated_at=item.updated_at,
-            )
+        record = SideEffectJournalRecord(
+            id=str(item.id),
+            event_id=str(item.event_id),
+            consumer_id=item.consumer_id,
+            effect_key=item.effect_key,
+            effect_type=item.effect_type,
+            request_hash=item.request_hash,
+            status=item.status.value,
+            attempt_count=item.attempt_count,
+            result_ref=item.result_ref,
+            result_hash=item.result_hash,
+            last_error=item.last_error,
+            prepared_at=item.prepared_at,
+            applied_at=item.applied_at,
+            updated_at=item.updated_at,
         )
-        self.session.flush()
-        return item
+        for attempt in range(self.busy_retry.attempts):
+            try:
+                with self.session.begin_nested():
+                    self.session.add(record)
+                    self.session.flush()
+            except IntegrityError:
+                existing = self.get(item.event_id, item.consumer_id, item.effect_key)
+                if existing is None:
+                    raise ValueError("side-effect identity race could not be resolved") from None
+                if existing.request_hash != item.request_hash:
+                    raise ValueError("side-effect request_hash mismatch") from None
+                return existing
+            except OperationalError as error:
+                if not _is_sqlite_busy(error) or attempt + 1 >= self.busy_retry.attempts:
+                    raise
+                self.busy_retry.sleep(self.busy_retry.delay_seconds * (attempt + 1))
+                continue
+            return item
+        raise RuntimeError("bounded SQLite busy retry exhausted")
 
     def mark_applied(
         self, item: SideEffectJournal, *, result_ref: str | None, now: datetime
@@ -356,7 +503,9 @@ class SqlAlchemySideEffectJournalRepository:
 
 
 __all__ = [
+    "BusyRetryPolicy",
     "SqlAlchemyOutboxRepository",
     "SqlAlchemyProcessedEventRepository",
     "SqlAlchemySideEffectJournalRepository",
+    "commit_with_busy_retry",
 ]

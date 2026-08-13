@@ -1,4 +1,4 @@
-# M18A Transactional Outbox & Recovery Test Report
+# M18A / M18AR Transactional Outbox & Recovery Test Report
 
 Date: 2026-08-13
 
@@ -13,7 +13,9 @@ Migration: `0025_m18a_transactional_outbox_recovery`
 ## Scope
 
 M18A implements a durable transactional outbox and conservative recovery
-boundary. It does not implement M18B or any later milestone.
+boundary. M18AR closes the normal-runtime dispatcher, lease identity,
+transactional race, artifact authority, scoped recovery, and diagnostic
+contracts. It does not implement M18B or any later milestone.
 
 The persistence contract contains:
 
@@ -35,15 +37,20 @@ retry/dead-letter path. External side effects with unknown outcomes remain
 
 Production integration publishes `project.created`, `artifact.created`, and
 `build.completed` in the same SQL transaction as their business writes. The
-default consumers are deterministic and idempotent. Startup recovery reclaims
-expired leases, marks stale RUNNING jobs as `FAILED_NEEDS_RECONCILE`, and
-dispatches a bounded batch.
+default consumers are deterministic and idempotent. The lifecycle-owned
+dispatcher performs bounded startup recovery, wake-triggered dispatch, and
+polling fallback. Worker identity is unique per app start and shared by all
+recovery paths in that app. Marker/journal/producer identity races use
+savepoints and bounded SQLite busy retry; outer transactions survive expected
+unique-key races. Artifact consumers require the authoritative Artifact row and
+never fabricate it. Recovery and consistency APIs are project-scoped where
+requested and separate transactional recovery from engineering freshness.
 
 ## Verification
 
-Focused M18A tests: **12 passed**.
+Focused M18A/M18AR tests: **31 passed**.
 
-Focused M18/M18R/M18A regression set: **36 passed**.
+Focused M18/M18R/M18A/M18AR regression set: **55 passed**.
 
 The focused M18A assertions cover:
 
@@ -58,17 +65,27 @@ The focused M18A assertions cover:
 - SideEffectJournal request-hash mismatch and preservation of
   `RECONCILE_REQUIRED`;
 - interrupted Job recovery to `FAILED_NEEDS_RECONCILE`.
+- normal-runtime dispatcher delivery without manual reconciliation;
+- unique app worker identity and lease renewal/takeover protection;
+- producer, ProcessedEvent, SideEffectJournal, and derived Artifact concurrent
+  identity races;
+- savepoint survival for outer transactions and fail-closed payload/hash
+  mismatches;
+- authoritative Artifact enforcement and replay without duplicate artifacts;
+- project-scoped recovery/reconciliation and ProjectConsistencyData status
+  separation;
+- bounded injectable SQLite busy retry and safe side-effect reconciler allowlist.
 
 Repository verification on the local Windows Python 3.12.4 environment:
 
-- `pytest --no-cov -x -q`: **243 passed, 1 skipped, then 1 pre-existing M5
+- `pytest --no-cov -x -q`: **262 passed, 1 skipped, then 1 pre-existing M5
   Windows sandbox subprocess failure**.
 - `pytest --cov --cov-report=term-missing --cov-report=json -q
-  --ignore=tests/test_m5_sandbox.py`: **306 passed**; total coverage
-  **84.91%**.
-- M18A implementation-file coverage: core reliability **84.96%**,
-  application reliability **91.78%**, backend recovery **89.47%**, and
-  backend reliability repositories **90.91%**.
+  --ignore=tests/test_m5_sandbox.py`: **325 passed**; total coverage
+  **84.96%**.
+- M18AR implementation-file coverage: core reliability **89%**,
+  application reliability **92%**, backend recovery **86%**, and backend
+  reliability repositories **74%**.
 - `ruff check .`: **PASS**.
 - `ruff format --check .`: **PASS**.
 - `mypy`: **PASS**.
@@ -89,9 +106,14 @@ environment-specific issue and is not an M18A failure.
 
 `M18A = IMPLEMENTED`
 
-`READY_FOR_M18A_REVIEW = YES`
+`M18AR = IMPLEMENTED`
+
+`READY_FOR_M18A_FINAL_REVIEW = YES`
+
+`READY_FOR_M18B = NO`
 
 `M18B = NOT_STARTED`
 
 This report records implementation verification only. M18A remains in Draft
-PR review and has not been merged or accepted.
+PR review and has not been merged or accepted. M18B implementation has not
+started.

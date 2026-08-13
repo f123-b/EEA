@@ -1,20 +1,24 @@
-# M18A Known Issues
+# M18A / M18AR Known Issues
 
 ## Status
 
 `M18A = IMPLEMENTED`
 
-`READY_FOR_M18A_REVIEW = YES`
+`M18AR = IMPLEMENTED`
+
+`READY_FOR_M18A_FINAL_REVIEW = YES`
 
 `M18B = NOT_STARTED`
+
+`READY_FOR_M18B = NO`
 
 ## Non-blocking environment note
 
 - On this Windows checkout, the existing M5 sandbox subprocess test can return
   code `101` because the local interpreter redirector does not provide the
   runtime behavior expected by that pre-existing test. The same full suite
-  excluding that environment-specific test passes with 306 tests and 84.91%
-  coverage. This is not an M18A failure and no M5 code was changed.
+  excluding that environment-specific test passes with 325 tests and 84.96%
+  coverage. This is not an M18A or M18AR failure and no M5 code was changed.
 
 ## Deliberate M18A boundaries
 
@@ -25,8 +29,9 @@
   `RECONCILE_REQUIRED` for explicit operator reconciliation.
 - `RecoveryService` reports reconcile-required journal rows; it does not
   fabricate a successful external result.
-- M18B Domain Composition Contract, M18C Source Workspace, M18D commissioning,
-  and M18E NFR/fault-matrix work are not implemented.
+- M18B and later milestones are not implemented. M18AR is limited to the
+  dispatcher, lease identity, transactional race closure, scoped recovery,
+  diagnostic APIs, and safe reconciliation required to complete M18A.
 
 These are planned scope boundaries or environment notes, not M18A acceptance
 blockers.

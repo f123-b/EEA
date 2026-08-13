@@ -120,14 +120,39 @@ def render_typescript_contract() -> str:
             "  processed: number;\n"
             "  dead_letter: number;\n"
             "  total: number;\n"
+            "  expired_processing_count: number;\n"
+            "  oldest_pending_at: string | null;\n"
+            "  oldest_pending_age_seconds: number;\n"
+            "  side_effect_reconcile_required_count: number;\n"
             "}\n",
             "export interface RecoveryStatusData {\n"
-            '  status: "CLEAN" | "RECOVERY_REQUIRED";\n'
+            "  healthy: boolean;\n"
+            "  pending_recovery_count: number;\n"
+            "  expired_lease_count: number;\n"
+            "  dead_letter_count: number;\n"
+            "  reconcile_required_effect_count: number;\n"
+            "  interrupted_job_count: number;\n"
+            "  startup_recovery_completed: boolean;\n"
+            "  last_recovery_summary: Record<string, unknown>;\n"
+            "}\n",
+            "export interface TransactionalRecoveryData {\n"
             "  pending: number;\n"
+            "  processing: number;\n"
             "  retry: number;\n"
             "  dead_letter: number;\n"
             "  reconcile_required: number;\n"
             "  interrupted_jobs: number;\n"
+            "}\n",
+            "export interface EngineeringFreshnessData {\n"
+            "  stale: number;\n"
+            "  invalid: number;\n"
+            "}\n",
+            'export type ProjectConsistencyStatus = "CONSISTENT" | "DEGRADED" | '
+            '"RECOVERY_REQUIRED";\n',
+            "export interface ProjectConsistencyData {\n"
+            "  status: ProjectConsistencyStatus;\n"
+            "  transactional_recovery: TransactionalRecoveryData;\n"
+            "  engineering_freshness: EngineeringFreshnessData;\n"
             "}\n",
             "export interface RecoveryReconcileRequest {\n"
             "  project_id?: string | null;\n"
@@ -135,9 +160,11 @@ def render_typescript_contract() -> str:
             "}\n",
             "export interface RecoveryReconcileData {\n"
             "  reclaimed: number;\n"
+            "  interrupted_jobs: number;\n"
+            "  reconciled_side_effects: number;\n"
             "  dispatched: Record<string, number>;\n"
             "  reconcile_required: number;\n"
-            "  project: RecoveryStatusData | null;\n"
+            "  project: ProjectConsistencyData | null;\n"
             "}\n",
             "export interface DomainRuleContribution {\n"
             "  rule_id: string;\n"

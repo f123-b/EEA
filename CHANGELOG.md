@@ -30,8 +30,16 @@ the frozen documentation changelogs under `docs/`.
   atomic ProjectCreated/ArtifactCreated/BuildCompleted publication, bounded leasing and
   retry/dead-letter recovery, deterministic handler allowlisting, crash-injection replay
   boundaries, interrupted-job reconciliation, reliability status/reconcile APIs, and
-  synchronized OpenAPI/TypeScript contracts. `M18A = IMPLEMENTED`; `READY_FOR_M18A_REVIEW = YES`;
-  M18B remains `NOT_STARTED`. M18A implementation does not include M18B or later milestones.
+  synchronized OpenAPI/TypeScript contracts. `M18A = IMPLEMENTED` and
+  `READY_FOR_M18A_REVIEW = YES`; M18B remains `NOT_STARTED`.
+- M18AR Dispatcher, Lease Identity & Transactional Race Closure: connected the durable
+  dispatcher to the application lifecycle with unique app-scoped worker identity, startup
+  recovery, wake/poll dispatch, savepoint-preserving idempotent race handling, authoritative
+  Artifact projection, derived-artifact replay closure, project-scoped reconciliation,
+  bounded SQLite busy retry, lease renewal/takeover protection, safe side-effect
+  reconciliation, recovery diagnostics, and ProjectConsistencyData. `M18AR = IMPLEMENTED`;
+  `READY_FOR_M18A_FINAL_REVIEW = YES`; `M18A = IMPLEMENTED` but not accepted;
+  `READY_FOR_M18B = NO`; `M18B = NOT_STARTED`.
 - M17 Test/Traceability/Review: added Core-neutral declarative TestIR and immutable TestRun
   contracts, deterministic requirement-based test generation, project-scoped controlled
   fail-closed executors, revision/source freshness checks, design/verification coverage,

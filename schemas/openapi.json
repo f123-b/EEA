@@ -969,6 +969,29 @@
         "title": "ApiEnvelope[PinPlanValidationData]",
         "type": "object"
       },
+      "ApiEnvelope_ProjectConsistencyData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectConsistencyData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ProjectConsistencyData]",
+        "type": "object"
+      },
       "ApiEnvelope_ProjectData_": {
         "properties": {
           "data": {
@@ -5420,6 +5443,24 @@
         "title": "EngineeringErrorCode",
         "type": "string"
       },
+      "EngineeringFreshnessData": {
+        "properties": {
+          "invalid": {
+            "title": "Invalid",
+            "type": "integer"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stale",
+          "invalid"
+        ],
+        "title": "EngineeringFreshnessData",
+        "type": "object"
+      },
       "EngineeringValue": {
         "additionalProperties": false,
         "description": "A display value plus its immutable canonical-unit representation.",
@@ -8354,6 +8395,26 @@
             "title": "Dead Letter",
             "type": "integer"
           },
+          "expired_processing_count": {
+            "title": "Expired Processing Count",
+            "type": "integer"
+          },
+          "oldest_pending_age_seconds": {
+            "title": "Oldest Pending Age Seconds",
+            "type": "number"
+          },
+          "oldest_pending_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest Pending At"
+          },
           "pending": {
             "title": "Pending",
             "type": "integer"
@@ -8370,6 +8431,10 @@
             "title": "Retry",
             "type": "integer"
           },
+          "side_effect_reconcile_required_count": {
+            "title": "Side Effect Reconcile Required Count",
+            "type": "integer"
+          },
           "total": {
             "title": "Total",
             "type": "integer"
@@ -8381,7 +8446,10 @@
           "retry",
           "processed",
           "dead_letter",
-          "total"
+          "total",
+          "expired_processing_count",
+          "oldest_pending_age_seconds",
+          "side_effect_reconcile_required_count"
         ],
         "title": "OutboxStatusData",
         "type": "object"
@@ -9282,6 +9350,32 @@
         "title": "PowerNet",
         "type": "object"
       },
+      "ProjectConsistencyData": {
+        "properties": {
+          "engineering_freshness": {
+            "$ref": "#/components/schemas/EngineeringFreshnessData"
+          },
+          "status": {
+            "enum": [
+              "CONSISTENT",
+              "DEGRADED",
+              "RECOVERY_REQUIRED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "transactional_recovery": {
+            "$ref": "#/components/schemas/TransactionalRecoveryData"
+          }
+        },
+        "required": [
+          "status",
+          "transactional_recovery",
+          "engineering_freshness"
+        ],
+        "title": "ProjectConsistencyData",
+        "type": "object"
+      },
       "ProjectCreate": {
         "additionalProperties": false,
         "properties": {
@@ -10008,10 +10102,14 @@
             "title": "Dispatched",
             "type": "object"
           },
+          "interrupted_jobs": {
+            "title": "Interrupted Jobs",
+            "type": "integer"
+          },
           "project": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RecoveryStatusData"
+                "$ref": "#/components/schemas/ProjectConsistencyData"
               },
               {
                 "type": "null"
@@ -10025,10 +10123,16 @@
           "reconcile_required": {
             "title": "Reconcile Required",
             "type": "integer"
+          },
+          "reconciled_side_effects": {
+            "title": "Reconciled Side Effects",
+            "type": "integer"
           }
         },
         "required": [
           "reclaimed",
+          "interrupted_jobs",
+          "reconciled_side_effects",
           "dispatched",
           "reconcile_required"
         ],
@@ -10063,42 +10167,49 @@
       },
       "RecoveryStatusData": {
         "properties": {
-          "dead_letter": {
-            "title": "Dead Letter",
+          "dead_letter_count": {
+            "title": "Dead Letter Count",
             "type": "integer"
           },
-          "interrupted_jobs": {
-            "default": 0,
-            "title": "Interrupted Jobs",
+          "expired_lease_count": {
+            "title": "Expired Lease Count",
             "type": "integer"
           },
-          "pending": {
-            "title": "Pending",
+          "healthy": {
+            "title": "Healthy",
+            "type": "boolean"
+          },
+          "interrupted_job_count": {
+            "title": "Interrupted Job Count",
             "type": "integer"
           },
-          "reconcile_required": {
-            "title": "Reconcile Required",
+          "last_recovery_summary": {
+            "additionalProperties": true,
+            "title": "Last Recovery Summary",
+            "type": "object"
+          },
+          "pending_recovery_count": {
+            "title": "Pending Recovery Count",
             "type": "integer"
           },
-          "retry": {
-            "title": "Retry",
+          "reconcile_required_effect_count": {
+            "title": "Reconcile Required Effect Count",
             "type": "integer"
           },
-          "status": {
-            "enum": [
-              "CLEAN",
-              "RECOVERY_REQUIRED"
-            ],
-            "title": "Status",
-            "type": "string"
+          "startup_recovery_completed": {
+            "title": "Startup Recovery Completed",
+            "type": "boolean"
           }
         },
         "required": [
-          "status",
-          "pending",
-          "retry",
-          "dead_letter",
-          "reconcile_required"
+          "healthy",
+          "pending_recovery_count",
+          "expired_lease_count",
+          "dead_letter_count",
+          "reconcile_required_effect_count",
+          "interrupted_job_count",
+          "startup_recovery_completed",
+          "last_recovery_summary"
         ],
         "title": "RecoveryStatusData",
         "type": "object"
@@ -12687,6 +12798,44 @@
         "title": "TraceabilityRelation",
         "type": "string"
       },
+      "TransactionalRecoveryData": {
+        "properties": {
+          "dead_letter": {
+            "title": "Dead Letter",
+            "type": "integer"
+          },
+          "interrupted_jobs": {
+            "title": "Interrupted Jobs",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "processing": {
+            "title": "Processing",
+            "type": "integer"
+          },
+          "reconcile_required": {
+            "title": "Reconcile Required",
+            "type": "integer"
+          },
+          "retry": {
+            "title": "Retry",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "processing",
+          "retry",
+          "dead_letter",
+          "reconcile_required",
+          "interrupted_jobs"
+        ],
+        "title": "TransactionalRecoveryData",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -14721,7 +14870,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiEnvelope_RecoveryStatusData_"
+                  "$ref": "#/components/schemas/ApiEnvelope_ProjectConsistencyData_"
                 }
               }
             },

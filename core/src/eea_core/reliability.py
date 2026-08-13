@@ -20,7 +20,10 @@ def _json_default(value: object) -> str:
     if isinstance(value, UUID):
         return str(value)
     if isinstance(value, datetime):
-        return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+        # Canonical JSON must not depend on the host's local timezone.  A
+        # legacy naive value is interpreted explicitly as UTC at this boundary.
+        normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value
+        return normalized.astimezone(UTC).isoformat().replace("+00:00", "Z")
     if isinstance(value, StrEnum):
         return value.value
     raise TypeError(f"unsupported canonical JSON value: {type(value).__name__}")

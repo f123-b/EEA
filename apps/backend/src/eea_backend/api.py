@@ -78,7 +78,7 @@ from eea_core.intelligence import Device, DevicePin, Document
 from eea_core.mcu_config import MCUConfigBundle
 from eea_core.pin_planner import PinAssignment, PinLock, PinPlan, PinRequirement
 from eea_core.protocol import ProtocolGenerationBundle, ProtocolIR, ProtocolValidationResult
-from eea_core.reliability import OutboxEventStatus, payload_sha256, stable_event_key
+from eea_core.reliability import payload_sha256, stable_event_key
 from eea_core.requirements import RequirementProfile
 from eea_core.review import ReviewPolicy, ReviewRun
 from eea_core.schema_registry import create_core_schema_registry
@@ -208,6 +208,7 @@ from eea_backend.schemas import (
     PinPlannerGenerateRequest,
     PinPlanValidationData,
     PinPlanValidationRequest,
+    ProjectConsistencyData,
     ProjectCreate,
     ProjectData,
     ProjectListData,
@@ -268,6 +269,7 @@ def _service(session: Session) -> ProjectService:
 def _recovery_service(request: Request) -> RecoveryService:
     return RecoveryService(
         lambda: Session(request.app.state.engine),
+        worker_id=request.app.state.recovery_worker_id,
         crash_injector=request.app.state.crash_injector,
     )
 
@@ -327,7 +329,17 @@ def _dependency_edge_data(edge: object) -> object:
     tags=["system", "reliability"],
 )
 def outbox_status(request: Request, session: SessionDependency) -> ApiEnvelope[OutboxStatusData]:
-    rows = SqlAlchemyOutboxRepository(session).list()
+    repository = SqlAlchemyOutboxRepository(session)
+    rows = repository.list()
+    diagnostics = repository.diagnostics(now=utc_now())
+    side_effect_reconcile_required_count = sum(
+        1
+        for _ in session.scalars(
+            select(SideEffectJournalRecord).where(
+                SideEffectJournalRecord.status == "RECONCILE_REQUIRED"
+            )
+        )
+    )
     counts = {
         status: sum(item.status.value == status for item in rows)
         for status in ("PENDING", "PROCESSING", "RETRY", "PROCESSED", "DEAD_LETTER")
@@ -339,6 +351,10 @@ def outbox_status(request: Request, session: SessionDependency) -> ApiEnvelope[O
         processed=counts["PROCESSED"],
         dead_letter=counts["DEAD_LETTER"],
         total=len(rows),
+        expired_processing_count=cast(int, diagnostics["expired_processing_count"]),
+        oldest_pending_at=cast(Any, diagnostics["oldest_pending_at"]),
+        oldest_pending_age_seconds=cast(float, diagnostics["oldest_pending_age_seconds"]),
+        side_effect_reconcile_required_count=side_effect_reconcile_required_count,
     )
     return ApiEnvelope(data=data, request_id=_request_id(request))
 
@@ -351,7 +367,8 @@ def outbox_status(request: Request, session: SessionDependency) -> ApiEnvelope[O
 def recovery_status(
     request: Request, session: SessionDependency
 ) -> ApiEnvelope[RecoveryStatusData]:
-    rows = SqlAlchemyOutboxRepository(session).list()
+    repository = SqlAlchemyOutboxRepository(session)
+    diagnostics = repository.diagnostics(now=utc_now())
     reconcile_required = sum(
         1
         for row in session.scalars(
@@ -360,23 +377,30 @@ def recovery_status(
             )
         )
     )
-    interrupted_jobs = sum(
+    interrupted_job_count = sum(
         1
         for row in session.scalars(
             select(JobRecord).where(JobRecord.status == JobStatus.FAILED_NEEDS_RECONCILE.value)
         )
     )
+    pending_recovery_count = cast(int, diagnostics["pending_recovery_count"]) + cast(
+        int, diagnostics["processing_count"]
+    )
     data = RecoveryStatusData(
-        status="RECOVERY_REQUIRED"
-        if any(item.status is not OutboxEventStatus.PROCESSED for item in rows)
-        or reconcile_required > 0
-        or interrupted_jobs > 0
-        else "CLEAN",
-        pending=sum(item.status is OutboxEventStatus.PENDING for item in rows),
-        retry=sum(item.status is OutboxEventStatus.RETRY for item in rows),
-        dead_letter=sum(item.status is OutboxEventStatus.DEAD_LETTER for item in rows),
-        reconcile_required=reconcile_required,
-        interrupted_jobs=interrupted_jobs,
+        healthy=(
+            pending_recovery_count == 0
+            and cast(int, diagnostics["expired_processing_count"]) == 0
+            and cast(int, diagnostics["dead_letter_count"]) == 0
+            and reconcile_required == 0
+            and interrupted_job_count == 0
+        ),
+        pending_recovery_count=pending_recovery_count,
+        expired_lease_count=cast(int, diagnostics["expired_processing_count"]),
+        dead_letter_count=cast(int, diagnostics["dead_letter_count"]),
+        reconcile_required_effect_count=reconcile_required,
+        interrupted_job_count=interrupted_job_count,
+        startup_recovery_completed=bool(request.app.state.startup_recovery_completed),
+        last_recovery_summary=cast(dict[str, object], request.app.state.last_recovery_summary),
     )
     return ApiEnvelope(data=data, request_id=_request_id(request))
 
@@ -391,16 +415,36 @@ def reconcile_recovery(
     request: Request,
 ) -> ApiEnvelope[RecoveryReconcileData]:
     service = _recovery_service(request)
-    reclaimed = service.recover_expired_outbox_leases(limit=payload.limit)
-    dispatched = service.dispatch_ready_events(limit=payload.limit)
-    reconcile_required = service.reconcile_side_effects(limit=payload.limit)
+    reclaimed = service.recover_expired_outbox_leases(
+        limit=payload.limit, project_id=payload.project_id
+    )
+    interrupted_jobs = service.reconcile_interrupted_jobs(
+        limit=payload.limit, project_id=payload.project_id
+    )
+    dispatched = service.dispatch_ready_events(limit=payload.limit, project_id=payload.project_id)
+    reconciled_side_effects = service.reconcile_side_effects(
+        limit=payload.limit, project_id=payload.project_id
+    )
+    reconcile_required = service.inspect_reconcile_required(
+        limit=payload.limit, project_id=payload.project_id
+    )
+    request.app.state.last_recovery_summary = {
+        "reclaimed": reclaimed,
+        "interrupted_jobs": interrupted_jobs,
+        "reconciled_side_effects": reconciled_side_effects,
+        "dispatched": dispatched,
+        "reconcile_required": reconcile_required,
+        "project_id": str(payload.project_id) if payload.project_id is not None else None,
+    }
     project = None
     if payload.project_id is not None:
         status_data = service.reconcile_project(payload.project_id)
-        project = RecoveryStatusData.model_validate(status_data)
+        project = ProjectConsistencyData.model_validate(status_data)
     return ApiEnvelope(
         data=RecoveryReconcileData(
             reclaimed=reclaimed,
+            interrupted_jobs=interrupted_jobs,
+            reconciled_side_effects=reconciled_side_effects,
             dispatched=dispatched,
             reconcile_required=reconcile_required,
             project=project,
@@ -411,14 +455,14 @@ def reconcile_recovery(
 
 @router.get(
     "/projects/{project_id}/consistency",
-    response_model=ApiEnvelope[RecoveryStatusData],
+    response_model=ApiEnvelope[ProjectConsistencyData],
     tags=["projects", "reliability"],
 )
 def project_consistency(
     project_id: UUID, request: Request, session: SessionDependency
-) -> ApiEnvelope[RecoveryStatusData]:
+) -> ApiEnvelope[ProjectConsistencyData]:
     _service(session).get(project_id)
-    data = RecoveryStatusData.model_validate(
+    data = ProjectConsistencyData.model_validate(
         _recovery_service(request).reconcile_project(project_id)
     )
     return ApiEnvelope(data=data, request_id=_request_id(request))
@@ -1923,6 +1967,7 @@ def generate_schematic(
         commit=False,
     )
     session.commit()
+    request.app.state.outbox_dispatcher.wake()
     return ApiEnvelope(data=_schematic_bundle_data(saved), request_id=_request_id(request))
 
 
@@ -2666,6 +2711,7 @@ def build_firmware(
             commit=False,
         )
     session.commit()
+    request.app.state.outbox_dispatcher.wake()
     return ApiEnvelope(data=_build_run_data(saved), request_id=_request_id(request))
 
 
@@ -3072,6 +3118,7 @@ def create_project(
     request.app.state.crash_injector.maybe_crash(CrashPoint.AFTER_OUTBOX_INSERT_BEFORE_COMMIT)
     session.commit()
     request.app.state.crash_injector.maybe_crash(CrashPoint.AFTER_BUSINESS_COMMIT_BEFORE_DISPATCH)
+    request.app.state.outbox_dispatcher.wake()
     _set_etag(response, project.revision)
     return ApiEnvelope(data=_project_data(project), request_id=_request_id(request))
 

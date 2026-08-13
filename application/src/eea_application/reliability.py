@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import os
+import socket
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any, Protocol
+from uuid import uuid4
 
 from eea_core.reliability import OutboxEvent, payload_sha256, stable_event_key
 
@@ -18,6 +21,12 @@ class Clock(Protocol):
 class SystemClock:
     def now(self) -> datetime:
         return datetime.now(UTC)
+
+
+def new_recovery_worker_id() -> str:
+    """Return an app-start identity shared by all recovery paths in one process."""
+
+    return f"{socket.gethostname()}:{os.getpid()}:{uuid4().hex}"
 
 
 class CrashPoint(StrEnum):
@@ -159,4 +168,5 @@ __all__ = [
     "NoopCrashInjector",
     "OutboxHandlerRegistry",
     "SystemClock",
+    "new_recovery_worker_id",
 ]
