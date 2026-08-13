@@ -274,18 +274,25 @@ def persist_requirement_analysis_bundle(
     """Persist the canonical requirements, claims, and analysis atomically."""
 
     from eea_application.claims import ClaimPredicateRegistry, ClaimResolver, ClaimService
+    from eea_application.dependency_graph import DependencyGraphService
 
     from eea_backend.claim_repositories import (
         SqlAlchemyClaimConflictRepository,
         SqlAlchemyClaimPredicateRepository,
         SqlAlchemyEngineeringClaimRepository,
     )
+    from eea_backend.dependency_providers import build_dependency_provider_registry
+    from eea_backend.dependency_repositories import SqlAlchemyDependencyGraphRepository
 
     requirements = SqlAlchemyRequirementRepository(session)
     claims = SqlAlchemyEngineeringClaimRepository(session)
     conflicts = SqlAlchemyClaimConflictRepository(session)
     predicates = SqlAlchemyClaimPredicateRepository(session)
     analyses = SqlAlchemyRequirementAnalysisRepository(session)
+    dependency_service = DependencyGraphService(
+        SqlAlchemyDependencyGraphRepository(session),
+        build_dependency_provider_registry(session),
+    )
     try:
         codes = [value.code for value in analysis.requirements]
         if len(codes) != len(set(codes)):
@@ -311,6 +318,9 @@ def persist_requirement_analysis_bundle(
                     "updated_at": utc_now(),
                 }
             )
+            before = dependency_service.providers.resolve(
+                candidate.project_id, "Requirement", str(existing.id)
+            )
             saved = requirements.save(
                 updated,
                 expected_revision=existing.revision,
@@ -322,6 +332,10 @@ def persist_requirement_analysis_bundle(
                     "Requirement changed during analysis reconciliation",
                     details={"requirement_id": str(existing.id), "code": existing.code},
                 )
+            after = dependency_service.providers.resolve(
+                candidate.project_id, "Requirement", str(saved.id)
+            )
+            dependency_service.propagate(candidate.project_id, before, after, commit=False)
             saved_requirements.append(saved)
 
         claim_service = ClaimService(

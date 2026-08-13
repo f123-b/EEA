@@ -22,8 +22,9 @@ from explicit durable references through an allowlisted provider registry.
 ## Real DB/API acceptance benchmarks
 
 The acceptance set is implemented by
-`tests/test_m18r_real_benchmarks.py` and the M18 graph suite. It covers all 27
-requested categories:
+`tests/test_m18r_real_benchmarks.py` and the M18 graph suite. It covers the
+M18R.1 mutation, regeneration, bootstrap, runtime binding, reconciliation, and
+terminal-lifecycle categories:
 
 1. Revision-only input changes do not propagate stale state.
 2. `NONE` invalidation policy does not propagate a semantic change.
@@ -52,19 +53,28 @@ requested categories:
 25. Global Claim lifecycle mutation is denied by project scope.
 26. Unknown dependency API entity types fail closed with capability unavailable.
 27. Diamond impacts are deduplicated and retain the stronger projected status.
+28. Pin lock/unlock preserve an invalid incoming Claim state.
+29. Protocol regeneration rebinds all four outputs to the latest input hash.
+30. Historical protocol output hashes remain stale during bootstrap.
+31. FirmwareIR binds to BuildRun at runtime and bootstrap.
+32. FirmwareIR binds to StaticAnalysis at runtime.
+33. Firmware invalidation propagates through BuildRun, StaticAnalysis, and ReviewRun.
+34. Requirement analysis reconciliation stales TestIR, TestRun, and ReviewRun.
+35. DEPRECATED and ARCHIVED artifact projections remain terminal and error-free.
 
 Verification result:
 
-- `pytest --no-cov -q tests/test_m18_dependency_graph.py tests/test_m18r_real_benchmarks.py`: **17 passed**.
-- `pytest --no-cov -q tests/test_m18_dependency_graph.py tests/test_m18r_real_benchmarks.py tests/test_m18_api.py`: **20 passed**.
-- `pytest -q`: **296 passed, 3 skipped, 2 pre-existing M5 failures**; coverage
-  **83.99%**. The two Windows M5 sandbox subprocess failures occur because the
+- `pytest --no-cov -q tests/test_m18_dependency_graph.py tests/test_m18r_real_benchmarks.py tests/test_m18_api.py`: **22 passed**.
+- `pytest -q`: **300 passed, 3 skipped, 2 pre-existing M5 failures**; coverage
+  **84.21%**. The two Windows M5 sandbox subprocess failures occur because the
   local interpreter redirector does not provide the runtime behavior those tests
   assume; no M18R test fails.
 - `ruff check .`: **PASS**.
 - `ruff format --check .`: **PASS**.
 - `mypy core/src application/src apps/backend/src`: **PASS**.
-- Clean database upgrade twice plus `alembic check`: **PASS**.
+- Clean database upgrade plus `alembic check`: **PASS**. The repository-local
+  database also upgrades successfully; its existing schema drift is unrelated
+  to M18R.1.
 - `eea openapi export --check`: **PASS**.
 - `eea openapi typescript --check`: **PASS**.
 - `pnpm lint`: **PASS**.

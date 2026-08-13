@@ -657,7 +657,13 @@ class DependencyGraphService:
             else [observation.value],
             stale_since=None if observation is ChangeObservation.NON_SEMANTIC else utc_now(),
         )
-        if after.valid:
+        if after.valid and self.repository.list_dependencies(
+            project_id, after.ref.entity_type, after.ref.entity_id
+        ):
+            # A valid source record can still be stale/invalid while a
+            # required incoming binding is stale/invalid.
+            self.revalidate(project_id, after.ref.entity_type, after.ref.entity_id, commit=False)
+        elif after.valid:
             _replace_state(self.repository, source_state, commit=False)
         else:
             _merge_with_retry(self.repository, source_state, commit=False)
@@ -708,6 +714,8 @@ class DependencyGraphService:
         downstream_type: str,
         downstream_id: str,
         dependency_kind: DependencyKind,
+        bound_upstream_revision: int | None = None,
+        bound_upstream_semantic_hash: str | None = None,
         commit: bool = True,
     ) -> EngineeringDependencyEdge | None:
         snapshot = self.providers.resolve(project_id, upstream_type, upstream_id)
@@ -718,8 +726,8 @@ class DependencyGraphService:
             downstream_type=downstream_type,
             downstream_id=downstream_id,
             dependency_kind=dependency_kind,
-            revision=snapshot.ref.revision,
-            semantic_hash=snapshot.ref.semantic_hash,
+            revision=bound_upstream_revision or snapshot.ref.revision,
+            semantic_hash=bound_upstream_semantic_hash or snapshot.ref.semantic_hash,
             commit=False,
         )
         if edge is not None:

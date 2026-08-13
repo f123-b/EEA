@@ -55,6 +55,7 @@ def reconcile_project_dependencies(session: Session, project_id: UUID) -> dict[s
         dependency_kind: DependencyKind,
         reason: str,
         bound_hash: str | None = None,
+        bound_revision: int | None = None,
     ) -> None:
         nonlocal created_edges, existing_edges
         if upstream_id is None:
@@ -89,6 +90,18 @@ def reconcile_project_dependencies(session: Session, project_id: UUID) -> dict[s
             errors.append({"reason": reason, "code": error.code.value, "message": error.message})
             raise
         service.revalidate(project_id, downstream_type, downstream_id, commit=False)
+        if bound_hash is not None:
+            service.rebind(
+                project_id,
+                upstream_type=upstream_type,
+                upstream_id=str(upstream_id),
+                downstream_type=downstream_type,
+                downstream_id=downstream_id,
+                dependency_kind=dependency_kind,
+                bound_upstream_revision=bound_revision,
+                bound_upstream_semantic_hash=bound_hash,
+                commit=False,
+            )
         after = service.repository.list_edges(project_id)
         if len(after) > len(before):
             created_edges += 1
@@ -308,6 +321,14 @@ def reconcile_project_dependencies(session: Session, project_id: UUID) -> dict[s
             dependency_kind=DependencyKind.INPUT,
             reason="BuildRun source_revision_id",
         )
+        bind_explicit(
+            upstream_type="FirmwareIR",
+            upstream_id=build.firmware_id,
+            downstream_type="BuildRun",
+            downstream_id=build.id,
+            dependency_kind=DependencyKind.GENERATION,
+            reason="BuildRun firmware_id",
+        )
 
     for analysis in session.scalars(
         select(FirmwareStaticAnalysisRecord)
@@ -343,6 +364,8 @@ def reconcile_project_dependencies(session: Session, project_id: UUID) -> dict[s
             downstream_id=output.id,
             dependency_kind=DependencyKind.GENERATION,
             reason="Generated protocol output from ProtocolIR",
+            bound_hash=output.input_hash,
+            bound_revision=output.protocol_revision,
         )
 
     for review in session.scalars(

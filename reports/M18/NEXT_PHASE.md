@@ -23,3 +23,6 @@ generated contracts.
 `READY_FOR_M18_FINAL_REVIEW = YES`
 
 `M18A = NOT_STARTED`
+
+M18R.1 is implemented on the existing Draft PR and is ready for final human
+review. Do not begin M18A from this handoff.

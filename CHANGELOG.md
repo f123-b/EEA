@@ -13,7 +13,12 @@ the frozen documentation changelogs under `docs/`.
   bootstrap reconciliation, persisted generated protocol output nodes, runtime
   impact propagation for requirement/claim and engineering IR mutations,
   fail-closed dependency APIs, migration `0024_m18_engineering_dependency_graph`,
-  and real DB/API acceptance benchmarks.
+  and real DB/API acceptance benchmarks. M18R.1 closes mutation snapshot ordering,
+  invalid-source recovery, protocol output rebind/regeneration, historical
+  protocol bootstrap hashes, FirmwareIR runtime/bootstrap bindings to BuildRun
+  and StaticAnalysis, vertical Build/Static/Review freshness, requirement
+  analysis reconciliation, and terminal artifact projections. `M18R.1 = IMPLEMENTED`;
+  `READY_FOR_M18_FINAL_REVIEW = YES`; `M18A = NOT_STARTED`.
 - M17 Test/Traceability/Review: added Core-neutral declarative TestIR and immutable TestRun
   contracts, deterministic requirement-based test generation, project-scoped controlled
   fail-closed executors, revision/source freshness checks, design/verification coverage,

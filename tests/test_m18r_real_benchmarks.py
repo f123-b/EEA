@@ -179,6 +179,106 @@ def test_real_requirement_mutation_stales_test_review_chain(client: TestClient) 
     assert states[("ReviewRun", review_id)] == DependencyNodeStatus.STALE.value
 
 
+def test_real_requirement_analysis_reconciliation_stales_execution_chain(
+    client: TestClient,
+) -> None:
+    project_id = _project(client, "M18R requirement re-analysis")
+    source_id = _source(client, project_id)
+    with Session(client.app.state.engine) as session:
+        profiles = SqlAlchemyRequirementProfileRepository(session)
+        profile = profiles.get("foc-benchmark", "1.0")
+        assert profile is not None
+        service = RequirementAnalysisService(
+            RequirementProfileRegistry(profiles),
+            evidence_repository=SqlAlchemyEvidenceRepository(session),
+        )
+        first = service.complete_draft(
+            project_id=project_id,
+            profile_name=profile.profile_name,
+            profile_version=profile.profile_version,
+            draft=RequirementAnalysisDraft(
+                profile_name=profile.profile_name,
+                profile_version=profile.profile_version,
+                requirements=[
+                    RequirementDraft(
+                        code="REQ-X",
+                        title="Acceptance contract",
+                        statement="The acceptance contract shall remain traceable.",
+                        acceptance_criteria=["A"],
+                    )
+                ],
+            ),
+        )
+        first_saved = persist_requirement_analysis_bundle(session, first)
+    generated = client.post(f"/api/v1/projects/{project_id}/tests/generate", json={})
+    assert generated.status_code == 201, generated.text
+    test_ir = generated.json()["data"]["test_ir"]
+    run = client.post(
+        f"/api/v1/projects/{project_id}/tests/run",
+        json={"test_ir_id": test_ir["id"], "source_revision_id": str(source_id)},
+    )
+    assert run.status_code == 201, run.text
+    test_run = run.json()["data"]
+    review = client.post(
+        f"/api/v1/projects/{project_id}/review",
+        json={
+            "source_revision_id": str(source_id),
+            "test_ir_id": test_ir["id"],
+            "test_run_id": test_run["id"],
+        },
+    )
+    assert review.status_code == 201, review.text
+    review_id = review.json()["data"]["id"]
+    with Session(client.app.state.engine) as session:
+        profiles = SqlAlchemyRequirementProfileRepository(session)
+        profile = profiles.get("foc-benchmark", "1.0")
+        assert profile is not None
+        second = RequirementAnalysisService(
+            RequirementProfileRegistry(profiles),
+            evidence_repository=SqlAlchemyEvidenceRepository(session),
+        ).complete_draft(
+            project_id=project_id,
+            profile_name=profile.profile_name,
+            profile_version=profile.profile_version,
+            draft=RequirementAnalysisDraft(
+                profile_name=profile.profile_name,
+                profile_version=profile.profile_version,
+                requirements=[
+                    RequirementDraft(
+                        code="REQ-X",
+                        title="Acceptance contract",
+                        statement="The acceptance contract shall remain traceable.",
+                        acceptance_criteria=["B"],
+                    )
+                ],
+            ),
+        )
+        second_saved = persist_requirement_analysis_bundle(session, second)
+        states = {
+            (item.entity_type, item.entity_id): item.status
+            for item in session.scalars(
+                select(EngineeringDependencyNodeStateRecord).where(
+                    EngineeringDependencyNodeStateRecord.project_id == str(project_id)
+                )
+            )
+        }
+    assert second_saved.requirement_ids == first_saved.requirement_ids
+    with Session(client.app.state.engine) as session:
+        requirement = session.scalar(
+            select(EngineeringDependencyNodeStateRecord).where(
+                EngineeringDependencyNodeStateRecord.project_id == str(project_id),
+                EngineeringDependencyNodeStateRecord.entity_type == "Requirement",
+                EngineeringDependencyNodeStateRecord.entity_id
+                == str(first_saved.requirement_ids[0]),
+            )
+        )
+        assert requirement is not None
+        assert requirement.status == DependencyNodeStatus.CURRENT.value
+    assert states[("TestIR", test_ir["id"])] == DependencyNodeStatus.STALE.value
+    assert states[("TestRun", test_run["id"])] == DependencyNodeStatus.STALE.value
+    assert states[("ReviewRun", review_id)] == DependencyNodeStatus.STALE.value
+
+
 def test_real_runtime_errata_chain_and_unrelated_pin(client: TestClient) -> None:
     project_id = _project(client, "M18R errata chain")
     with Session(client.app.state.engine) as session:
@@ -323,6 +423,30 @@ def test_real_runtime_errata_chain_and_unrelated_pin(client: TestClient) -> None
     )
     assert firmware.status_code == 201, firmware.text
     firmware_id = firmware.json()["data"]["firmware"]["id"]
+    build = client.post(
+        f"/api/v1/projects/{project_id}/build",
+        json={"firmware_id": firmware_id},
+    )
+    assert build.status_code == 201, build.text
+    build_id = build.json()["data"]["id"]
+    static = client.post(
+        f"/api/v1/projects/{project_id}/analysis/static",
+        json={"firmware_id": firmware_id, "run_cppcheck": False},
+    )
+    assert static.status_code == 201, static.text
+    static_id = static.json()["data"]["id"]
+    review = client.post(
+        f"/api/v1/projects/{project_id}/review",
+        json={
+            "source_revision_id": firmware.json()["data"]["firmware"]["source_revision_id"],
+            "build_run_id": build_id,
+            "static_analysis_id": static_id,
+            "require_build": True,
+            "require_static_analysis": True,
+        },
+    )
+    assert review.status_code == 201, review.text
+    review_id = review.json()["data"]["id"]
 
     claim_id = saved_analysis.claim_ids[0]
     mutation = client.post(
@@ -339,7 +463,55 @@ def test_real_runtime_errata_chain_and_unrelated_pin(client: TestClient) -> None
     assert by_node[("PinAssignment", errata_assignment_id)]["depth"] == 1
     assert by_node[("MCUConfigIR", mcu_id)]["depth"] == 2
     assert by_node[("FirmwareIR", firmware_id)]["depth"] == 3
+    assert by_node[("BuildRun", build_id)]["depth"] == 4
+    assert by_node[("StaticAnalysis", static_id)]["depth"] == 4
+    assert by_node[("ReviewRun", review_id)]["depth"] == 5
     assert all(item["node"]["entity_id"] != unrelated_assignment_id for item in impact)
+
+    with Session(client.app.state.engine) as session:
+        pin_state = session.scalar(
+            select(EngineeringDependencyNodeStateRecord).where(
+                EngineeringDependencyNodeStateRecord.project_id == str(project_id),
+                EngineeringDependencyNodeStateRecord.entity_type == "PinAssignment",
+                EngineeringDependencyNodeStateRecord.entity_id == errata_assignment_id,
+            )
+        )
+        assert pin_state is not None
+        assert pin_state.status == DependencyNodeStatus.INVALID.value
+        states = {
+            (item.entity_type, item.entity_id): item.status
+            for item in session.scalars(
+                select(EngineeringDependencyNodeStateRecord).where(
+                    EngineeringDependencyNodeStateRecord.project_id == str(project_id)
+                )
+            )
+        }
+    assert states[("FirmwareIR", firmware_id)] == DependencyNodeStatus.INVALID.value
+    assert states[("BuildRun", build_id)] == DependencyNodeStatus.INVALID.value
+    assert states[("StaticAnalysis", static_id)] == DependencyNodeStatus.INVALID.value
+    assert states[("ReviewRun", review_id)] == DependencyNodeStatus.INVALID.value
+    unlocked = client.post(
+        f"/api/v1/projects/{project_id}/pin-planner/assignments/{errata_assignment_id}/unlock",
+        headers={"If-Match": 'W/"2"'},
+        json={"actor": "m18r", "reason": "recheck invalid pin"},
+    )
+    assert unlocked.status_code == 200, unlocked.text
+    relocked = client.post(
+        f"/api/v1/projects/{project_id}/pin-planner/assignments/{errata_assignment_id}/lock",
+        headers={"If-Match": 'W/"3"'},
+        json={"actor": "m18r", "reason": "retain invalid pin"},
+    )
+    assert relocked.status_code == 200, relocked.text
+    with Session(client.app.state.engine) as session:
+        pin_state = session.scalar(
+            select(EngineeringDependencyNodeStateRecord).where(
+                EngineeringDependencyNodeStateRecord.project_id == str(project_id),
+                EngineeringDependencyNodeStateRecord.entity_type == "PinAssignment",
+                EngineeringDependencyNodeStateRecord.entity_id == errata_assignment_id,
+            )
+        )
+        assert pin_state is not None
+        assert pin_state.status == DependencyNodeStatus.INVALID.value
 
     dependencies = client.get(
         f"/api/v1/entities/PinAssignment/{errata_assignment_id}/dependencies",
@@ -398,6 +570,7 @@ def test_protocol_outputs_are_persistent_and_stale_on_update(client: TestClient)
         json={**payload, "version_label": "1.0.1", "expected_revision": 1},
     )
     assert update.status_code == 200, update.text
+    updated_protocol = update.json()["data"]
     with Session(client.app.state.engine) as session:
         states = list(
             session.scalars(
@@ -408,6 +581,139 @@ def test_protocol_outputs_are_persistent_and_stale_on_update(client: TestClient)
             )
         )
     assert states and all(item.status == DependencyNodeStatus.STALE.value for item in states)
+
+    regenerated = client.post(
+        f"/api/v1/projects/{project_id}/protocol/generate",
+        json={"protocol_id": protocol["id"]},
+    )
+    assert regenerated.status_code == 200, regenerated.text
+    with Session(client.app.state.engine) as session:
+        outputs = list(
+            session.scalars(
+                select(GeneratedProtocolOutputRecord).where(
+                    GeneratedProtocolOutputRecord.project_id == str(project_id)
+                )
+            )
+        )
+        edges = list(
+            session.scalars(
+                select(EngineeringDependencyEdgeRecord).where(
+                    EngineeringDependencyEdgeRecord.project_id == str(project_id),
+                    EngineeringDependencyEdgeRecord.downstream_type == "GeneratedProtocolOutput",
+                )
+            )
+        )
+        current_states = list(
+            session.scalars(
+                select(EngineeringDependencyNodeStateRecord).where(
+                    EngineeringDependencyNodeStateRecord.project_id == str(project_id),
+                    EngineeringDependencyNodeStateRecord.entity_type == "GeneratedProtocolOutput",
+                )
+            )
+        )
+    assert len(outputs) == len(edges) == len(current_states) == 4
+    assert all(item.status == DependencyNodeStatus.CURRENT.value for item in current_states)
+    assert all(
+        edge.bound_upstream_semantic_hash == updated_protocol["input_hash"] for edge in edges
+    )
+    assert all(item.input_hash == updated_protocol["input_hash"] for item in outputs)
+
+
+def test_protocol_bootstrap_preserves_historical_output_hash(client: TestClient) -> None:
+    project_id = _project(client, "M18R protocol historical bootstrap")
+    payload = {
+        "version_label": "1.0.0",
+        "transports": [{"transport_id": "can0", "name": "CAN 0"}],
+        "messages": [
+            {
+                "name": "Status",
+                "transport_ref": "can0",
+                "can_id": 513,
+                "payload_length_bytes": 8,
+                "fields": [{"name": "counter", "bit_offset": 0, "bit_length": 8}],
+            }
+        ],
+    }
+    created = client.post(f"/api/v1/projects/{project_id}/protocol", json=payload)
+    assert created.status_code == 201, created.text
+    protocol = created.json()["data"]
+    generated = client.post(
+        f"/api/v1/projects/{project_id}/protocol/generate",
+        json={"protocol_id": protocol["id"]},
+    )
+    assert generated.status_code == 200, generated.text
+    old_hash = protocol["input_hash"]
+    updated = client.patch(
+        f"/api/v1/projects/{project_id}/protocol",
+        json={**payload, "version_label": "2.0.0", "expected_revision": 1},
+    )
+    assert updated.status_code == 200, updated.text
+    with Session(client.app.state.engine) as session:
+        outputs = list(
+            session.scalars(
+                select(GeneratedProtocolOutputRecord).where(
+                    GeneratedProtocolOutputRecord.project_id == str(project_id)
+                )
+            )
+        )
+        for output in outputs:
+            output.input_hash = old_hash
+            output.protocol_revision = 1
+        session.flush()
+        result = reconcile_project_dependencies(session, project_id)
+        edges = list(
+            session.scalars(
+                select(EngineeringDependencyEdgeRecord).where(
+                    EngineeringDependencyEdgeRecord.project_id == str(project_id),
+                    EngineeringDependencyEdgeRecord.downstream_type == "GeneratedProtocolOutput",
+                )
+            )
+        )
+        states = list(
+            session.scalars(
+                select(EngineeringDependencyNodeStateRecord).where(
+                    EngineeringDependencyNodeStateRecord.project_id == str(project_id),
+                    EngineeringDependencyNodeStateRecord.entity_type == "GeneratedProtocolOutput",
+                )
+            )
+        )
+    assert result["errors"] == []
+    assert len(edges) == 4
+    assert all(edge.bound_upstream_semantic_hash == old_hash for edge in edges)
+    assert states and all(item.status == DependencyNodeStatus.STALE.value for item in states)
+
+
+@pytest.mark.parametrize(
+    ("terminal_status", "endpoint"),
+    [
+        ("DEPRECATED", "detail"),
+        ("ARCHIVED", "list"),
+    ],
+)
+def test_terminal_artifact_projection_is_safe(
+    client: TestClient, terminal_status: str, endpoint: str
+) -> None:
+    project_id = _project(client, f"M18R artifact {terminal_status.lower()}")
+    artifact_id = uuid4()
+    with Session(client.app.state.engine) as session:
+        artifact = _artifact(project_id, artifact_id=artifact_id)
+        artifact.status = terminal_status
+        session.add(artifact)
+        session.commit()
+        DependencyGraphService(
+            SqlAlchemyDependencyGraphRepository(session),
+            build_dependency_provider_registry(session),
+        ).revalidate(project_id, "Artifact", str(artifact_id))
+    if endpoint == "detail":
+        response = client.get(
+            f"/api/v1/artifacts/{artifact_id}", params={"project_id": str(project_id)}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["status"] == terminal_status
+    else:
+        response = client.get(f"/api/v1/projects/{project_id}/artifacts")
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["items"][0]["status"] == terminal_status
 
 
 def test_artifact_storage_revision_is_nonsemantic_and_historical_hash_is_stale(
