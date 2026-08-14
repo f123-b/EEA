@@ -7,6 +7,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from datetime import timedelta
 from hashlib import sha256
+from threading import Lock
 from time import monotonic
 from typing import Any
 from uuid import UUID
@@ -33,7 +34,7 @@ from eea_core.reliability import (
     SideEffectStatus,
     payload_sha256,
 )
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from eea_backend.models import (
@@ -85,6 +86,7 @@ class RecoveryService:
         lease_seconds: int = 30,
         handler_budget_seconds: int = 10,
         safe_reconcilers: SafeSideEffectReconcilerRegistry | None = None,
+        busy_retry: BusyRetryPolicy | None = None,
     ) -> None:
         if lease_seconds <= handler_budget_seconds:
             raise ValueError("lease_seconds must exceed handler_budget_seconds")
@@ -96,22 +98,29 @@ class RecoveryService:
         self.lease_seconds = lease_seconds
         self.handler_budget_seconds = handler_budget_seconds
         self.safe_reconcilers = safe_reconcilers or SafeSideEffectReconcilerRegistry()
+        self.busy_retry = busy_retry or BusyRetryPolicy()
 
     def recover_expired_outbox_leases(
         self, *, limit: int = 100, project_id: UUID | None = None
     ) -> int:
         with self._session_factory() as session:
-            return SqlAlchemyOutboxRepository(session).reclaim_expired(
+            return SqlAlchemyOutboxRepository(session, busy_retry=self.busy_retry).reclaim_expired(
                 now=self.clock.now(), limit=limit, project_id=project_id
             )
 
     def dispatch_ready_events(
         self, *, limit: int = 100, project_id: UUID | None = None
     ) -> dict[str, int]:
-        counts = {"processed": 0, "retry": 0, "dead_letter": 0, "reconcile_required": 0}
+        counts = {
+            "processed": 0,
+            "retry": 0,
+            "dead_letter": 0,
+            "reconcile_required": 0,
+            "lease_lost": 0,
+        }
         for _ in range(limit):
             with self._session_factory() as session:
-                event = SqlAlchemyOutboxRepository(session).claim(
+                event = SqlAlchemyOutboxRepository(session, busy_retry=self.busy_retry).claim(
                     worker_id=self.worker_id,
                     now=self.clock.now(),
                     lease_seconds=self.lease_seconds,
@@ -125,7 +134,9 @@ class RecoveryService:
                 raise
             except Exception as exc:  # handler failure is isolated from the producer transaction
                 result = self._retry_or_dead(event, str(exc))
-            if result == OutboxEventStatus.PROCESSED:
+            if result is None:
+                counts["lease_lost"] += 1
+            elif result == OutboxEventStatus.PROCESSED:
                 counts["processed"] += 1
             elif result == OutboxEventStatus.DEAD_LETTER:
                 counts["dead_letter"] += 1
@@ -133,62 +144,80 @@ class RecoveryService:
                 counts["retry"] += 1
         return counts
 
-    def _consume_event(self, event: OutboxEvent, counts: dict[str, int]) -> OutboxEventStatus:
+    def _consume_event(
+        self, event: OutboxEvent, counts: dict[str, int]
+    ) -> OutboxEventStatus | None:
         del counts
         handlers = self.registry.for_event(event)
         if not handlers:
             return self._retry_or_dead(event, "no compatible registered handler")
         for registration in handlers:
             with self._session_factory() as consumer_session:
-                if not SqlAlchemyOutboxRepository(consumer_session).renew(
-                    event.id,
-                    worker_id=self.worker_id,
-                    now=self.clock.now(),
-                    lease_seconds=self.lease_seconds,
-                ):
-                    return OutboxEventStatus.RETRY
-                processed_repo = SqlAlchemyProcessedEventRepository(consumer_session)
-                existing = processed_repo.get(event.id, registration.consumer_id)
-                if existing is not None:
-                    if existing.event_payload_hash != event.payload_hash:
-                        raise ValueError("processed event payload hash mismatch")
-                    continue
-                handler_started = monotonic()
-                result_ref = registration.handler(consumer_session, event)
-                if monotonic() - handler_started > self.handler_budget_seconds:
-                    raise TimeoutError("outbox handler execution budget exceeded")
-                _, inserted = processed_repo.add_idempotent(
-                    ProcessedEvent(
-                        event_id=event.id,
-                        consumer_id=registration.consumer_id,
-                        event_payload_hash=event.payload_hash,
-                        processed_at=self.clock.now(),
-                        result_ref=result_ref,
-                        result_hash=sha256(result_ref.encode()).hexdigest() if result_ref else None,
+
+                def consume_registration(
+                    registration: HandlerRegistration = registration,
+                ) -> tuple[bool, bool]:
+                    if not SqlAlchemyOutboxRepository(
+                        consumer_session, busy_retry=self.busy_retry
+                    ).renew(
+                        event.id,
+                        worker_id=self.worker_id,
+                        now=self.clock.now(),
+                        lease_seconds=self.lease_seconds,
+                    ):
+                        return False, False
+                    processed_repo = SqlAlchemyProcessedEventRepository(
+                        consumer_session, busy_retry=self.busy_retry
                     )
-                )
-                if not inserted:
-                    # The handler may have added a derived projection before a
-                    # competing worker won the marker race.  Its transaction
-                    # is disposable; never commit that duplicate projection.
-                    consumer_session.rollback()
-                    continue
-                commit_with_busy_retry(consumer_session, BusyRetryPolicy())
+                    existing = processed_repo.get(event.id, registration.consumer_id)
+                    if existing is not None:
+                        if existing.event_payload_hash != event.payload_hash:
+                            raise ValueError("processed event payload hash mismatch")
+                        return True, False
+                    handler_started = monotonic()
+                    result_ref = registration.handler(consumer_session, event)
+                    if monotonic() - handler_started > self.handler_budget_seconds:
+                        raise TimeoutError("outbox handler execution budget exceeded")
+                    _, inserted = processed_repo.add_idempotent(
+                        ProcessedEvent(
+                            event_id=event.id,
+                            consumer_id=registration.consumer_id,
+                            event_payload_hash=event.payload_hash,
+                            processed_at=self.clock.now(),
+                            result_ref=result_ref,
+                            result_hash=sha256(result_ref.encode()).hexdigest()
+                            if result_ref
+                            else None,
+                        )
+                    )
+                    if not inserted:
+                        # The handler may have added a derived projection before
+                        # a competing worker won the marker race. Its
+                        # transaction is disposable; never commit that duplicate.
+                        consumer_session.rollback()
+                        return True, False
+                    return True, True
+
+                lease_valid, _ = commit_with_busy_retry(
+                    consumer_session, self.busy_retry, consume_registration
+                ) or (False, False)
+                if not lease_valid:
+                    return None
             self.crash_injector.maybe_crash(
                 CrashPoint.AFTER_CONSUMER_EFFECT_COMMIT_BEFORE_OUTBOX_FINALIZE
             )
         with self._session_factory() as session:
-            finalized = SqlAlchemyOutboxRepository(session).finalize(
+            finalized = SqlAlchemyOutboxRepository(session, busy_retry=self.busy_retry).finalize(
                 event.id,
                 worker_id=self.worker_id,
                 status=OutboxEventStatus.PROCESSED,
                 now=self.clock.now(),
             )
         if not finalized:
-            return OutboxEventStatus.RETRY
+            return None
         return OutboxEventStatus.PROCESSED
 
-    def _retry_or_dead(self, event: OutboxEvent, error: str) -> OutboxEventStatus:
+    def _retry_or_dead(self, event: OutboxEvent, error: str) -> OutboxEventStatus | None:
         now = self.clock.now()
         status = (
             OutboxEventStatus.DEAD_LETTER
@@ -197,7 +226,7 @@ class RecoveryService:
         )
         available = now + EventOutboxService.retry_delay(event.attempt_count)
         with self._session_factory() as session:
-            SqlAlchemyOutboxRepository(session).finalize(
+            finalized = SqlAlchemyOutboxRepository(session, busy_retry=self.busy_retry).finalize(
                 event.id,
                 worker_id=self.worker_id,
                 status=status,
@@ -205,7 +234,7 @@ class RecoveryService:
                 error=error[:4000],
                 available_at=available,
             )
-        return status
+        return status if finalized else None
 
     def inspect_reconcile_required(
         self, *, limit: int = 100, project_id: UUID | None = None
@@ -225,27 +254,30 @@ class RecoveryService:
         """Reconcile only effects registered as safe; unknown effects remain visible."""
 
         with self._session_factory() as session:
-            statement = select(SideEffectJournalRecord).where(
-                SideEffectJournalRecord.status == SideEffectStatus.RECONCILE_REQUIRED.value
-            )
-            if project_id is not None:
-                statement = statement.join(
-                    OutboxEventRecord,
-                    SideEffectJournalRecord.event_id == OutboxEventRecord.id,
-                ).where(OutboxEventRecord.project_id == str(project_id))
-            rows = list(session.scalars(statement.limit(limit)))
-            reconciled = 0
-            journal = SqlAlchemySideEffectJournalRepository(session)
-            for record in rows:
-                item = journal.get(UUID(record.event_id), record.consumer_id, record.effect_key)
-                reconciler = self.safe_reconcilers.get(record.effect_type)
-                if item is None or reconciler is None:
-                    continue
-                result_ref = reconciler(session, item)
-                journal.mark_applied(item, result_ref=result_ref, now=self.clock.now())
-                reconciled += 1
-            commit_with_busy_retry(session, BusyRetryPolicy())
-            return reconciled
+
+            def reconcile() -> int:
+                statement = select(SideEffectJournalRecord).where(
+                    SideEffectJournalRecord.status == SideEffectStatus.RECONCILE_REQUIRED.value
+                )
+                if project_id is not None:
+                    statement = statement.join(
+                        OutboxEventRecord,
+                        SideEffectJournalRecord.event_id == OutboxEventRecord.id,
+                    ).where(OutboxEventRecord.project_id == str(project_id))
+                rows = list(session.scalars(statement.limit(limit)))
+                reconciled = 0
+                journal = SqlAlchemySideEffectJournalRepository(session, busy_retry=self.busy_retry)
+                for record in rows:
+                    item = journal.get(UUID(record.event_id), record.consumer_id, record.effect_key)
+                    reconciler = self.safe_reconcilers.get(record.effect_type)
+                    if item is None or reconciler is None:
+                        continue
+                    result_ref = reconciler(session, item)
+                    journal.mark_applied(item, result_ref=result_ref, now=self.clock.now())
+                    reconciled += 1
+                return reconciled
+
+            return int(commit_with_busy_retry(session, self.busy_retry, reconcile) or 0)
 
     def reconcile_interrupted_jobs(
         self,
@@ -256,24 +288,43 @@ class RecoveryService:
     ) -> int:
         threshold = self.clock.now() - cutoff
         with self._session_factory() as session:
-            rows = list(
-                session.scalars(
-                    select(JobRecord)
-                    .where(
-                        JobRecord.status == JobStatus.RUNNING.value,
-                        JobRecord.updated_at < threshold,
-                        *([JobRecord.project_id == str(project_id)] if project_id else []),
+
+            def reconcile() -> int:
+                rows = list(
+                    session.scalars(
+                        select(JobRecord)
+                        .where(
+                            JobRecord.status == JobStatus.RUNNING.value,
+                            JobRecord.updated_at < threshold,
+                            *([JobRecord.project_id == str(project_id)] if project_id else []),
+                        )
+                        .limit(limit)
                     )
-                    .limit(limit)
                 )
-            )
-            for row in rows:
-                row.status = JobStatus.FAILED_NEEDS_RECONCILE.value
-                row.error_message = "interrupted job requires explicit reconciliation"
-                row.updated_at = self.clock.now()
-                row.revision += 1
-            commit_with_busy_retry(session, BusyRetryPolicy())
-            return len(rows)
+                reconciled = 0
+                now = self.clock.now()
+                for row in rows:
+                    result = session.execute(
+                        update(JobRecord)
+                        .where(
+                            JobRecord.id == row.id,
+                            JobRecord.revision == row.revision,
+                            JobRecord.status == JobStatus.RUNNING.value,
+                            JobRecord.updated_at == row.updated_at,
+                            JobRecord.updated_at < threshold,
+                        )
+                        .execution_options(synchronize_session=False)
+                        .values(
+                            status=JobStatus.FAILED_NEEDS_RECONCILE.value,
+                            error_message="interrupted job requires explicit reconciliation",
+                            updated_at=now,
+                            revision=JobRecord.revision + 1,
+                        )
+                    )
+                    reconciled += int(getattr(result, "rowcount", 0) == 1)
+                return reconciled
+
+            return int(commit_with_busy_retry(session, self.busy_retry, reconcile) or 0)
 
     def reconcile_project(self, project_id: UUID) -> dict[str, Any]:
         with self._session_factory() as session:
@@ -364,8 +415,13 @@ class OutboxDispatcher:
         self._wake: asyncio.Event | None = None
         self._task: asyncio.Task[None] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._dispatch_lock = Lock()
 
     def dispatch_once(self, *, project_id: UUID | None = None) -> dict[str, Any]:
+        with self._dispatch_lock:
+            return self._dispatch_once(project_id=project_id)
+
+    def _dispatch_once(self, *, project_id: UUID | None = None) -> dict[str, Any]:
         summary: dict[str, Any] = {
             "reclaimed": self.service.recover_expired_outbox_leases(
                 limit=self.batch_limit, project_id=project_id
@@ -396,7 +452,9 @@ class OutboxDispatcher:
         assert self._stop is not None
         assert self._wake is not None
         while not self._stop.is_set():
-            self.dispatch_once()
+            await asyncio.to_thread(self.dispatch_once)
+            if self._stop.is_set():
+                break
             self._wake.clear()
             with suppress(TimeoutError):
                 await asyncio.wait_for(self._wake.wait(), timeout=self.poll_interval_seconds)

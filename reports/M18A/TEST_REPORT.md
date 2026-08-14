@@ -1,6 +1,6 @@
 # M18A / M18AR Transactional Outbox & Recovery Test Report
 
-Date: 2026-08-13
+Date: 2026-08-14
 
 Repository: `f123-b/EEA`
 
@@ -16,6 +16,13 @@ M18A implements a durable transactional outbox and conservative recovery
 boundary. M18AR closes the normal-runtime dispatcher, lease identity,
 transactional race, artifact authority, scoped recovery, and diagnostic
 contracts. It does not implement M18B or any later milestone.
+
+M18AR.1 closes transaction replay and recovery CAS semantics without
+expanding the M18A contract. Commit-busy retries replay the complete unit of
+work; reclaim, interrupted-job recovery, renew, finalize, and claim paths are
+conditional mutations; synchronous dispatcher work runs in a bounded worker
+thread; diagnostics count each outstanding event once; and lease-loss
+finalize conflicts are excluded from retry/dead-letter summaries.
 
 The persistence contract contains:
 
@@ -48,9 +55,9 @@ requested and separate transactional recovery from engineering freshness.
 
 ## Verification
 
-Focused M18A/M18AR tests: **31 passed**.
+Focused M18A/M18AR/M18AR.1 tests: **39 passed**.
 
-Focused M18/M18R/M18A/M18AR regression set: **55 passed**.
+Focused M18/M18R/M18A/M18AR/M18AR.1 regression set: **63 passed**.
 
 The focused M18A assertions cover:
 
@@ -75,17 +82,25 @@ The focused M18A assertions cover:
 - project-scoped recovery/reconciliation and ProjectConsistencyData status
   separation;
 - bounded injectable SQLite busy retry and safe side-effect reconciler allowlist.
+- fault-injected busy during write and commit with complete unit-of-work replay;
+- false-success prevention after bounded busy exhaustion;
+- recovery CAS protection against renewed/taken-over leases and worker
+  heartbeat/finish mutations;
+- lost-lease finalize conflict accounting and exact expired-processing
+  diagnostics;
+- slow synchronous dispatcher work running without blocking the asyncio loop.
 
 Repository verification on the local Windows Python 3.12.4 environment:
 
-- `pytest --no-cov -x -q`: **262 passed, 1 skipped, then 1 pre-existing M5
-  Windows sandbox subprocess failure**.
-- `pytest --cov --cov-report=term-missing --cov-report=json -q
-  --ignore=tests/test_m5_sandbox.py`: **325 passed**; total coverage
-  **84.96%**.
-- M18AR implementation-file coverage: core reliability **89%**,
-  application reliability **92%**, backend recovery **86%**, and backend
-  reliability repositories **74%**.
+- `pytest --ignore=tests/test_m5_sandbox.py --no-cov -q`: **333 passed**.
+- `pytest --cov --ignore=tests/test_m5_sandbox.py`: **333 passed**; total
+  coverage **82.38%**.
+- `pytest tests/test_m5_sandbox.py --no-cov -q`: **6 passed, 3 skipped, 2
+  pre-existing Windows sandbox subprocess failures**. This is retained as
+  an environment-specific M5 note and is not an M18A failure.
+- M18AR.1 implementation-file coverage: backend recovery **85%**, backend
+  reliability repositories **80%**, and core/application reliability remain
+  covered by the full-suite gate.
 - `ruff check .`: **PASS**.
 - `ruff format --check .`: **PASS**.
 - `mypy`: **PASS**.
@@ -96,8 +111,8 @@ Repository verification on the local Windows Python 3.12.4 environment:
 - `pnpm lint`: **PASS**.
 - `pnpm typecheck`: **PASS**.
 - `pnpm build`: **PASS**.
-- GitHub Linux CI is the final cross-platform acceptance gate after this
-  implementation commit is pushed.
+- GitHub Linux CI is the final cross-platform acceptance gate for the
+  acceptance commit after it is pushed.
 
 The existing Windows M5 sandbox subprocess environment note is retained as an
 environment-specific issue and is not an M18A failure.
@@ -108,12 +123,16 @@ environment-specific issue and is not an M18A failure.
 
 `M18AR = IMPLEMENTED`
 
+`M18AR.1 = IMPLEMENTED`
+
+`READY_FOR_M18A_FINAL_ACCEPTANCE = YES`
+
 `READY_FOR_M18A_FINAL_REVIEW = YES`
 
 `READY_FOR_M18B = NO`
 
 `M18B = NOT_STARTED`
 
-This report records implementation verification only. M18A remains in Draft
-PR review and has not been merged or accepted. M18B implementation has not
-started.
+This report records M18AR.1 implementation verification only. M18A remains
+implemented but not accepted and is still awaiting human final acceptance.
+M18B implementation has not started.

@@ -1,10 +1,14 @@
 # M18A / M18AR Next Phase
 
-M18A and M18AR implementation is complete at the implementation HEAD and is
-awaiting final human review in the Draft PR. This phase does not merge or
-accept M18A.
+M18A, M18AR, and M18AR.1 implementation is complete at the implementation
+HEAD and is awaiting final human acceptance in the Draft PR. This phase does
+not merge or accept M18A.
 
 `M18AR = IMPLEMENTED`
+
+`M18AR.1 = IMPLEMENTED`
+
+`READY_FOR_M18A_FINAL_ACCEPTANCE = YES`
 
 `READY_FOR_M18A_FINAL_REVIEW = YES`
 
@@ -12,7 +16,12 @@ accept M18A.
 
 M18A acceptance is not recorded in this implementation phase.
 
-## Next milestone: M18B Domain Composition Contract
+## Next gate: M18A Final Acceptance
+
+M18A acceptance requires human final review. No M18A acceptance claim is
+recorded by this implementation commit.
+
+## Later milestone: M18B Domain Composition Contract
 
 M18B has not started:
 

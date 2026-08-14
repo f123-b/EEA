@@ -1,9 +1,12 @@
 """M18A focused acceptance coverage: durable events, recovery, and idempotency."""
 
+import asyncio
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
+from time import sleep
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
@@ -28,7 +31,7 @@ from eea_backend.models import (
     ProjectRecord,
     SideEffectJournalRecord,
 )
-from eea_backend.recovery import RecoveryService
+from eea_backend.recovery import OutboxDispatcher, RecoveryService
 from eea_backend.reliability_repositories import (
     BusyRetryPolicy,
     SqlAlchemyOutboxRepository,
@@ -49,7 +52,9 @@ from eea_core.reliability import (
     stable_event_key,
 )
 from fastapi.testclient import TestClient
+from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy import select, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 
@@ -999,3 +1004,313 @@ def test_busy_retry_policy_is_bounded_and_injectable() -> None:
     for attempt in range(policy.attempts - 1):
         policy.sleep(policy.delay_seconds * (attempt + 1))
     assert calls == [0.25, 0.5]
+
+
+def test_busy_write_replays_complete_insert_uow(settings):
+    engine = create_database_engine(settings)
+    _migrate(settings)
+    failures = {"remaining": 1}
+
+    def fail_first_insert(*args, **kwargs):
+        statement = str(args[2]).lower() if len(args) > 2 else ""
+        if "insert into outbox_events" in statement and failures["remaining"]:
+            failures["remaining"] -= 1
+            raise OperationalError(
+                "forced busy",
+                {},
+                sqlite3.OperationalError("database is locked"),
+            )
+
+    sqlalchemy_event.listen(engine, "before_cursor_execute", fail_first_insert)
+    try:
+        with Session(engine) as session:
+            repository = SqlAlchemyOutboxRepository(
+                session,
+                busy_retry=BusyRetryPolicy(attempts=3, delay_seconds=0),
+            )
+            repository.add(
+                OutboxEvent(
+                    event_type="busy.replay",
+                    event_key="busy-replay",
+                    payload={"value": 1},
+                    payload_hash=payload_sha256({"value": 1}),
+                    aggregate_type="test",
+                    aggregate_id="busy-1",
+                ),
+                commit=True,
+            )
+    finally:
+        sqlalchemy_event.remove(engine, "before_cursor_execute", fail_first_insert)
+
+    with Session(engine) as session:
+        assert len(session.scalars(select(OutboxEventRecord)).all()) == 1
+    assert failures["remaining"] == 0
+
+
+def test_busy_write_never_reports_false_success(settings):
+    engine = create_database_engine(settings)
+    _migrate(settings)
+    failures = {"remaining": 10}
+
+    def fail_every_insert(*args, **kwargs):
+        statement = str(args[2]).lower() if len(args) > 2 else ""
+        if "insert into outbox_events" in statement and failures["remaining"]:
+            failures["remaining"] -= 1
+            raise OperationalError(
+                "forced busy",
+                {},
+                sqlite3.OperationalError("database is locked"),
+            )
+
+    sqlalchemy_event.listen(engine, "before_cursor_execute", fail_every_insert)
+    try:
+        with Session(engine) as session:
+            repository = SqlAlchemyOutboxRepository(
+                session,
+                busy_retry=BusyRetryPolicy(attempts=2, delay_seconds=0),
+            )
+            with pytest.raises(OperationalError):
+                repository.add(
+                    OutboxEvent(
+                        event_type="busy.fail",
+                        event_key="busy-fail",
+                        payload={"value": 1},
+                        payload_hash=payload_sha256({"value": 1}),
+                        aggregate_type="test",
+                        aggregate_id="busy-2",
+                    ),
+                    commit=True,
+                )
+    finally:
+        sqlalchemy_event.remove(engine, "before_cursor_execute", fail_every_insert)
+
+    with Session(engine) as session:
+        assert len(session.scalars(select(OutboxEventRecord)).all()) == 0
+
+
+def test_busy_commit_replays_complete_uow(settings, monkeypatch):
+    engine = create_database_engine(settings)
+    _migrate(settings)
+    with Session(engine) as session:
+        original_commit = session.commit
+        failures = {"remaining": 1}
+
+        def fail_first_commit():
+            if failures["remaining"]:
+                failures["remaining"] -= 1
+                raise OperationalError(
+                    "forced busy",
+                    {},
+                    sqlite3.OperationalError("database is locked"),
+                )
+            original_commit()
+
+        monkeypatch.setattr(session, "commit", fail_first_commit)
+        repository = SqlAlchemyOutboxRepository(
+            session,
+            busy_retry=BusyRetryPolicy(attempts=3, delay_seconds=0),
+        )
+        repository.add(
+            OutboxEvent(
+                event_type="busy.commit",
+                event_key="busy-commit",
+                payload={"value": 1},
+                payload_hash=payload_sha256({"value": 1}),
+                aggregate_type="test",
+                aggregate_id="busy-commit",
+            ),
+            commit=True,
+        )
+
+    with Session(engine) as session:
+        assert len(session.scalars(select(OutboxEventRecord)).all()) == 1
+    assert failures["remaining"] == 0
+
+
+def test_reclaim_expired_cas_does_not_overwrite_renewed_lease(settings):
+    engine = create_database_engine(settings)
+    _migrate(settings)
+    now = datetime.now(UTC)
+    _, event = _project_and_event(engine, event_type="cas.reclaim")
+    with Session(engine) as session:
+        session.execute(
+            update(OutboxEventRecord)
+            .where(OutboxEventRecord.id == str(event.id))
+            .values(
+                status=OutboxEventStatus.PROCESSING.value,
+                attempt_count=1,
+                max_attempts=3,
+                lease_owner="worker-a",
+                lease_expires_at=now - timedelta(seconds=30),
+                updated_at=now - timedelta(seconds=30),
+            )
+        )
+        session.commit()
+        row = session.get(OutboxEventRecord, str(event.id))
+        assert row is not None
+        observed_revision = row.revision
+        observed_updated_at = row.updated_at
+        session.execute(
+            update(OutboxEventRecord)
+            .where(OutboxEventRecord.id == str(event.id))
+            .values(
+                revision=observed_revision + 1,
+                lease_owner="worker-b",
+                lease_expires_at=now + timedelta(minutes=1),
+                updated_at=now,
+            )
+        )
+        session.commit()
+
+    with Session(engine) as session:
+        repository = SqlAlchemyOutboxRepository(session)
+        assert repository.reclaim_expired(now=now, limit=10) == 0
+        current = session.get(OutboxEventRecord, str(event.id))
+        assert current is not None
+        assert current.lease_owner == "worker-b"
+        assert current.revision == observed_revision + 1
+        assert current.updated_at == now.replace(tzinfo=None)
+        assert observed_updated_at < now.replace(tzinfo=None)
+
+
+def test_reconcile_interrupted_job_cas_does_not_overwrite_heartbeat(settings):
+    engine = create_database_engine(settings)
+    _migrate(settings)
+    now = datetime.now(UTC)
+    stale = now - timedelta(minutes=5)
+    with Session(engine) as session:
+        job = JobRecord(
+            id=str(uuid4()),
+            created_at=stale,
+            status=JobStatus.RUNNING.value,
+            revision=3,
+            updated_at=stale,
+            entity_metadata={},
+            job_type="firmware-build",
+            progress=0.5,
+            phase="running",
+            result_ref=None,
+            error_code=None,
+            error_message=None,
+            budget_usage={},
+            resource_lock_ids=[],
+        )
+        session.add(job)
+        session.commit()
+        job_id = job.id
+        observed_revision = job.revision
+        session.execute(
+            update(JobRecord)
+            .where(JobRecord.id == job.id)
+            .values(
+                status=JobStatus.SUCCESS.value,
+                revision=observed_revision + 1,
+                updated_at=now,
+                error_message="finished by worker",
+            )
+        )
+        session.commit()
+
+    service = RecoveryService(lambda: Session(engine), worker_id="recovery-cas")
+    assert service.reconcile_interrupted_jobs(cutoff=timedelta(seconds=60)) == 0
+
+    with Session(engine) as session:
+        current = session.get(JobRecord, job_id)
+        assert current is not None
+        assert current.status == JobStatus.SUCCESS.value
+        assert current.revision == observed_revision + 1
+        assert current.error_message == "finished by worker"
+
+
+def test_lost_lease_is_not_reported_as_retry_or_dead_letter(settings):
+    engine = create_database_engine(settings)
+    _migrate(settings)
+    _, event = _project_and_event(engine, event_type="lost.lease")
+    with Session(engine) as session:
+        session.execute(
+            update(OutboxEventRecord)
+            .where(OutboxEventRecord.id == str(event.id))
+            .values(
+                status=OutboxEventStatus.PROCESSING.value,
+                attempt_count=1,
+                lease_owner="worker-b",
+                lease_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+            )
+        )
+        session.commit()
+        claimed = SqlAlchemyOutboxRepository(session).get(event.id)
+        assert claimed is not None
+
+    service = RecoveryService(lambda: Session(engine), worker_id="worker-a")
+    assert service._retry_or_dead(claimed, "lease lost") is None
+
+    with Session(engine) as session:
+        current = session.get(OutboxEventRecord, str(event.id))
+        assert current is not None
+        assert current.status == OutboxEventStatus.PROCESSING.value
+        assert current.lease_owner == "worker-b"
+
+
+def test_expired_processing_is_counted_once_in_recovery_diagnostics(settings):
+    engine = create_database_engine(settings)
+    _migrate(settings)
+    now = datetime.now(UTC)
+    _, _pending_event = _project_and_event(engine, event_type="diagnostics.pending")
+    _, expired_event = _project_and_event(engine, event_type="diagnostics.expired")
+    _, active_event = _project_and_event(engine, event_type="diagnostics.active")
+    with Session(engine) as session:
+        session.execute(
+            update(OutboxEventRecord)
+            .where(OutboxEventRecord.id == str(expired_event.id))
+            .values(
+                status=OutboxEventStatus.PROCESSING.value,
+                lease_expires_at=now - timedelta(seconds=1),
+            )
+        )
+        session.execute(
+            update(OutboxEventRecord)
+            .where(OutboxEventRecord.id == str(active_event.id))
+            .values(
+                status=OutboxEventStatus.PROCESSING.value,
+                lease_expires_at=now + timedelta(minutes=1),
+            )
+        )
+        session.commit()
+        diagnostics = SqlAlchemyOutboxRepository(session).diagnostics(now=now)
+
+    assert diagnostics["pending_recovery_count"] == 3
+    assert diagnostics["processing_count"] == 2
+    assert diagnostics["expired_processing_count"] == 1
+
+
+def test_dispatcher_slow_sync_work_does_not_block_asyncio_loop(settings):
+    engine = create_database_engine(settings)
+    _migrate(settings)
+
+    async def scenario():
+        service = RecoveryService(lambda: Session(engine))
+        dispatcher = OutboxDispatcher(
+            service,
+            poll_interval_seconds=60,
+            graceful_timeout_seconds=2,
+        )
+        started = asyncio.Event()
+        loop = asyncio.get_running_loop()
+
+        def slow_dispatch():
+            loop.call_soon_threadsafe(started.set)
+            sleep(0.2)
+            return {"processed": 0}
+
+        dispatcher.dispatch_once = slow_dispatch
+        dispatcher.start()
+        await asyncio.wait_for(started.wait(), timeout=1)
+        ticks = 0
+        deadline = asyncio.get_running_loop().time() + 0.05
+        while asyncio.get_running_loop().time() < deadline:
+            ticks += 1
+            await asyncio.sleep(0)
+        await asyncio.wait_for(dispatcher.stop(), timeout=2)
+        assert ticks > 10
+
+    asyncio.run(scenario())

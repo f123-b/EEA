@@ -383,9 +383,7 @@ def recovery_status(
             select(JobRecord).where(JobRecord.status == JobStatus.FAILED_NEEDS_RECONCILE.value)
         )
     )
-    pending_recovery_count = cast(int, diagnostics["pending_recovery_count"]) + cast(
-        int, diagnostics["processing_count"]
-    )
+    pending_recovery_count = cast(int, diagnostics["pending_recovery_count"])
     data = RecoveryStatusData(
         healthy=(
             pending_recovery_count == 0

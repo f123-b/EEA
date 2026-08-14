@@ -40,6 +40,19 @@ the frozen documentation changelogs under `docs/`.
   reconciliation, recovery diagnostics, and ProjectConsistencyData. `M18AR = IMPLEMENTED`;
   `READY_FOR_M18A_FINAL_REVIEW = YES`; `M18A = IMPLEMENTED` but not accepted;
   `READY_FOR_M18B = NO`; `M18B = NOT_STARTED`.
+- M18AR.1 Transaction Replay & Recovery CAS Closure: replaced unsafe
+  rollback-then-commit retry with complete unit-of-work replay, closed claim/
+  renew/finalize/reclaim and interrupted-job recovery CAS conditions, moved
+  synchronous dispatcher work off the asyncio loop, made recovery diagnostics
+  mutually exclusive, and excluded lost-lease finalize conflicts from retry/
+  dead-letter summaries. Added fault-injected write/commit busy regressions,
+  CAS race protection, exact diagnostics, lease-loss accounting, and
+  non-blocking dispatcher coverage. Focused M18/M18R/M18A/M18AR/M18AR.1:
+  **63 passed**; full suite excluding the existing Windows M5 environment
+  test: **333 passed**, coverage **82.38%**; Ruff, mypy, Alembic,
+  OpenAPI/TypeScript, and desktop gates pass. `M18AR.1 = IMPLEMENTED` and
+  `READY_FOR_M18A_FINAL_ACCEPTANCE = YES`; `M18A` remains unaccepted and
+  `M18B = NOT_STARTED`.
 - M17 Test/Traceability/Review: added Core-neutral declarative TestIR and immutable TestRun
   contracts, deterministic requirement-based test generation, project-scoped controlled
   fail-closed executors, revision/source freshness checks, design/verification coverage,
