@@ -21,6 +21,22 @@ class DomainExecutableValidator(Protocol):
     def __call__(self, context: DomainValidationContext) -> Sequence[object]: ...
 
 
+@dataclass(frozen=True, slots=True)
+class DomainMigrationDryRunContext:
+    """Read-only inputs supplied to a plugin-owned migration dry-run provider."""
+
+    source_domain_snapshot: Mapping[str, object]
+    target_domain_snapshot: Mapping[str, object]
+    existing_configuration: Mapping[str, object]
+    target_configuration_schema: Mapping[str, object]
+
+
+class DomainMigrationDryRunProvider(Protocol):
+    """Deterministic, side-effect-free migration compatibility contract."""
+
+    def __call__(self, context: DomainMigrationDryRunContext) -> object: ...
+
+
 class DomainPlugin(Protocol):
     """A plugin supplies validated descriptor data and declarative contributions."""
 
@@ -41,4 +57,10 @@ class DomainPlugin(Protocol):
     def executable_validator(self) -> DomainExecutableValidator | None: ...
 
 
-__all__ = ["DomainExecutableValidator", "DomainPlugin", "DomainValidationContext"]
+__all__ = [
+    "DomainExecutableValidator",
+    "DomainMigrationDryRunContext",
+    "DomainMigrationDryRunProvider",
+    "DomainPlugin",
+    "DomainValidationContext",
+]

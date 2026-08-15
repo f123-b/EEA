@@ -7,6 +7,46 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18B/M18BR Final Acceptance and merge closure: reviewed final HEAD
+  `6131b0339fc7a92e9b0c1665a9c0edf18d193ef5`, with M18BR implementation HEAD
+  `cc5fd96654d41ee7fcf0b112671d5fa9b5305455`. Final verification records focused
+  M18/M18R/M18A/M18AR/M18AR.1/M18B/M18BR **129 passed**, local full pytest
+  **364 passed, 3 skipped**, **2 pre-existing Windows M5 sandbox environment failures**,
+  coverage **84.61%**, all local quality gates PASS, and GitHub CI runs
+  `31868017475`, `31868019387`, `31868263048`, and `31868523802` with backend and
+  desktop PASS. `M18B = ACCEPTED`, `M18BR = ACCEPTED`, `READY_FOR_M18C = YES`, and
+  `M18C = NOT_STARTED`.
+
+- M18BR Composition Authority & Apply Closure at implementation HEAD
+  `cc5fd96654d41ee7fcf0b112671d5fa9b5305455`: made public `apply-composition` require
+  a valid preview revision and lowercase SHA-256 plan hash, made persisted
+  `DomainCompositionState` the runtime/restart SSOT with fail-closed drift detection,
+  replaced migration-provider string optimism with executable dry-run validation,
+  added explicit `None` versus `{}` capability selection semantics, and added real SQL
+  rollback/CAS regressions. Focused M14/M15/M18/M18R/M18A/M18AR/M18B/M18BR: **129 passed**;
+  local full pytest: **364 passed, 3 skipped**, with **2 pre-existing,
+  environment-specific Windows M5 sandbox failures**; coverage **84.61%**. Ruff,
+  mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop lint,
+  desktop typecheck, and desktop build pass. GitHub CI push run `31868017475` and
+  pull request run `31868019387` both have backend PASS and desktop PASS.
+  `M18B = IMPLEMENTED`, `M18BR = IMPLEMENTED`, `READY_FOR_M18B_FINAL_REVIEW = YES`,
+  with M18B acceptance pending human review; M18C remains not started.
+
+- M18B Domain Composition Contract at implementation commit
+  `fa2c22ee20b9f6ebbf1b78df7124987c6d4e8391`: added the project-scoped
+  `DomainCompositionState` SSOT, deterministic canonical plan hashes and capability
+  selection persistence, preview/apply TOCTOU protection, atomic multi-Domain
+  activation/deactivation with CAS, migration compatibility dry-run reporting, the
+  composition API endpoints, migration `0026_m18b_domain_composition_contract`, and
+  M18B regression coverage. Focused M14/M15/M18/M18R/M18A/M18AR/M18B: **122 passed**;
+  local full pytest: **354 passed, 3 skipped**, with **2 pre-existing,
+  environment-specific Windows M5 sandbox failures**; coverage **84.40%**. Ruff,
+  mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop lint,
+  desktop typecheck, and desktop build pass. `M18B = IMPLEMENTED` and
+  `READY_FOR_M18B_FINAL_REVIEW = YES`; GitHub CI runs `31866031198` (push) and
+  `31866046633` (pull request) both have backend PASS and desktop PASS. M18B acceptance
+  remained pending human review and M18C remained not started.
+
 - M18A Final Acceptance: reviewed implementation HEAD
   `68401b60b88935e7c19bc0309c1845eab3328555`; implementation commit
   `fix(m18a): close dispatcher shutdown lifecycle`. Final verification:

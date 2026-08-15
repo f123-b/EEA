@@ -107,7 +107,10 @@ from eea_backend.component_repositories import (
 from eea_backend.dependency_providers import build_dependency_provider_registry
 from eea_backend.dependency_repositories import SqlAlchemyDependencyGraphRepository
 from eea_backend.document_repositories import SqlAlchemyDocumentRepository
-from eea_backend.domain_repositories import SqlAlchemyDomainActivationRepository
+from eea_backend.domain_repositories import (
+    SqlAlchemyDomainActivationRepository,
+    SqlAlchemyDomainCompositionStateRepository,
+)
 from eea_backend.firmware_repositories import SqlAlchemyFirmwareRepository
 from eea_backend.m17_repositories import (
     SqlAlchemyIssueRepository,
@@ -178,6 +181,7 @@ from eea_backend.schemas import (
     DomainArtifactsData,
     DomainAvailableData,
     DomainAvailableListData,
+    DomainCompositionApplyRequest,
     DomainCompositionData,
     DomainDescriptorData,
     DomainSchemaData,
@@ -963,6 +967,7 @@ def _domain_service(request: Request, session: Session) -> DomainExtensionServic
         request.app.state.domain_registry,
         SqlAlchemyDomainActivationRepository(session),
         SqlAlchemyProjectRepository(session),
+        SqlAlchemyDomainCompositionStateRepository(session),
     )
 
 
@@ -3219,10 +3224,46 @@ def resolve_domain_composition(
     request: Request,
     session: SessionDependency,
 ) -> ApiEnvelope[DomainCompositionData]:
-    composition = _domain_service(request, session).resolve(
+    composition = _domain_service(request, session).preview_composition(
         project_id,
         payload.domain_ids,
         selected_capabilities=payload.selected_capabilities,
+        configurations=payload.configurations,
+    )
+    return ApiEnvelope(data=_domain_composition_data(composition), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/domains/composition",
+    response_model=ApiEnvelope[DomainCompositionData],
+    tags=["domains"],
+)
+def get_domain_composition(
+    project_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[DomainCompositionData]:
+    composition = _domain_service(request, session).current_composition(project_id)
+    return ApiEnvelope(data=_domain_composition_data(composition), request_id=_request_id(request))
+
+
+@router.post(
+    "/projects/{project_id}/domains/apply-composition",
+    response_model=ApiEnvelope[DomainCompositionData],
+    tags=["domains"],
+)
+def apply_domain_composition(
+    project_id: UUID,
+    payload: DomainCompositionApplyRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[DomainCompositionData]:
+    composition = _domain_service(request, session).apply_composition(
+        project_id,
+        payload.domain_ids,
+        selected_capabilities=payload.selected_capabilities,
+        configurations=payload.configurations,
+        expected_composition_revision=payload.expected_composition_revision,
+        expected_plan_hash=payload.expected_plan_hash,
+        applied_by=payload.applied_by,
     )
     return ApiEnvelope(data=_domain_composition_data(composition), request_id=_request_id(request))
 

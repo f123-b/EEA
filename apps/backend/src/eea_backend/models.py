@@ -459,6 +459,29 @@ class DomainActivationRecord(CoreRecordMixin, Base):
     dependency_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
+class DomainCompositionStateRecord(CoreRecordMixin, Base):
+    """Project-scoped authoritative Domain composition snapshot."""
+
+    __tablename__ = "domain_composition_states"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("length(plan_hash) = 64", name="plan_hash_length"),
+        UniqueConstraint("project_id", name="uq_domain_composition_states_project"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    active_domain_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    ordered_domain_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    selected_capabilities: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    capability_routes: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    dependency_edges: Mapped[list[list[str]]] = mapped_column(JSON, nullable=False)
+    domain_snapshots: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    rule_order: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    generator_order: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    plan_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    updated_by: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
 class RequirementProfileRecord(CoreRecordMixin, Base):
     __tablename__ = "requirement_profiles"
     __table_args__ = (

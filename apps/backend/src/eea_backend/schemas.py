@@ -342,6 +342,18 @@ class DomainCompositionData(BaseModel):
     context_contributions: list[DomainContextContribution]
     ui_contributions: list[DomainUIContribution]
     validation_results: list[DomainValidationResult]
+    composition_revision: int = 0
+    selected_capabilities: dict[str, str] = Field(default_factory=dict)
+    domain_snapshots: list[dict[str, object]] = Field(default_factory=list)
+    rule_order: list[str] = Field(default_factory=list)
+    generator_order: list[str] = Field(default_factory=list)
+    plan_hash: str = ""
+    compatibility_results: list[dict[str, object]] = Field(default_factory=list)
+    blocked_reasons: list[dict[str, object]] = Field(default_factory=list)
+    project_id: UUID | None = None
+    schema_version: str | None = None
+    updated_at: datetime | None = None
+    updated_by: str | None = None
 
 
 class DomainSchemaData(BaseModel):
@@ -365,11 +377,23 @@ class DomainActivationRequest(BaseModel):
     activated_by: str = Field(default="system", min_length=1, max_length=200)
 
 
+class DomainCompositionApplyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    domain_ids: list[str] = Field(default_factory=list, max_length=100)
+    selected_capabilities: dict[str, str] | None = None
+    configurations: dict[str, dict[str, object]] = Field(default_factory=dict)
+    expected_composition_revision: int = Field(..., ge=1)
+    expected_plan_hash: str = Field(..., pattern=r"^[0-9a-f]{64}$")
+    applied_by: str = Field(default="system", min_length=1, max_length=200)
+
+
 class DomainValidationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     domain_ids: list[str] = Field(default_factory=list, max_length=100)
-    selected_capabilities: dict[str, str] = Field(default_factory=dict)
+    selected_capabilities: dict[str, str] | None = None
+    configurations: dict[str, dict[str, object]] = Field(default_factory=dict)
     domain_ir: dict[str, object] | None = None
     mcu_config_id: UUID | None = None
 

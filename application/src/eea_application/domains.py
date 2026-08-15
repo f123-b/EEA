@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import heapq
+import inspect
 import json
 import re
 from collections.abc import Iterable, Mapping, Sequence
+from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any, NoReturn, cast
 from uuid import UUID, uuid4
@@ -14,6 +16,7 @@ from uuid import UUID, uuid4
 from eea_core.domain_extensions import (
     DomainActivation,
     DomainCompositionPlan,
+    DomainCompositionState,
     DomainContextContribution,
     DomainDescriptor,
     DomainGeneratorContribution,
@@ -29,8 +32,17 @@ from eea_core.enums import (
     EngineeringErrorCode,
 )
 from eea_core.errors import EngineeringError, ProjectNotFoundError
-from eea_core.repositories import DomainActivationRepository, ProjectRepository
-from eea_ports.domain_extensions import DomainPlugin, DomainValidationContext
+from eea_core.repositories import (
+    DomainActivationRepository,
+    DomainCompositionStateRepository,
+    ProjectRepository,
+)
+from eea_ports.domain_extensions import (
+    DomainMigrationDryRunContext,
+    DomainMigrationDryRunProvider,
+    DomainPlugin,
+    DomainValidationContext,
+)
 from pydantic import BaseModel, ValidationError
 
 SUPPORTED_DOMAIN_API_VERSION = "1"
@@ -75,6 +87,47 @@ _SCHEMA_ANNOTATION_KEYWORDS = {
 }
 _SCHEMA_KEYWORDS = _SCHEMA_VALIDATION_KEYWORDS | _SCHEMA_ANNOTATION_KEYWORDS
 _SCHEMA_TYPES = {"null", "boolean", "object", "array", "number", "integer", "string"}
+
+
+def _canonical_plan_payload(
+    plan: DomainCompositionPlan,
+    configurations: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    """Return the only representation permitted to participate in ``plan_hash``."""
+
+    configuration_map = dict(configurations or {})
+    return {
+        "active_domain_ids": sorted(plan.active_domain_ids),
+        "ordered_domain_ids": list(plan.ordered_domain_ids),
+        "selected_capabilities": dict(sorted(plan.selected_capabilities.items())),
+        "capability_routes": dict(sorted(plan.capability_routes.items())),
+        "dependency_edges": sorted(plan.dependency_edges),
+        "domain_snapshots": sorted(plan.domain_snapshots, key=lambda item: str(item["domain_id"])),
+        "rule_order": list(plan.rule_order),
+        "generator_order": list(plan.generator_order),
+        "rules": [item.model_dump(mode="json") for item in plan.rules],
+        "generators": [item.model_dump(mode="json") for item in plan.generators],
+        "context_contributions": [
+            item.model_dump(mode="json") for item in plan.context_contributions
+        ],
+        "ui_contributions": [item.model_dump(mode="json") for item in plan.ui_contributions],
+        "configurations": {key: configuration_map[key] for key in sorted(configuration_map)},
+    }
+
+
+def canonical_plan_hash(
+    plan: DomainCompositionPlan,
+    configurations: Mapping[str, object] | None = None,
+) -> str:
+    """Hash a composition without timestamps, object identity, or registration order."""
+
+    payload = json.dumps(
+        _canonical_plan_payload(plan, configurations),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _configuration_error(
@@ -364,7 +417,12 @@ def _parse_model[ModelT: BaseModel](
 class DomainExtensionRegistry:
     """Registry with deterministic dependency, capability, rule, and generator ordering."""
 
-    def __init__(self, plugins: Iterable[DomainPlugin] = ()) -> None:
+    def __init__(
+        self,
+        plugins: Iterable[DomainPlugin] = (),
+        *,
+        migration_providers: Mapping[str, object] | None = None,
+    ) -> None:
         self._plugins: dict[str, DomainPlugin] = {}
         self._descriptors: dict[str, DomainDescriptor] = {}
         self._schemas: dict[str, dict[str, object]] = {}
@@ -372,6 +430,7 @@ class DomainExtensionRegistry:
         self._generators: dict[str, tuple[DomainGeneratorContribution, ...]] = {}
         self._contexts: dict[str, tuple[DomainContextContribution, ...]] = {}
         self._ui_extensions: dict[str, tuple[DomainUIContribution, ...]] = {}
+        self._migration_providers = dict(migration_providers or {})
         for plugin in plugins:
             self.register(plugin)
 
@@ -482,6 +541,19 @@ class DomainExtensionRegistry:
         ).encode("utf-8")
         return hashlib.sha256(payload).hexdigest()
 
+    def migration_provider(self, domain_id: str) -> DomainMigrationDryRunProvider | None:
+        """Return a registered executable provider for a descriptor, if any."""
+
+        descriptor = self.get_descriptor(domain_id)
+        provider_name = descriptor.migration_provider
+        if not provider_name:
+            return None
+        provider = self._migration_providers.get(provider_name)
+        if provider is None:
+            return None
+        candidate = getattr(provider, "dry_run", provider)
+        return cast(DomainMigrationDryRunProvider, candidate) if callable(candidate) else None
+
     def validate_configuration(self, domain_id: str, configuration: object) -> None:
         descriptor = self.get_descriptor(domain_id)
         if not isinstance(configuration, dict):
@@ -589,7 +661,14 @@ class DomainExtensionRegistry:
             for capability in self._descriptors[domain_id].provided_capabilities:
                 capability_providers.setdefault(capability, []).append(domain_id)
         routes: dict[str, str] = {}
-        selected = selected_capabilities or {}
+        selected = dict(selected_capabilities or {})
+        unknown_selections = sorted(set(selected) - set(capability_providers))
+        if unknown_selections:
+            raise EngineeringError(
+                "DOMAIN_COMPOSITION_CONFLICT",  # type: ignore[arg-type]
+                "Selected capability is not provided by the active composition",
+                details={"capabilities": unknown_selections},
+            )
         for capability in sorted(capability_providers):
             providers = sorted(
                 capability_providers[capability],
@@ -639,16 +718,31 @@ class DomainExtensionRegistry:
             (item for domain_id in ordered_domains for item in self._ui_extensions[domain_id]),
             key=lambda item: item.extension_id,
         )
-        return DomainCompositionPlan(
+        plan = DomainCompositionPlan(
             active_domain_ids=sorted(included),
             ordered_domain_ids=ordered_domains,
             dependency_edges=[list(edge) for edge in sorted(dependency_edges)],
+            selected_capabilities={capability: routes[capability] for capability in sorted(routes)},
             capability_routes=routes,
             rules=rules,
             generators=generators,
             context_contributions=contexts,
             ui_contributions=ui_extensions,
+            domain_snapshots=[
+                {
+                    "domain_id": domain_id,
+                    "plugin_id": self._descriptors[domain_id].plugin_id,
+                    "plugin_version": self._descriptors[domain_id].version,
+                    "domain_schema_version": self._descriptors[domain_id].schema_version,
+                    "configuration_schema_version": self._descriptors[domain_id].schema_version,
+                    "configuration_schema_hash": self.configuration_schema_hash(domain_id),
+                }
+                for domain_id in sorted(included)
+            ],
+            rule_order=[item.rule_id for item in rules],
+            generator_order=[item.generator_id for item in generators],
         )
+        return plan.model_copy(update={"plan_hash": canonical_plan_hash(plan)})
 
     def _topological_domains(self, domain_ids: set[str], edges: set[tuple[str, str]]) -> list[str]:
         outgoing: dict[str, set[str]] = {domain_id: set() for domain_id in domain_ids}
@@ -751,10 +845,174 @@ class DomainExtensionService:
         registry: DomainExtensionRegistry,
         activation_repository: DomainActivationRepository,
         project_repository: ProjectRepository,
+        composition_repository: DomainCompositionStateRepository | None = None,
     ) -> None:
         self.registry = registry
         self._activations = activation_repository
         self._projects = project_repository
+        self._composition = composition_repository
+        self._local_composition: dict[UUID, DomainCompositionState] = {}
+
+    @staticmethod
+    def _call_repository(method: object, *args: object, commit: bool, **kwargs: object) -> object:
+        callable_method = cast(Any, method)
+        parameters = inspect.signature(callable_method).parameters
+        if "commit" in parameters:
+            kwargs["commit"] = commit
+        return callable_method(*args, **kwargs)
+
+    def _add_activation(self, activation: DomainActivation, *, commit: bool) -> DomainActivation:
+        return cast(
+            DomainActivation,
+            self._call_repository(self._activations.add, activation, commit=commit),
+        )
+
+    def _save_activation(
+        self, activation: DomainActivation, *, commit: bool
+    ) -> DomainActivation | None:
+        return cast(
+            DomainActivation | None,
+            self._call_repository(self._activations.save, activation, commit=commit),
+        )
+
+    def _get_composition_state(self, project_id: UUID) -> DomainCompositionState | None:
+        if self._composition is not None:
+            return self._composition.get(project_id)
+        return self._local_composition.get(project_id)
+
+    def _add_composition_state(
+        self, state: DomainCompositionState, *, commit: bool
+    ) -> DomainCompositionState:
+        if self._composition is None:
+            self._local_composition[state.project_id] = state
+            return state
+        return cast(
+            DomainCompositionState,
+            self._call_repository(self._composition.add, state, commit=commit),
+        )
+
+    def _save_composition_state(
+        self, state: DomainCompositionState, *, expected_revision: int, commit: bool
+    ) -> DomainCompositionState | None:
+        if self._composition is None:
+            current = self._local_composition.get(state.project_id)
+            if current is None or current.revision != expected_revision:
+                return None
+            self._local_composition[state.project_id] = state
+            return state
+        return cast(
+            DomainCompositionState | None,
+            self._call_repository(
+                self._composition.save,
+                state,
+                expected_revision=expected_revision,
+                commit=commit,
+            ),
+        )
+
+    def _repository_session(self) -> Any | None:
+        for repository in (self._composition, self._activations):
+            session = getattr(repository, "_session", None)
+            if session is not None:
+                return session
+        return None
+
+    def _bootstrap_composition_state(self, project_id: UUID) -> DomainCompositionState:
+        activations = self._activations.list_for_project(project_id)
+        active_ids = sorted(
+            item.domain_id for item in activations if item.status is DomainActivationStatus.ACTIVE
+        )
+        persisted_routes: dict[str, str] = {}
+        for activation in sorted(activations, key=lambda item: item.domain_id):
+            if activation.status is not DomainActivationStatus.ACTIVE:
+                continue
+            for capability, provider in sorted(activation.capability_snapshot.items()):
+                provider_value = str(provider)
+                previous = persisted_routes.get(capability)
+                if previous is not None and previous != provider_value:
+                    raise EngineeringError(
+                        EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
+                        "Existing activation snapshots disagree on capability routing",
+                        details={"capability": capability, "providers": [previous, provider_value]},
+                    )
+                persisted_routes[capability] = provider_value
+        plan = self.registry.resolve_composition(
+            active_ids,
+            selected_capabilities=persisted_routes or None,
+        )
+        configurations = {
+            item.domain_id: item.configuration
+            for item in activations
+            if item.status is DomainActivationStatus.ACTIVE
+        }
+        return self._state_from_plan(
+            project_id,
+            self._decorate_plan(plan, revision=1, configurations=configurations),
+            updated_by="migration-bootstrap",
+        )
+
+    def _ensure_composition_state(self, project_id: UUID) -> DomainCompositionState:
+        state = self._get_composition_state(project_id)
+        if state is not None:
+            return state
+        state = self._bootstrap_composition_state(project_id)
+        if self._composition is not None:
+            state = self._add_composition_state(state, commit=True)
+        else:
+            self._local_composition[project_id] = state
+        return state
+
+    @staticmethod
+    def _state_from_plan(
+        project_id: UUID,
+        plan: DomainCompositionPlan,
+        *,
+        updated_by: str,
+        revision: int | None = None,
+        existing: DomainCompositionState | None = None,
+    ) -> DomainCompositionState:
+        now = datetime.now(UTC)
+        return DomainCompositionState(
+            id=existing.id if existing else uuid4(),
+            schema_version=existing.schema_version if existing else "1.0",
+            revision=revision if revision is not None else plan.composition_revision,
+            created_at=existing.created_at if existing else now,
+            updated_at=now,
+            metadata=existing.metadata if existing else {},
+            project_id=project_id,
+            active_domain_ids=list(plan.active_domain_ids),
+            ordered_domain_ids=list(plan.ordered_domain_ids),
+            selected_capabilities=dict(plan.selected_capabilities),
+            capability_routes=dict(plan.capability_routes),
+            dependency_edges=[list(edge) for edge in plan.dependency_edges],
+            domain_snapshots=deepcopy(plan.domain_snapshots),
+            rule_order=list(plan.rule_order),
+            generator_order=list(plan.generator_order),
+            plan_hash=plan.plan_hash,
+            updated_by=updated_by,
+        )
+
+    def _decorate_plan(
+        self,
+        plan: DomainCompositionPlan,
+        *,
+        revision: int,
+        configurations: Mapping[str, object] | None = None,
+        compatibility_results: list[dict[str, object]] | None = None,
+        blocked_reasons: list[dict[str, object]] | None = None,
+    ) -> DomainCompositionPlan:
+        return plan.model_copy(
+            update={
+                "composition_revision": revision,
+                "selected_capabilities": dict(plan.capability_routes),
+                "plan_hash": canonical_plan_hash(plan, configurations),
+                "compatibility_results": list(compatibility_results or []),
+                "blocked_reasons": list(blocked_reasons or [])
+                or [
+                    item for item in compatibility_results or [] if item.get("status") == "BLOCKED"
+                ],
+            }
+        )
 
     def _ensure_project(self, project_id: UUID) -> None:
         if self._projects.get(project_id) is None:
@@ -797,14 +1055,361 @@ class DomainExtensionService:
         *,
         selected_capabilities: Mapping[str, str] | None = None,
     ) -> DomainCompositionPlan:
+        additional = list(additional_domain_ids)
+        if not additional and selected_capabilities is None:
+            return self.current_composition(project_id)
+        state = self._get_composition_state(project_id)
         active = [
             item.domain_id
             for item in self.list_activations(project_id)
             if item.status is DomainActivationStatus.ACTIVE
         ]
-        return self.registry.resolve_composition(
-            [*active, *additional_domain_ids], selected_capabilities=selected_capabilities
+        selection = selected_capabilities
+        if selection is None and state is not None:
+            selection = state.selected_capabilities
+        plan = self.registry.resolve_composition(
+            [*active, *additional], selected_capabilities=selection
         )
+        configurations = {
+            item.domain_id: item.configuration
+            for item in self._activations.list_for_project(project_id)
+            if item.status is DomainActivationStatus.ACTIVE
+        }
+        return self._decorate_plan(
+            plan,
+            revision=state.revision if state is not None else 1,
+            configurations=configurations,
+        )
+
+    def composition_state(self, project_id: UUID) -> DomainCompositionState:
+        self._ensure_project(project_id)
+        return self._ensure_composition_state(project_id)
+
+    # Explicit aliases make the SSOT contract discoverable to callers without creating
+    # another composition service/type hierarchy.
+    get_composition_state = composition_state
+
+    def current_composition(self, project_id: UUID) -> DomainCompositionPlan:
+        state = self.composition_state(project_id)
+        active_domain_ids = [
+            item.domain_id
+            for item in self._activations.list_for_project(project_id)
+            if item.status is DomainActivationStatus.ACTIVE
+        ]
+        configurations = {
+            item.domain_id: item.configuration
+            for item in self._activations.list_for_project(project_id)
+            if item.status is DomainActivationStatus.ACTIVE
+        }
+        try:
+            plan = self.registry.resolve_composition(
+                active_domain_ids,
+                selected_capabilities=state.selected_capabilities or None,
+            )
+            candidate = self._decorate_plan(
+                plan,
+                revision=state.revision,
+                configurations=configurations,
+            )
+        except EngineeringError as exc:
+            raise self._authoritative_conflict(
+                state,
+                candidate_plan=None,
+                changed_fields=["candidate_resolution"],
+                candidate_error={"code": exc.code.value, "message": exc.message},
+            ) from exc
+
+        fields = (
+            "active_domain_ids",
+            "ordered_domain_ids",
+            "selected_capabilities",
+            "capability_routes",
+            "dependency_edges",
+            "domain_snapshots",
+            "rule_order",
+            "generator_order",
+            "plan_hash",
+        )
+        changed_fields = [
+            field for field in fields if getattr(state, field) != getattr(candidate, field)
+        ]
+        if changed_fields:
+            raise self._authoritative_conflict(state, candidate, changed_fields=changed_fields)
+        return candidate
+
+    @staticmethod
+    def _authoritative_conflict(
+        state: DomainCompositionState,
+        candidate_plan: DomainCompositionPlan | None,
+        *,
+        changed_fields: list[str],
+        candidate_error: dict[str, object] | None = None,
+    ) -> EngineeringError:
+        candidate_snapshots = candidate_plan.domain_snapshots if candidate_plan else []
+        stored_snapshot_map = {str(item.get("domain_id")): item for item in state.domain_snapshots}
+        candidate_snapshot_map = {str(item.get("domain_id")): item for item in candidate_snapshots}
+        details: dict[str, object] = {
+            "stored_plan_hash": state.plan_hash,
+            "candidate_plan_hash": candidate_plan.plan_hash if candidate_plan else None,
+            "stored_revision": state.revision,
+            "changed_fields": changed_fields,
+            "changed_domains": sorted(
+                domain_id
+                for domain_id in set(stored_snapshot_map) | set(candidate_snapshot_map)
+                if stored_snapshot_map.get(domain_id) != candidate_snapshot_map.get(domain_id)
+            ),
+            "stored_domain_snapshots": state.domain_snapshots,
+            "candidate_domain_snapshots": candidate_snapshots,
+        }
+        if candidate_error is not None:
+            details["candidate_error"] = candidate_error
+        return EngineeringError(
+            EngineeringErrorCode.DOMAIN_INCOMPATIBLE,
+            "Persisted Domain composition does not match the current registry",
+            details=details,
+        )
+
+    def preview_composition(
+        self,
+        project_id: UUID,
+        domain_ids: Iterable[str] = (),
+        *,
+        selected_capabilities: Mapping[str, str] | None = None,
+        configurations: Mapping[str, Mapping[str, object]] | None = None,
+        _allow_empty_target: bool = False,
+    ) -> DomainCompositionPlan:
+        """Resolve the exact requested composition against the current SSOT revision."""
+
+        self._ensure_project(project_id)
+        state = self._ensure_composition_state(project_id)
+        requested = list(dict.fromkeys(domain_ids))
+        target_ids = (
+            requested if requested or _allow_empty_target else list(state.active_domain_ids)
+        )
+        base_selection = dict(state.selected_capabilities)
+        selection = (
+            {
+                key: value
+                for key, value in base_selection.items()
+                if key in self._capabilities_for(target_ids)
+            }
+            if selected_capabilities is None
+            else dict(selected_capabilities)
+        )
+        plan = self.registry.resolve_composition(
+            target_ids,
+            selected_capabilities=selection or None,
+        )
+        config_map = self._configurations_for_plan(project_id, plan, configurations)
+        compatibility = self._compatibility_results(
+            project_id, plan, config_map, fail_on_blocked=False
+        )
+        return self._decorate_plan(
+            plan,
+            revision=state.revision,
+            configurations=config_map,
+            compatibility_results=compatibility,
+        )
+
+    def _capabilities_for(self, domain_ids: Iterable[str]) -> set[str]:
+        plan = self.registry.resolve_composition(domain_ids)
+        return set(plan.capability_routes)
+
+    def _configurations_for_plan(
+        self,
+        project_id: UUID,
+        plan: DomainCompositionPlan,
+        configurations: Mapping[str, Mapping[str, object]] | None,
+    ) -> dict[str, dict[str, object]]:
+        existing = {
+            item.domain_id: item.configuration
+            for item in self._activations.list_for_project(project_id)
+        }
+        supplied = configurations or {}
+        unknown = sorted(set(supplied) - set(plan.active_domain_ids))
+        if unknown:
+            raise EngineeringError(
+                EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
+                "Configuration was supplied for a Domain outside the composition",
+                details={"domain_ids": unknown},
+            )
+        result: dict[str, dict[str, object]] = {}
+        for domain_id in plan.active_domain_ids:
+            value = supplied[domain_id] if domain_id in supplied else existing.get(domain_id, {})
+            result[domain_id] = dict(value)
+            self.registry.validate_configuration(domain_id, result[domain_id])
+        return result
+
+    def _compatibility_results(
+        self,
+        project_id: UUID,
+        plan: DomainCompositionPlan,
+        configurations: Mapping[str, Mapping[str, object]],
+        *,
+        fail_on_blocked: bool = True,
+    ) -> list[dict[str, object]]:
+        results: list[dict[str, object]] = []
+        for domain_id in plan.ordered_domain_ids:
+            existing = self._activations.get(project_id, domain_id)
+            descriptor = self.registry.get_descriptor(domain_id)
+            schema_hash = self.registry.configuration_schema_hash(domain_id)
+            if existing is None:
+                results.append({"domain_id": domain_id, "status": "NO_CHANGE", "reason": "NEW"})
+                continue
+            changes: dict[str, object] = {}
+            if existing.plugin_id != descriptor.plugin_id:
+                changes.update(
+                    {
+                        "previous_plugin_id": existing.plugin_id,
+                        "current_plugin_id": descriptor.plugin_id,
+                    }
+                )
+            if existing.plugin_version != descriptor.version and descriptor.migration_provider:
+                changes.update(
+                    {
+                        "previous_plugin_version": existing.plugin_version,
+                        "current_plugin_version": descriptor.version,
+                    }
+                )
+            if existing.domain_schema_version != descriptor.schema_version:
+                changes.update(
+                    {
+                        "previous_domain_schema_version": existing.domain_schema_version,
+                        "current_domain_schema_version": descriptor.schema_version,
+                    }
+                )
+            if (
+                existing.configuration_schema_hash is not None
+                and existing.configuration_schema_hash != schema_hash
+            ):
+                changes.update(
+                    {
+                        "previous_configuration_schema_hash": existing.configuration_schema_hash,
+                        "current_configuration_schema_hash": schema_hash,
+                    }
+                )
+            if changes:
+                result = self._migration_compatibility_result(
+                    domain_id,
+                    existing,
+                    descriptor,
+                    plan,
+                    configurations[domain_id],
+                    changes,
+                )
+                results.append(result)
+                if result["status"] in {"BLOCKED", "MIGRATION_REQUIRED"} and fail_on_blocked:
+                    raise EngineeringError(
+                        EngineeringErrorCode.DOMAIN_INCOMPATIBLE,
+                        "Domain migration dry-run did not authorize application",
+                        details=result,
+                    )
+            elif (
+                existing.status is not DomainActivationStatus.ACTIVE
+                or existing.configuration != configurations[domain_id]
+            ):
+                results.append({"domain_id": domain_id, "status": "COMPATIBLE"})
+            else:
+                results.append({"domain_id": domain_id, "status": "NO_CHANGE"})
+        return results
+
+    def _migration_compatibility_result(
+        self,
+        domain_id: str,
+        existing: DomainActivation,
+        descriptor: DomainDescriptor,
+        plan: DomainCompositionPlan,
+        configuration: Mapping[str, object],
+        changes: Mapping[str, object],
+    ) -> dict[str, object]:
+        target_snapshot = next(
+            (
+                snapshot
+                for snapshot in plan.domain_snapshots
+                if snapshot.get("domain_id") == domain_id
+            ),
+            {},
+        )
+        base: dict[str, object] = {"domain_id": domain_id, **dict(changes)}
+        provider = self.registry.migration_provider(domain_id)
+        if provider is None:
+            base.update(
+                {
+                    "status": "BLOCKED",
+                    "applicable": False,
+                    "reason": (
+                        "NO_MIGRATION_PROVIDER"
+                        if not descriptor.migration_provider
+                        else "MIGRATION_PROVIDER_NOT_REGISTERED"
+                    ),
+                    "target_configuration_schema": self.registry.schema(domain_id),
+                }
+            )
+            return base
+
+        context = DomainMigrationDryRunContext(
+            source_domain_snapshot={
+                "domain_id": existing.domain_id,
+                "plugin_id": existing.plugin_id,
+                "plugin_version": existing.plugin_version,
+                "domain_schema_version": existing.domain_schema_version,
+                "configuration_schema_version": existing.configuration_schema_version,
+                "configuration_schema_hash": existing.configuration_schema_hash,
+            },
+            target_domain_snapshot=dict(target_snapshot),
+            existing_configuration=dict(existing.configuration),
+            target_configuration_schema=self.registry.schema(domain_id),
+        )
+        try:
+            raw_result = provider(context)
+        except Exception as exc:
+            return {
+                **base,
+                "status": "BLOCKED",
+                "applicable": False,
+                "reason": "MIGRATION_DRY_RUN_ERROR",
+                "error": str(exc),
+                "target_configuration_schema": self.registry.schema(domain_id),
+            }
+
+        if isinstance(raw_result, Mapping):
+            status = raw_result.get("status")
+            applicable = raw_result.get("applicable")
+            reason = raw_result.get("reason")
+            target_schema = raw_result.get(
+                "target_configuration_schema", self.registry.schema(domain_id)
+            )
+        else:
+            status = getattr(raw_result, "status", None)
+            applicable = getattr(raw_result, "applicable", None)
+            reason = getattr(raw_result, "reason", None)
+            target_schema = getattr(
+                raw_result, "target_configuration_schema", self.registry.schema(domain_id)
+            )
+        valid_statuses = {"NO_CHANGE", "COMPATIBLE", "MIGRATION_REQUIRED", "BLOCKED"}
+        if (
+            status not in valid_statuses
+            or not isinstance(applicable, bool)
+            or not isinstance(reason, str)
+            or not isinstance(target_schema, Mapping)
+        ):
+            return {
+                **base,
+                "status": "BLOCKED",
+                "applicable": False,
+                "reason": "MIGRATION_DRY_RUN_INVALID_RESULT",
+                "target_configuration_schema": self.registry.schema(domain_id),
+            }
+        if not applicable and status != "BLOCKED":
+            status = "BLOCKED"
+            reason = "MIGRATION_DRY_RUN_REJECTED"
+        return {
+            **base,
+            "status": status,
+            "applicable": applicable,
+            "reason": reason,
+            "target_configuration_schema": dict(target_schema),
+        }
 
     def activate(
         self,
@@ -814,68 +1419,272 @@ class DomainExtensionService:
         configuration: dict[str, object] | None = None,
         activated_by: str = "system",
     ) -> DomainActivation:
-        self._ensure_project(project_id)
-        plan = self.resolve(project_id, [domain_id])
-        requested_activation: DomainActivation | None = None
-        pending: list[tuple[DomainActivation, DomainActivation | None]] = []
-        for resolved_domain_id in plan.ordered_domain_ids:
-            existing = self._activations.get(project_id, resolved_domain_id)
-            descriptor = self.registry.get_descriptor(resolved_domain_id)
-            chosen_configuration = (
-                configuration
-                if resolved_domain_id == domain_id and configuration is not None
-                else existing.configuration
-                if existing is not None
-                else {}
+        current = self.current_composition(project_id)
+        requested = set(current.active_domain_ids)
+        requested.add(domain_id)
+        configurations = {domain_id: dict(configuration)} if configuration is not None else None
+        preview = self.preview_composition(
+            project_id,
+            requested,
+            configurations=configurations,
+        )
+        self.apply_composition(
+            project_id,
+            requested,
+            configurations=configurations,
+            expected_composition_revision=preview.composition_revision,
+            expected_plan_hash=preview.plan_hash,
+            applied_by=activated_by,
+        )
+        return self.state(project_id, domain_id)
+
+    def apply_composition(
+        self,
+        project_id: UUID,
+        domain_ids: Iterable[str],
+        *,
+        selected_capabilities: Mapping[str, str] | None = None,
+        configurations: Mapping[str, Mapping[str, object]] | None = None,
+        expected_composition_revision: int | None = None,
+        expected_plan_hash: str | None = None,
+        applied_by: str = "system",
+    ) -> DomainCompositionPlan:
+        """Atomically apply one canonical plan, guarded by revision and plan hash."""
+
+        if (
+            expected_composition_revision is None
+            or isinstance(expected_composition_revision, bool)
+            or expected_composition_revision < 1
+        ):
+            raise EngineeringError(
+                EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
+                "Composition revision token is required",
+                details={"expected_composition_revision": expected_composition_revision},
             )
-            self.registry.validate_configuration(resolved_domain_id, chosen_configuration)
-            configuration_schema_hash = self.registry.configuration_schema_hash(resolved_domain_id)
-            if existing is not None:
-                self._assert_upgrade_compatible(existing, descriptor, configuration_schema_hash)
-                if existing.status is DomainActivationStatus.ACTIVE and self._activation_matches(
-                    existing,
-                    descriptor,
-                    plan,
-                    chosen_configuration,
-                    configuration_schema_hash,
-                ):
-                    if resolved_domain_id == domain_id:
-                        requested_activation = existing
-                    continue
+        if expected_plan_hash is None or re.fullmatch(r"[0-9a-f]{64}", expected_plan_hash) is None:
+            raise EngineeringError(
+                EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
+                "Composition plan hash token must be a lowercase SHA-256 digest",
+                details={"expected_plan_hash": expected_plan_hash},
+            )
+
+        session = self._repository_session()
+        if session is not None and not session.in_transaction():
+            with session.begin():
+                return self._apply_composition_mutation(
+                    project_id,
+                    domain_ids,
+                    selected_capabilities=selected_capabilities,
+                    configurations=configurations,
+                    expected_composition_revision=expected_composition_revision,
+                    expected_plan_hash=expected_plan_hash,
+                    applied_by=applied_by,
+                    commit=False,
+                )
+        return self._apply_composition_mutation(
+            project_id,
+            domain_ids,
+            selected_capabilities=selected_capabilities,
+            configurations=configurations,
+            expected_composition_revision=expected_composition_revision,
+            expected_plan_hash=expected_plan_hash,
+            applied_by=applied_by,
+            commit=True,
+        )
+
+    def _apply_composition_mutation(
+        self,
+        project_id: UUID,
+        domain_ids: Iterable[str],
+        *,
+        selected_capabilities: Mapping[str, str] | None,
+        configurations: Mapping[str, Mapping[str, object]] | None,
+        expected_composition_revision: int | None,
+        expected_plan_hash: str | None,
+        applied_by: str,
+        commit: bool,
+    ) -> DomainCompositionPlan:
+        self._ensure_project(project_id)
+        current = self._get_composition_state(project_id)
+        bootstrap = current is None
+        if current is None:
+            current = self._bootstrap_composition_state(project_id)
+        expected_revision = expected_composition_revision
+        if expected_revision != current.revision:
+            raise EngineeringError(
+                EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
+                "Composition revision does not match the authoritative state",
+                details={
+                    "expected_composition_revision": expected_revision,
+                    "current_composition_revision": current.revision,
+                },
+            )
+
+        requested = list(dict.fromkeys(domain_ids))
+        target_ids = requested if requested else []
+        if selected_capabilities is None:
+            probe = self.registry.resolve_composition(target_ids)
+            selection = {
+                key: value
+                for key, value in current.selected_capabilities.items()
+                if key in probe.capability_routes
+            }
+        else:
+            selection = dict(selected_capabilities)
+        plan = self.registry.resolve_composition(
+            target_ids,
+            selected_capabilities=selection or None,
+        )
+        config_map = self._configurations_for_plan(project_id, plan, configurations)
+        compatibility = self._compatibility_results(
+            project_id, plan, config_map, fail_on_blocked=True
+        )
+        decorated = self._decorate_plan(
+            plan,
+            revision=current.revision,
+            configurations=config_map,
+            compatibility_results=compatibility,
+        )
+        if decorated.plan_hash != expected_plan_hash:
+            raise EngineeringError(
+                EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
+                "Composition plan changed after preview",
+                details={
+                    "expected_plan_hash": expected_plan_hash,
+                    "current_plan_hash": decorated.plan_hash,
+                    "stored_plan_hash": current.plan_hash,
+                    "stored_revision": current.revision,
+                },
+            )
+
+        if (
+            not bootstrap
+            and current.active_domain_ids == decorated.active_domain_ids
+            and current.ordered_domain_ids == decorated.ordered_domain_ids
+            and current.selected_capabilities == decorated.selected_capabilities
+            and current.capability_routes == decorated.capability_routes
+            and current.dependency_edges == decorated.dependency_edges
+            and current.domain_snapshots == decorated.domain_snapshots
+            and current.rule_order == decorated.rule_order
+            and current.generator_order == decorated.generator_order
+            and current.plan_hash == decorated.plan_hash
+            and {
+                item.domain_id
+                for item in self._activations.list_for_project(project_id)
+                if item.status is DomainActivationStatus.ACTIVE
+            }
+            == set(decorated.active_domain_ids)
+            and all(
+                self._activation_matches(
+                    item,
+                    self.registry.get_descriptor(item.domain_id),
+                    decorated,
+                    config_map[item.domain_id],
+                    self.registry.configuration_schema_hash(item.domain_id),
+                )
+                for item in self._activations.list_for_project(project_id)
+                if item.domain_id in decorated.active_domain_ids
+            )
+        ):
+            return decorated.model_copy(update={"composition_revision": current.revision})
+
+        before_activations = deepcopy(getattr(self._activations, "items", None))
+        before_local_state = self._local_composition.get(project_id)
+        before_composition_items = deepcopy(getattr(self._composition, "items", None))
+        if bootstrap and self._composition is None:
+            self._local_composition[project_id] = current
+        existing_by_id = {
+            item.domain_id: item for item in self._activations.list_for_project(project_id)
+        }
+        pending: list[tuple[DomainActivation, DomainActivation | None]] = []
+        for resolved_domain_id in decorated.ordered_domain_ids:
+            existing = existing_by_id.get(resolved_domain_id)
+            descriptor = self.registry.get_descriptor(resolved_domain_id)
+            chosen_configuration = config_map[resolved_domain_id]
+            schema_hash = self.registry.configuration_schema_hash(resolved_domain_id)
             activation = self._build_activation(
                 project_id,
                 resolved_domain_id,
                 descriptor,
-                plan,
+                decorated,
                 existing=existing,
                 configuration=chosen_configuration,
-                configuration_schema_hash=configuration_schema_hash,
-                activated_by=activated_by,
+                configuration_schema_hash=schema_hash,
+                activated_by=applied_by,
             )
-            pending.append((activation, existing))
-            if resolved_domain_id == domain_id:
-                requested_activation = activation
-        for activation, existing in pending:
-            if existing is None:
-                stored: DomainActivation = self._activations.add(activation)
-            else:
-                saved = self._activations.save(activation)
-                if saved is None:
+            if existing is None or not self._activation_matches(
+                existing, descriptor, decorated, chosen_configuration, schema_hash
+            ):
+                pending.append((activation, existing))
+
+        for existing in existing_by_id.values():
+            if (
+                existing.status is DomainActivationStatus.ACTIVE
+                and existing.domain_id not in decorated.active_domain_ids
+            ):
+                pending.append(
+                    (
+                        existing.model_copy(
+                            update={
+                                "revision": existing.revision + 1,
+                                "updated_at": datetime.now(UTC),
+                                "status": DomainActivationStatus.DISABLED,
+                            }
+                        ),
+                        existing,
+                    )
+                )
+
+        try:
+            if bootstrap and self._composition is not None:
+                self._add_composition_state(current, commit=False)
+            for activation, existing in pending:
+                if existing is None:
+                    self._add_activation(activation, commit=False)
+                elif self._save_activation(activation, commit=False) is None:
                     raise EngineeringError(
-                        "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
+                        EngineeringErrorCode.DOMAIN_INCOMPATIBLE,
                         "Domain activation could not be updated",
                         details={"project_id": str(project_id), "domain_id": activation.domain_id},
                     )
-                stored = saved
-            if activation.domain_id == domain_id:
-                requested_activation = stored
-        if requested_activation is None:
-            raise EngineeringError(
-                "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
-                "Requested Domain was not present in the resolved composition",
-                details={"domain_id": domain_id},
+            new_state = self._state_from_plan(
+                project_id,
+                decorated.model_copy(update={"composition_revision": current.revision + 1}),
+                updated_by=applied_by,
+                revision=current.revision + 1,
+                existing=current,
             )
-        return requested_activation
+            saved_state = self._save_composition_state(
+                new_state,
+                expected_revision=current.revision,
+                commit=commit,
+            )
+            if saved_state is None:
+                raise EngineeringError(
+                    EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
+                    "Composition state was changed concurrently",
+                    details={
+                        "expected_composition_revision": current.revision,
+                    },
+                )
+            if self._composition is None:
+                self._local_composition[project_id] = saved_state
+            return decorated.model_copy(update={"composition_revision": saved_state.revision})
+        except Exception:
+            items = getattr(self._activations, "items", None)
+            if isinstance(items, dict) and isinstance(before_activations, dict):
+                items.clear()
+                items.update(before_activations)
+            composition_items = getattr(self._composition, "items", None)
+            if isinstance(composition_items, dict) and isinstance(before_composition_items, dict):
+                composition_items.clear()
+                composition_items.update(before_composition_items)
+            if self._composition is None:
+                if before_local_state is None:
+                    self._local_composition.pop(project_id, None)
+                else:
+                    self._local_composition[project_id] = before_local_state
+            raise
 
     @staticmethod
     def _assert_upgrade_compatible(
@@ -928,7 +1737,8 @@ class DomainExtensionService:
         configuration_schema_hash: str,
     ) -> bool:
         return (
-            existing.plugin_id == descriptor.plugin_id
+            existing.status is DomainActivationStatus.ACTIVE
+            and existing.plugin_id == descriptor.plugin_id
             and existing.plugin_version == descriptor.version
             and existing.domain_schema_version == descriptor.schema_version
             and existing.configuration_schema_version == descriptor.schema_version
@@ -1002,22 +1812,16 @@ class DomainExtensionService:
                 "A required Domain cannot be disabled while dependents remain active",
                 details={"domain_id": domain_id, "required_by_active_domains": missing},
             )
-        now = datetime.now(UTC)
-        disabled = existing.model_copy(
-            update={
-                "revision": existing.revision + 1,
-                "updated_at": now,
-                "status": DomainActivationStatus.DISABLED,
-            }
+        self.current_composition(project_id)
+        preview = self.preview_composition(project_id, remaining, _allow_empty_target=True)
+        self.apply_composition(
+            project_id,
+            remaining,
+            expected_composition_revision=preview.composition_revision,
+            expected_plan_hash=preview.plan_hash,
+            applied_by="system",
         )
-        saved = self._activations.save(disabled)
-        if saved is None:
-            raise EngineeringError(
-                "DOMAIN_INCOMPATIBLE",  # type: ignore[arg-type]
-                "Domain activation could not be updated",
-                details={"project_id": str(project_id), "domain_id": domain_id},
-            )
-        return saved
+        return self.state(project_id, domain_id)
 
     def validate(
         self,
