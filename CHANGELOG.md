@@ -7,6 +7,26 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18DR Hardware Safety Authority & Side-Effect Closure at implementation commit
+  `c5308ec95b6e38c9e757b5aa59ef78523a834c67`, repairing reviewed M18D HEAD
+  `2fc232825d07294ef474a8d308c004927765c363`. Closed client permission spoofing with
+  server-issued, resource-scoped PermissionToken verification; made ResourceLock acquisition
+  atomic and owner-bound; added pre-side-effect session CAS claims and M18A SideEffectJournal
+  durable hardware intents; added conservative startup reconciliation that never blindly retries
+  unknown hardware actions; made E-stop reachable from NORMAL_OPERATION and recoverable unsafe
+  states; enforced SafeState on adapter failures/timeouts; consumed Core-neutral MotorControl
+  commissioning contributions; and enforced canonical unit/dimension/runtime SafetyLimit gates.
+  Added M18DR regression coverage for permission separation/scope, lock exclusivity/ownership,
+  concurrent action claims, prepared-action recovery, failure/timeout SafeState, E-stop,
+  MotorControl gates, approval binding, and applicable limits. Focused
+  M18/M18R/M18A/M18AR/M18AR.1/M18B/M18BR/M18C/M18CR/M18D: **143 passed, 1 skipped**; local
+  full pytest **422 passed, 4 skipped**, with **2 pre-existing Windows M5 sandbox environment
+  failures**; coverage **84.26%**. Ruff, format, mypy, clean Alembic upgrade/check, OpenAPI,
+  TypeScript contracts, desktop lint, desktop typecheck, and desktop build pass. GitHub CI push
+  run `31894735902` and pull request run `31894738013` both have backend PASS and desktop PASS.
+  `M18C = ACCEPTED_AND_MERGED`, `M18CR = ACCEPTED_AND_MERGED`, `M18D = IMPLEMENTED`,
+  `M18DR = IMPLEMENTED`, `READY_FOR_M18D_FINAL_REVIEW = YES`, and `M18E = NOT_STARTED`.
+
 - M18D Hardware Commissioning & Safety at implementation commit
   `fca5962be81309e50290bf1767f03457067fc40a`, built from verified main
   `97d62e47c7bf287627d051197e6ef756abf89523`. Added the fail-closed commissioning state

@@ -4,7 +4,8 @@ M18D Hardware Commissioning & Safety is implemented on a clean branch from verif
 
 ```text
 Reviewed main base: 97d62e47c7bf287627d051197e6ef756abf89523
-Implementation commit: fca5962be81309e50290bf1767f03457067fc40a
+Reviewed M18D HEAD before repair: 2fc232825d07294ef474a8d308c004927765c363
+M18DR implementation commit: c5308ec95b6e38c9e757b5aa59ef78523a834c67
 Migration: 0030_m18d_hardware_commissioning_safety
 ```
 
@@ -16,9 +17,11 @@ migration or cherry-picked pre-M18CR documentation/CI commits.
 M18C = ACCEPTED_AND_MERGED
 M18CR = ACCEPTED_AND_MERGED
 M18D = IMPLEMENTED
+M18DR = IMPLEMENTED
 READY_FOR_M18D_FINAL_REVIEW = YES
 M18E = NOT_STARTED
 ```
 
-The next action is human final review of M18D. Keep the new M18D PR Draft and do not merge it or
-start M18E until that review explicitly authorizes the next phase.
+M18DR closes the targeted Hardware Safety Authority & Side-Effect Closure repair. The next action
+is human final review of M18D/M18DR. Keep PR #11 OPEN and Draft; do not merge it or start M18E
+until that review explicitly authorizes the next phase.
