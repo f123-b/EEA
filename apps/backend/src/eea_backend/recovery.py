@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from datetime import timedelta
 from hashlib import sha256
-from threading import Lock
+from threading import Event, Lock
 from time import monotonic
 from typing import Any
 from uuid import UUID
@@ -109,7 +110,11 @@ class RecoveryService:
             )
 
     def dispatch_ready_events(
-        self, *, limit: int = 100, project_id: UUID | None = None
+        self,
+        *,
+        limit: int = 100,
+        project_id: UUID | None = None,
+        stop_requested: Callable[[], bool] | None = None,
     ) -> dict[str, int]:
         counts = {
             "processed": 0,
@@ -119,7 +124,11 @@ class RecoveryService:
             "lease_lost": 0,
         }
         for _ in range(limit):
+            if stop_requested is not None and stop_requested():
+                break
             with self._session_factory() as session:
+                if stop_requested is not None and stop_requested():
+                    break
                 event = SqlAlchemyOutboxRepository(session, busy_retry=self.busy_retry).claim(
                     worker_id=self.worker_id,
                     now=self.clock.now(),
@@ -396,7 +405,7 @@ class RecoveryService:
 
 
 class OutboxDispatcher:
-    """Bounded lifecycle-owned polling dispatcher; polling remains authoritative."""
+    """Lifecycle-owned polling dispatcher with a joinable cooperative worker."""
 
     def __init__(
         self,
@@ -404,34 +413,64 @@ class OutboxDispatcher:
         *,
         batch_limit: int = 100,
         poll_interval_seconds: float = 1.0,
-        graceful_timeout_seconds: float = 2.0,
+        graceful_timeout_seconds: float | None = None,
     ) -> None:
+        if graceful_timeout_seconds is not None and graceful_timeout_seconds <= 0:
+            raise ValueError("graceful_timeout_seconds must be positive")
         self.service = service
         self.batch_limit = batch_limit
         self.poll_interval_seconds = poll_interval_seconds
-        self.graceful_timeout_seconds = graceful_timeout_seconds
+        # This is a soft shutdown deadline.  It is deliberately longer than
+        # the legal handler budget by default; stop() still joins the worker
+        # after the deadline instead of cancelling a non-cancellable sync call.
+        self.graceful_timeout_seconds = (
+            float(service.handler_budget_seconds + 1)
+            if graceful_timeout_seconds is None
+            else float(graceful_timeout_seconds)
+        )
         self.last_summary: dict[str, Any] = {}
         self._stop: asyncio.Event | None = None
         self._wake: asyncio.Event | None = None
         self._task: asyncio.Task[None] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._executor: ThreadPoolExecutor | None = None
+        self._stop_requested = Event()
+        self._stop_lock = asyncio.Lock()
         self._dispatch_lock = Lock()
 
     def dispatch_once(self, *, project_id: UUID | None = None) -> dict[str, Any]:
         with self._dispatch_lock:
-            return self._dispatch_once(project_id=project_id)
+            stop_requested = self._stop_requested.is_set if self._task is not None else None
+            return self._dispatch_once(
+                project_id=project_id,
+                stop_requested=stop_requested,
+            )
 
-    def _dispatch_once(self, *, project_id: UUID | None = None) -> dict[str, Any]:
-        summary: dict[str, Any] = {
-            "reclaimed": self.service.recover_expired_outbox_leases(
-                limit=self.batch_limit, project_id=project_id
-            ),
-            "interrupted_jobs": self.service.reconcile_interrupted_jobs(
-                limit=self.batch_limit, project_id=project_id
-            ),
-        }
-        summary["dispatch"] = self.service.dispatch_ready_events(
+    def _dispatch_once(
+        self,
+        *,
+        project_id: UUID | None = None,
+        stop_requested: Callable[[], bool] | None = None,
+    ) -> dict[str, Any]:
+        summary: dict[str, Any] = {}
+        if stop_requested is not None and stop_requested():
+            return summary
+        summary["reclaimed"] = self.service.recover_expired_outbox_leases(
             limit=self.batch_limit, project_id=project_id
+        )
+        if stop_requested is not None and stop_requested():
+            self.last_summary = summary
+            return summary
+        summary["interrupted_jobs"] = self.service.reconcile_interrupted_jobs(
+            limit=self.batch_limit, project_id=project_id
+        )
+        if stop_requested is not None and stop_requested():
+            self.last_summary = summary
+            return summary
+        summary["dispatch"] = self.service.dispatch_ready_events(
+            limit=self.batch_limit,
+            project_id=project_id,
+            stop_requested=stop_requested,
         )
         self.last_summary = summary
         return summary
@@ -446,13 +485,23 @@ class OutboxDispatcher:
         self._loop = asyncio.get_running_loop()
         self._stop = asyncio.Event()
         self._wake = asyncio.Event()
+        self._stop_requested.clear()
+        self._executor = ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="eea-outbox-dispatcher",
+        )
         self._task = asyncio.create_task(self._run(), name="eea-outbox-dispatcher")
 
     async def _run(self) -> None:
         assert self._stop is not None
         assert self._wake is not None
+        assert self._executor is not None
+        loop = asyncio.get_running_loop()
+        executor = self._executor
         while not self._stop.is_set():
-            await asyncio.to_thread(self.dispatch_once)
+            # The executor belongs to this dispatcher and is shut down only
+            # after this task has joined its final synchronous operation.
+            await loop.run_in_executor(executor, self.dispatch_once)
             if self._stop.is_set():
                 break
             self._wake.clear()
@@ -460,16 +509,34 @@ class OutboxDispatcher:
                 await asyncio.wait_for(self._wake.wait(), timeout=self.poll_interval_seconds)
 
     async def stop(self) -> None:
-        if self._task is None or self._stop is None:
-            return
-        self._stop.set()
-        self.wake()
-        task = self._task
-        try:
-            await asyncio.wait_for(task, timeout=self.graceful_timeout_seconds)
-        finally:
-            self._task = None
-            self._loop = None
+        async with self._stop_lock:
+            if self._task is None or self._stop is None:
+                return
+            self._stop_requested.set()
+            self._stop.set()
+            self.wake()
+            task = self._task
+            executor = self._executor
+            try:
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(task), timeout=self.graceful_timeout_seconds
+                    )
+                except TimeoutError:
+                    # A synchronous handler cannot be cancelled safely.  The
+                    # deadline is diagnostic only; always join the task before
+                    # disposing its database resources.
+                    await task
+            finally:
+                self._task = None
+                self._loop = None
+                self._stop = None
+                self._wake = None
+                self._executor = None
+                if executor is not None:
+                    # The executor future is complete after task joined.  The
+                    # wait is retained as the lifecycle safety invariant.
+                    executor.shutdown(wait=True)
 
 
 def _journal_effect(

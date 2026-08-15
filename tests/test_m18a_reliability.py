@@ -2,10 +2,11 @@
 
 import asyncio
 import sqlite3
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from threading import Barrier
+from threading import Barrier, Event
 from time import sleep
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
@@ -1314,3 +1315,286 @@ def test_dispatcher_slow_sync_work_does_not_block_asyncio_loop(settings):
         assert ticks > 10
 
     asyncio.run(scenario())
+
+
+def test_dispatcher_stop_joins_slow_inflight_worker(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    _, event = _project_and_event(engine, event_type="shutdown.slow")
+    loop_ready = asyncio.Event()
+    handler_finished = Event()
+    loop: asyncio.AbstractEventLoop | None = None
+
+    def slow_handler(session: Session, outbox_event: OutboxEvent) -> str:
+        del session
+        assert loop is not None
+        loop.call_soon_threadsafe(loop_ready.set)
+        sleep(0.15)
+        handler_finished.set()
+        return str(outbox_event.id)
+
+    registry = OutboxHandlerRegistry(
+        (HandlerRegistration("shutdown-slow-v1", "shutdown.slow", frozenset({1}), slow_handler),)
+    )
+    service = RecoveryService(
+        lambda: Session(engine),
+        registry=registry,
+        handler_budget_seconds=1,
+    )
+    dispatcher = OutboxDispatcher(
+        service,
+        poll_interval_seconds=60,
+        graceful_timeout_seconds=0.02,
+    )
+
+    async def scenario() -> None:
+        nonlocal loop
+        loop = asyncio.get_running_loop()
+        dispatcher.start()
+        await asyncio.wait_for(loop_ready.wait(), timeout=1)
+        await dispatcher.stop()
+
+    try:
+        asyncio.run(scenario())
+        assert handler_finished.is_set()
+        assert not any(
+            thread.name.startswith("eea-outbox-dispatcher") and thread.is_alive()
+            for thread in threading.enumerate()
+        )
+        with Session(engine) as session:
+            row = session.get(OutboxEventRecord, str(event.id))
+            assert row is not None
+            assert row.status == OutboxEventStatus.PROCESSED.value
+    finally:
+        engine.dispose()
+
+
+def test_dispatcher_shutdown_does_not_claim_another_event(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    _, first_event = _project_and_event(engine, event_type="shutdown.sequence")
+    _, second_event = _project_and_event(engine, event_type="shutdown.sequence")
+    loop_ready = asyncio.Event()
+    release_handler = Event()
+    claimed: list[UUID] = []
+    loop: asyncio.AbstractEventLoop | None = None
+
+    def handler(session: Session, outbox_event: OutboxEvent) -> str:
+        del session
+        claimed.append(outbox_event.id)
+        if outbox_event.id == first_event.id:
+            assert loop is not None
+            loop.call_soon_threadsafe(loop_ready.set)
+            assert release_handler.wait(timeout=2)
+        return str(outbox_event.id)
+
+    registry = OutboxHandlerRegistry(
+        (HandlerRegistration("shutdown-sequence-v1", "shutdown.sequence", frozenset({1}), handler),)
+    )
+    service = RecoveryService(lambda: Session(engine), registry=registry)
+    dispatcher = OutboxDispatcher(service, poll_interval_seconds=60, graceful_timeout_seconds=0.02)
+
+    async def scenario() -> None:
+        nonlocal loop
+        loop = asyncio.get_running_loop()
+        dispatcher.start()
+        await asyncio.wait_for(loop_ready.wait(), timeout=1)
+        stop_task = asyncio.create_task(dispatcher.stop())
+        await asyncio.sleep(0.02)
+        release_handler.set()
+        await stop_task
+
+    try:
+        asyncio.run(scenario())
+        assert claimed == [first_event.id]
+        with Session(engine) as session:
+            first = session.get(OutboxEventRecord, str(first_event.id))
+            second = session.get(OutboxEventRecord, str(second_event.id))
+            assert first is not None and second is not None
+            assert first.status == OutboxEventStatus.PROCESSED.value
+            assert second.status == OutboxEventStatus.PENDING.value
+            assert second.attempt_count == 0
+    finally:
+        engine.dispose()
+
+
+def test_dispatcher_inflight_handler_commits_before_stop_returns(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    project, event = _project_and_event(engine, event_type="shutdown.transaction")
+    loop_ready = asyncio.Event()
+    loop: asyncio.AbstractEventLoop | None = None
+
+    def transactional_handler(session: Session, outbox_event: OutboxEvent) -> str:
+        session.execute(
+            update(ProjectRecord)
+            .where(ProjectRecord.id == str(project.id))
+            .values(description="committed during graceful shutdown")
+        )
+        assert loop is not None
+        loop.call_soon_threadsafe(loop_ready.set)
+        sleep(0.1)
+        return str(outbox_event.id)
+
+    registry = OutboxHandlerRegistry(
+        (
+            HandlerRegistration(
+                "shutdown-transaction-v1",
+                "shutdown.transaction",
+                frozenset({1}),
+                transactional_handler,
+            ),
+        )
+    )
+    service = RecoveryService(lambda: Session(engine), registry=registry)
+    dispatcher = OutboxDispatcher(service, poll_interval_seconds=60, graceful_timeout_seconds=0.02)
+
+    async def scenario() -> None:
+        nonlocal loop
+        loop = asyncio.get_running_loop()
+        dispatcher.start()
+        await asyncio.wait_for(loop_ready.wait(), timeout=1)
+        await dispatcher.stop()
+
+    try:
+        asyncio.run(scenario())
+        with Session(engine) as session:
+            project_row = session.get(ProjectRecord, str(project.id))
+            event_row = session.get(OutboxEventRecord, str(event.id))
+            marker = session.scalar(
+                select(ProcessedEventRecord).where(ProcessedEventRecord.event_id == str(event.id))
+            )
+            assert project_row is not None
+            assert project_row.description == "committed during graceful shutdown"
+            assert event_row is not None
+            assert event_row.status == OutboxEventStatus.PROCESSED.value
+            assert marker is not None
+    finally:
+        engine.dispose()
+
+
+def test_dispatcher_stop_has_no_database_access_after_join(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    _, event = _project_and_event(engine, event_type="shutdown.database")
+    loop_ready = asyncio.Event()
+    stop_returned = Event()
+    accesses_after_stop: list[int] = []
+    loop: asyncio.AbstractEventLoop | None = None
+
+    def observe_database_access(
+        connection: object,
+        cursor: object,
+        statement: object,
+        parameters: object,
+        context: object,
+        executemany: object,
+    ) -> None:
+        del connection, cursor, statement, parameters, context, executemany
+        if stop_returned.is_set():
+            accesses_after_stop.append(threading.get_ident())
+
+    def slow_handler(session: Session, outbox_event: OutboxEvent) -> str:
+        del session
+        assert loop is not None
+        loop.call_soon_threadsafe(loop_ready.set)
+        sleep(0.1)
+        return str(outbox_event.id)
+
+    sqlalchemy_event.listen(engine, "before_cursor_execute", observe_database_access)
+    registry = OutboxHandlerRegistry(
+        (
+            HandlerRegistration(
+                "shutdown-database-v1", "shutdown.database", frozenset({1}), slow_handler
+            ),
+        )
+    )
+    service = RecoveryService(lambda: Session(engine), registry=registry)
+    dispatcher = OutboxDispatcher(service, poll_interval_seconds=60, graceful_timeout_seconds=0.02)
+
+    async def scenario() -> None:
+        nonlocal loop
+        loop = asyncio.get_running_loop()
+        dispatcher.start()
+        await asyncio.wait_for(loop_ready.wait(), timeout=1)
+        await dispatcher.stop()
+        stop_returned.set()
+        await asyncio.sleep(0.05)
+
+    try:
+        asyncio.run(scenario())
+        assert not accesses_after_stop
+        with Session(engine) as session:
+            row = session.get(OutboxEventRecord, str(event.id))
+            assert row is not None
+            assert row.status == OutboxEventStatus.PROCESSED.value
+    finally:
+        sqlalchemy_event.remove(engine, "before_cursor_execute", observe_database_access)
+        engine.dispose()
+
+
+def test_lifespan_disposes_engine_when_dispatcher_stop_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    application = create_app(settings)
+    disposed = False
+
+    def dispose() -> None:
+        nonlocal disposed
+        disposed = True
+
+    class FailingDispatcher:
+        def start(self) -> None:
+            return
+
+        async def stop(self) -> None:
+            raise RuntimeError("synthetic dispatcher stop failure")
+
+    monkeypatch.setattr(application.state.engine, "dispose", dispose)
+    application.state.outbox_dispatcher = FailingDispatcher()
+
+    with (
+        pytest.raises(RuntimeError, match="synthetic dispatcher stop failure"),
+        TestClient(application),
+    ):
+        pass
+    assert disposed
+
+
+def test_dispatcher_repeated_start_stop_has_no_orphan_task_or_thread(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path)
+    _migrate(settings)
+    engine = create_database_engine(settings)
+    service = RecoveryService(lambda: Session(engine))
+    dispatcher = OutboxDispatcher(service, poll_interval_seconds=60)
+
+    async def scenario() -> None:
+        dispatcher.start()
+        dispatcher.start()
+        await asyncio.sleep(0.02)
+        await dispatcher.stop()
+        await dispatcher.stop()
+        dispatcher.start()
+        await asyncio.sleep(0.02)
+        await dispatcher.stop()
+        assert dispatcher._task is None
+        assert dispatcher._executor is None
+        assert not any(
+            task.get_name() == "eea-outbox-dispatcher" and not task.done()
+            for task in asyncio.all_tasks()
+        )
+
+    try:
+        asyncio.run(scenario())
+        assert not any(
+            thread.name.startswith("eea-outbox-dispatcher") and thread.is_alive()
+            for thread in threading.enumerate()
+        )
+    finally:
+        engine.dispose()

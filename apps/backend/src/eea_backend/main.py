@@ -129,31 +129,33 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        with engine.connect() as connection:
-            inspector = inspect(connection)
-            if all(
-                inspector.has_table(table)
-                for table in (
-                    "requirement_profiles",
-                    "prompt_definitions",
-                    "claim_predicate_definitions",
-                )
-            ):
-                with Session(engine) as session:
-                    seed_builtin_requirement_contracts(session)
-                    for project_id in session.scalars(select(ProjectRecord.id)):
-                        reconcile_project_dependencies(session, UUID(project_id))
-        with engine.connect() as connection:
-            if inspect(connection).has_table("outbox_events"):
-                summary = application.state.recovery_service.startup_recover(batch_limit=100)
-                application.state.startup_recovery_completed = True
-                application.state.last_recovery_summary = summary
-                application.state.outbox_dispatcher.start()
         try:
+            with engine.connect() as connection:
+                inspector = inspect(connection)
+                if all(
+                    inspector.has_table(table)
+                    for table in (
+                        "requirement_profiles",
+                        "prompt_definitions",
+                        "claim_predicate_definitions",
+                    )
+                ):
+                    with Session(engine) as session:
+                        seed_builtin_requirement_contracts(session)
+                        for project_id in session.scalars(select(ProjectRecord.id)):
+                            reconcile_project_dependencies(session, UUID(project_id))
+            with engine.connect() as connection:
+                if inspect(connection).has_table("outbox_events"):
+                    summary = application.state.recovery_service.startup_recover(batch_limit=100)
+                    application.state.startup_recovery_completed = True
+                    application.state.last_recovery_summary = summary
+                    application.state.outbox_dispatcher.start()
             yield
         finally:
-            await application.state.outbox_dispatcher.stop()
-            engine.dispose()
+            try:
+                await application.state.outbox_dispatcher.stop()
+            finally:
+                engine.dispose()
 
     application = FastAPI(
         title="Embedded Engineering Agent API",
