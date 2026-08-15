@@ -18,7 +18,9 @@ the frozen documentation changelogs under `docs/`.
   environment-specific Windows M5 sandbox failures**; coverage **84.40%**. Ruff,
   mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop lint,
   desktop typecheck, and desktop build pass. `M18B = IMPLEMENTED` and
-  `READY_FOR_M18B_FINAL_REVIEW = YES`; `M18B = ACCEPTED` and M18C remain not started.
+  `READY_FOR_M18B_FINAL_REVIEW = YES`; GitHub CI runs `31866031198` (push) and
+  `31866046633` (pull request) both have backend PASS and desktop PASS. `M18B = ACCEPTED`
+  and M18C remain not started.
 
 - M18A Final Acceptance: reviewed implementation HEAD
   `68401b60b88935e7c19bc0309c1845eab3328555`; implementation commit

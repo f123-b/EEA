@@ -2,6 +2,9 @@
 
 The next action is human final review of the M18B Draft PR.
 
+The initial implementation head has passed GitHub CI runs `31866031198` (push) and
+`31866046633` (pull request), with backend and desktop both PASS.
+
 The implementation must remain on:
 
 ```text

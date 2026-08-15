@@ -49,7 +49,8 @@ disable/enable configuration preservation, and API preview/apply/current-state f
 - Desktop lint: PASS
 - Desktop typecheck: PASS
 - Desktop build: PASS
-- GitHub CI: pending Draft PR push at report creation; update with the final run.
+- GitHub CI push run `31866031198`: backend PASS, desktop PASS
+- GitHub CI pull request run `31866046633`: backend PASS, desktop PASS
 
 ## State
 
