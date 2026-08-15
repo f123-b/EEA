@@ -7,6 +7,16 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18B/M18BR Final Acceptance and merge closure: reviewed final HEAD
+  `6131b0339fc7a92e9b0c1665a9c0edf18d193ef5`, with M18BR implementation HEAD
+  `cc5fd96654d41ee7fcf0b112671d5fa9b5305455`. Final verification records focused
+  M18/M18R/M18A/M18AR/M18AR.1/M18B/M18BR **129 passed**, local full pytest
+  **364 passed, 3 skipped**, **2 pre-existing Windows M5 sandbox environment failures**,
+  coverage **84.61%**, all local quality gates PASS, and GitHub CI runs
+  `31868017475`, `31868019387`, `31868263048`, and `31868523802` with backend and
+  desktop PASS. `M18B = ACCEPTED`, `M18BR = ACCEPTED`, `READY_FOR_M18C = YES`, and
+  `M18C = NOT_STARTED`.
+
 - M18BR Composition Authority & Apply Closure at implementation HEAD
   `cc5fd96654d41ee7fcf0b112671d5fa9b5305455`: made public `apply-composition` require
   a valid preview revision and lowercase SHA-256 plan hash, made persisted

@@ -7,7 +7,9 @@
 - Base SHA: `39831c111d7be554500acba8fa1b812e0dd5b044`
 - M18B implementation commit: `fa2c22ee20b9f6ebbf1b78df7124987c6d4e8391`
 - M18BR implementation HEAD: `cc5fd96654d41ee7fcf0b112671d5fa9b5305455`
-- Scope: M18BR closure only; M18C and later milestones were not started.
+- Reviewed final HEAD: `6131b0339fc7a92e9b0c1665a9c0edf18d193ef5`
+- Implementation commit: `cc5fd96 fix(m18br): close composition authority and apply contract`
+- Scope: M18B/M18BR final acceptance and merge closure; M18C and later milestones were not started.
 
 ## Focused verification
 
@@ -54,6 +56,7 @@ conflicts, persisted-state drift across plugin/rule/generator/schema changes, ex
 - Desktop build: PASS
 - GitHub CI push run `31868017475` at M18BR HEAD: backend PASS, desktop PASS
 - GitHub CI pull request run `31868019387` at M18BR HEAD: backend PASS, desktop PASS
+- Acceptance docs push run `31868523802`: backend PASS, desktop PASS
 
 ## State
 
@@ -62,9 +65,8 @@ M18A = ACCEPTED_AND_MERGED
 M18AR = ACCEPTED_AND_MERGED
 M18AR.1 = ACCEPTED_AND_MERGED
 READY_FOR_M18B = YES
-M18B = IMPLEMENTED
-M18BR = IMPLEMENTED
-READY_FOR_M18B_FINAL_REVIEW = YES
-M18B acceptance = HUMAN_REVIEW_REQUIRED
+M18B = ACCEPTED
+M18BR = ACCEPTED
+READY_FOR_M18C = YES
 M18C = NOT_STARTED
 ```
