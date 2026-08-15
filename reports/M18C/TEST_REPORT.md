@@ -6,6 +6,7 @@
 - Branch: `codex/m18c-source-authority`
 - Base SHA: `2327ea12588b4c0d1facbb3669aed94ae69465d1`
 - M18C implementation commit: `c9f2644 feat(m18c): implement source authority workspace contract`
+- Reviewed final HEAD: `6cc9b7057c5c210396ae4b2fcfdf5c5e6cd4baac`
 - Reviewed M18B/M18BR main history remains in the base commit above.
 - Scope: Source Authority, filesystem workspace, PatchProposal, generated ownership,
   bounded Git contract, source-change recovery, and no M18D work.
@@ -56,8 +57,8 @@ and restart-safe current revision recovery.
 - Desktop lint: PASS
 - Desktop typecheck: PASS
 - Desktop build: PASS
-- GitHub CI push run `31871424363`: backend PASS, desktop PASS
-- GitHub CI pull request run `31871451429`: backend PASS, desktop PASS
+- GitHub CI push run `31871683749`: backend PASS, desktop PASS
+- GitHub CI pull request run `31871685995`: backend PASS, desktop PASS
 
 ## State
 
@@ -68,7 +69,7 @@ M18AR.1 = ACCEPTED_AND_MERGED
 READY_FOR_M18B = YES
 M18B = ACCEPTED_AND_MERGED
 M18BR = ACCEPTED_AND_MERGED
-M18C = IMPLEMENTED
-READY_FOR_M18C_FINAL_REVIEW = YES
+M18C = ACCEPTED
+READY_FOR_M18D = YES
 M18D = NOT_STARTED
 ```

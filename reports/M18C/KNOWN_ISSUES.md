@@ -17,4 +17,5 @@ No M18C implementation blocker remains in the local verification listed in
 database rows retain metadata, manifests, proposals, ownership, and recovery markers,
 not a second editable source tree.
 
-M18C is implemented and ready for final human review. M18D is not started.
+M18C is accepted at reviewed final HEAD
+`6cc9b7057c5c210396ae4b2fcfdf5c5e6cd4baac`. M18D is not started.
