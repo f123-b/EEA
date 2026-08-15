@@ -49,6 +49,7 @@ from eea_core.hardware import (
     ResourceType,
 )
 from eea_core.reliability import OutboxEventStatus, SideEffectStatus
+from eea_core.security import PermissionTokenStatus
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -63,6 +64,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -251,6 +253,27 @@ class PermissionAuditRecordModel(CoreRecordMixin, Base):
     resource_id: Mapped[str] = mapped_column(String(500), nullable=False)
     granted: Mapped[bool] = mapped_column(Boolean, nullable=False)
     reason: Mapped[str] = mapped_column(String(2000), nullable=False)
+
+
+class PermissionTokenRecord(CoreRecordMixin, Base):
+    __tablename__ = "permission_tokens"
+    __table_args__ = (
+        CheckConstraint(f"permission IN ({_enum_values(Permission)})", name="permission"),
+        CheckConstraint(f"status IN ({_enum_values(PermissionTokenStatus)})", name="status"),
+        Index("ix_permission_tokens_scope", "project_id", "actor_id", "permission"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    actor_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    permission: Mapped[str] = mapped_column(String(40), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    resource_id: Mapped[str] = mapped_column(String(500), nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    session_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    reason: Mapped[str] = mapped_column(String(2000), nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
 
 
 class TraceabilityEdgeRecord(CoreRecordMixin, Base):
@@ -548,6 +571,14 @@ class ResourceLockRecord(CoreRecordMixin, Base):
         CheckConstraint(f"resource_type IN ({_enum_values(ResourceType)})", name="resource_type"),
         CheckConstraint(f"status IN ({_enum_values(ResourceLockStatus)})", name="status"),
         Index("ix_resource_locks_resource_active", "resource_type", "resource_id", "status"),
+        Index(
+            "uq_resource_locks_active_owner",
+            "resource_type",
+            "resource_id",
+            unique=True,
+            sqlite_where=text("status = 'ACTIVE'"),
+            postgresql_where=text("status = 'ACTIVE'"),
+        ),
     )
 
     project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
@@ -598,6 +629,12 @@ class CommissioningSessionRecord(CoreRecordMixin, Base):
     approval_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     aborted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    active_action_id: Mapped[str | None] = mapped_column(String(36))
+    active_action_kind: Mapped[str | None] = mapped_column(String(100))
+    active_action_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    active_action_expected_revision: Mapped[int | None] = mapped_column()
+    active_action_request_hash: Mapped[str | None] = mapped_column(String(64))
+    active_action_journal_id: Mapped[str | None] = mapped_column(String(36))
 
 
 class SafetyLimitRecord(CoreRecordMixin, Base):

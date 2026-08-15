@@ -170,6 +170,12 @@ from eea_core.reliability import (
     payload_sha256,
     stable_event_key,
 )
+from eea_core.security import (
+    PermissionToken,
+    PermissionTokenStatus,
+    PermissionVerificationContext,
+    ValidatedPermissionGrant,
+)
 
 __all__ = [
     "Artifact",
@@ -196,6 +202,9 @@ __all__ = [
     "OutboxEventStatus",
     "Permission",
     "PermissionAuditRecord",
+    "PermissionToken",
+    "PermissionTokenStatus",
+    "PermissionVerificationContext",
     "ProcessedEvent",
     "Project",
     "ProjectStatus",
@@ -208,6 +217,7 @@ __all__ = [
     "SideEffectStatus",
     "TraceabilityEdge",
     "TraceabilityRelation",
+    "ValidatedPermissionGrant",
     "canonical_json",
     "canonical_semantic_hash",
     "payload_sha256",

@@ -14,7 +14,10 @@ from eea_core.enums import DomainRulePhase, DomainTrustTier, Permission
 from eea_ports.domain_extensions import DomainExecutableValidator, DomainPlugin
 
 from plugins.builtin.motor_control.agents import MotorControlAgent
-from plugins.builtin.motor_control.commissioning import MOTOR_CONTROL_COMMISSIONING_RULES
+from plugins.builtin.motor_control.commissioning import (
+    MOTOR_CONTROL_COMMISSIONING_RULES,
+    motor_control_commissioning_contributions,
+)
 from plugins.builtin.motor_control.context import MOTOR_CONTROL_CONTEXTS
 from plugins.builtin.motor_control.generators import MOTOR_CONTROL_GENERATORS
 from plugins.builtin.motor_control.rules import MOTOR_CONTROL_RULES, validate_domain_context
@@ -95,6 +98,9 @@ class MotorControlPlugin(DomainPlugin):
         """Return additive checks; Core retains the final safety-gate authority."""
 
         return MOTOR_CONTROL_COMMISSIONING_RULES
+
+    def commissioning_contributions(self) -> Sequence[object]:
+        return motor_control_commissioning_contributions()
 
     def commissioning_steps(self) -> Sequence[str]:
         return tuple(rule.measurement for rule in MOTOR_CONTROL_COMMISSIONING_RULES)

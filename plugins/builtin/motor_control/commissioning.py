@@ -6,6 +6,8 @@ own permission, resource-lock, emergency-stop, or state-transition authority.
 
 from dataclasses import dataclass
 
+from eea_core.domain_extensions import CommissioningRuleContribution
+
 
 @dataclass(frozen=True, slots=True)
 class MotorControlCommissioningRule:
@@ -33,4 +35,21 @@ MOTOR_CONTROL_COMMISSIONING_RULES = (
 )
 
 
-__all__ = ["MOTOR_CONTROL_COMMISSIONING_RULES", "MotorControlCommissioningRule"]
+def motor_control_commissioning_contributions() -> tuple[CommissioningRuleContribution, ...]:
+    return tuple(
+        CommissioningRuleContribution(
+            rule_id=rule.rule_id,
+            version="motor-control-m18dr-1",
+            required_before_state="CLOSED_LOOP_LIMITED",
+            measurement_key=rule.measurement,
+            safety_critical=rule.safety_critical,
+        )
+        for rule in MOTOR_CONTROL_COMMISSIONING_RULES
+    )
+
+
+__all__ = [
+    "MOTOR_CONTROL_COMMISSIONING_RULES",
+    "MotorControlCommissioningRule",
+    "motor_control_commissioning_contributions",
+]

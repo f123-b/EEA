@@ -40,6 +40,26 @@ _STATES = ",".join(
         "ROLLBACK_REQUIRED",
     )
 )
+
+_PERMISSION_TOKEN_STATUSES = "'ACTIVE','REVOKED','EXPIRED'"
+_PERMISSIONS = ",".join(
+    f"'{value}'"
+    for value in (
+        "READ",
+        "WRITE",
+        "BUILD",
+        "NETWORK",
+        "SECRET_USE",
+        "FLASH",
+        "DEBUG",
+        "HARDWARE_CONTROL",
+        "ACTUATOR_ENABLE",
+        "DELETE",
+        "PLUGIN_INSTALL",
+        "KNOWLEDGE_PROMOTE",
+        "EXPORT_PRIVATE",
+    )
+)
 _STEP_STATUSES = ",".join(
     f"'{value}'" for value in ("PENDING", "RUNNING", "PASS", "FAIL", "BLOCKED", "ABORTED")
 )
@@ -72,6 +92,33 @@ _RESOURCE_TYPES = ",".join(
 
 
 def upgrade() -> None:
+    op.create_table(
+        "permission_tokens",
+        *_entity_columns(),
+        sa.Column("project_id", sa.String(length=36), nullable=False),
+        sa.Column("actor_id", sa.String(length=200), nullable=False),
+        sa.Column("permission", sa.String(length=40), nullable=False),
+        sa.Column("resource_type", sa.String(length=100), nullable=False),
+        sa.Column("resource_id", sa.String(length=500), nullable=False),
+        sa.Column("issued_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("status", sa.String(length=30), nullable=False),
+        sa.Column("session_id", sa.String(length=36), nullable=True),
+        sa.Column("reason", sa.String(length=2000), nullable=False),
+        sa.Column("evidence_ids", sa.JSON(), nullable=False),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"]),
+        sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(f"permission IN ({_PERMISSIONS})", name="permission"),
+        sa.CheckConstraint(f"status IN ({_PERMISSION_TOKEN_STATUSES})", name="status"),
+    )
+    op.create_index("ix_permission_tokens_project_id", "permission_tokens", ["project_id"])
+    op.create_index("ix_permission_tokens_actor_id", "permission_tokens", ["actor_id"])
+    op.create_index(
+        "ix_permission_tokens_scope",
+        "permission_tokens",
+        ["project_id", "actor_id", "permission"],
+    )
+    op.create_index("ix_permission_tokens_session_id", "permission_tokens", ["session_id"])
     op.create_table(
         "commissioning_profiles",
         *_entity_columns(),
@@ -154,6 +201,14 @@ def upgrade() -> None:
         "resource_locks",
         ["resource_type", "resource_id", "status"],
     )
+    op.create_index(
+        "uq_resource_locks_active_owner",
+        "resource_locks",
+        ["resource_type", "resource_id"],
+        unique=True,
+        sqlite_where=sa.text("status = 'ACTIVE'"),
+        postgresql_where=sa.text("status = 'ACTIVE'"),
+    )
 
     op.create_table(
         "commissioning_sessions",
@@ -183,6 +238,12 @@ def upgrade() -> None:
         sa.Column("approval_snapshot", sa.JSON(), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("aborted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("active_action_id", sa.String(length=36), nullable=True),
+        sa.Column("active_action_kind", sa.String(length=100), nullable=True),
+        sa.Column("active_action_started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("active_action_expected_revision", sa.Integer(), nullable=True),
+        sa.Column("active_action_request_hash", sa.String(length=64), nullable=True),
+        sa.Column("active_action_journal_id", sa.String(length=36), nullable=True),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"]),
         sa.ForeignKeyConstraint(["commissioning_profile_id"], ["commissioning_profiles.id"]),
         sa.PrimaryKeyConstraint("id"),
@@ -276,8 +337,14 @@ def downgrade() -> None:
     op.drop_index("ix_commissioning_sessions_project_id", table_name="commissioning_sessions")
     op.drop_table("commissioning_sessions")
     op.drop_index("ix_resource_locks_resource_active", table_name="resource_locks")
+    op.drop_index("uq_resource_locks_active_owner", table_name="resource_locks")
     op.drop_index("ix_resource_locks_project_id", table_name="resource_locks")
     op.drop_table("resource_locks")
+    op.drop_index("ix_permission_tokens_session_id", table_name="permission_tokens")
+    op.drop_index("ix_permission_tokens_scope", table_name="permission_tokens")
+    op.drop_index("ix_permission_tokens_actor_id", table_name="permission_tokens")
+    op.drop_index("ix_permission_tokens_project_id", table_name="permission_tokens")
+    op.drop_table("permission_tokens")
     op.drop_index(
         "ix_target_safety_capabilities_target_id", table_name="target_safety_capabilities"
     )

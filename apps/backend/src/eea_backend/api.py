@@ -44,6 +44,7 @@ from eea_core.components import (
     DependencyLock,
     SoftwareComponentDescriptor,
 )
+from eea_core.domain_extensions import CommissioningRuleContribution
 from eea_core.entities import Evidence, Project, TraceabilityEdge, utc_now
 from eea_core.enums import (
     ArtifactStatus,
@@ -107,7 +108,10 @@ from eea_backend.architecture_repositories import SqlAlchemyArchitectureReposito
 from eea_backend.build_repositories import SqlAlchemyBuildRunRepository
 from eea_backend.circuit_repositories import SqlAlchemyCircuitRepository
 from eea_backend.claim_repositories import SqlAlchemyEngineeringClaimRepository
-from eea_backend.commissioning_repositories import SqlAlchemyCommissioningRepository
+from eea_backend.commissioning_repositories import (
+    SqlAlchemyCommissioningRepository,
+    SqlAlchemyPermissionAuthority,
+)
 from eea_backend.component_repositories import (
     SqlAlchemyComponentMaterializationRepository,
     SqlAlchemyComponentRepository,
@@ -276,6 +280,7 @@ from eea_backend.schemas import (
     TraceabilityData,
 )
 from eea_backend.schematic_repositories import SqlAlchemySchematicRepository
+from eea_backend.security import authenticated_actor_id
 from eea_backend.source_repositories import SqlAlchemySourceRepository
 from eea_backend.static_analysis_repositories import SqlAlchemyFirmwareStaticAnalysisRepository
 
@@ -387,6 +392,24 @@ def _commissioning_service(request: Request, session: Session) -> CommissioningS
         build_binding=repository.build_binding,
         lock_lookup=repository.get_lock,
         capability_lookup=repository.get_capability,
+        permission_authority=SqlAlchemyPermissionAuthority(session),
+        composition_lookup=lambda project_id: _commissioning_composition(
+            request, session, project_id
+        ),
+    )
+
+
+def _commissioning_composition(
+    request: Request, session: Session, project_id: UUID
+) -> tuple[CommissioningRuleContribution, ...]:
+    state = SqlAlchemyDomainCompositionStateRepository(session).get(project_id)
+    if state is None:
+        return ()
+    return cast(
+        tuple[CommissioningRuleContribution, ...],
+        tuple(
+            request.app.state.domain_registry.commissioning_contributions(state.active_domain_ids)
+        ),
     )
 
 
@@ -4268,7 +4291,7 @@ def create_commissioning_session(
         hardware_identity=payload.hardware_identity,
         probe_identity=payload.probe_identity,
         commissioning_profile=profile,
-        started_by=payload.started_by,
+        started_by=authenticated_actor_id(request),
         build_run_id=payload.build_run_id,
         source_revision_id=payload.source_revision_id,
         build_input_snapshot_id=payload.build_input_snapshot_id,
@@ -4334,7 +4357,7 @@ def run_commissioning_preflight(
 ) -> ApiEnvelope[CommissioningSessionData]:
     expected = _commissioning_mutation_revision(request, payload.expected_revision, if_match)
     current = _commissioning_service(request, session).preflight(
-        session_id, expected_revision=expected, permissions=set(payload.permissions)
+        session_id, expected_revision=expected, permissions=set()
     )
     _set_etag(response, current.revision)
     return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
@@ -4355,7 +4378,7 @@ def flash_commissioning_session(
 ) -> ApiEnvelope[CommissioningSessionData]:
     expected = _commissioning_mutation_revision(request, payload.expected_revision, if_match)
     current = _commissioning_service(request, session).flash(
-        session_id, expected_revision=expected, permissions=set(payload.permissions)
+        session_id, expected_revision=expected, permissions=set()
     )
     _set_etag(response, current.revision)
     return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
@@ -4380,8 +4403,8 @@ def execute_commissioning_step(
         session_id,
         step_id,
         expected_revision=expected,
-        permissions=set(payload.permissions),
-        operator=payload.operator,
+        permissions=set(),
+        operator=authenticated_actor_id(request),
     )
     _set_etag(response, current.revision)
     return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
@@ -4404,8 +4427,32 @@ def approve_commissioning_session(
     current = _commissioning_service(request, session).approve(
         session_id,
         expected_revision=expected,
-        actor=payload.actor,
-        permissions=set(payload.permissions),
+        actor=authenticated_actor_id(request),
+        permissions=set(),
+    )
+    _set_etag(response, current.revision)
+    return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
+
+
+@router.post(
+    "/commissioning/sessions/{session_id}/enable-normal-operation",
+    response_model=ApiEnvelope[CommissioningSessionData],
+    tags=["commissioning"],
+)
+def enable_normal_commissioning_session(
+    session_id: UUID,
+    payload: CommissioningRevisionRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+) -> ApiEnvelope[CommissioningSessionData]:
+    expected = _commissioning_mutation_revision(request, payload.expected_revision, if_match)
+    current = _commissioning_service(request, session).enable_normal_operation(
+        session_id,
+        expected_revision=expected,
+        permissions=set(),
+        actor=authenticated_actor_id(request),
     )
     _set_etag(response, current.revision)
     return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
@@ -4428,10 +4475,10 @@ def emergency_stop_commissioning_session(
     current = _commissioning_service(request, session).emergency_stop(
         session_id,
         expected_revision=expected,
-        permissions=set(payload.permissions),
+        permissions=set(),
         source=payload.source,
         reason=payload.reason,
-        actor=payload.actor,
+        actor=authenticated_actor_id(request),
     )
     _set_etag(response, current.revision)
     return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
@@ -4454,8 +4501,8 @@ def abort_commissioning_session(
     current = _commissioning_service(request, session).abort(
         session_id,
         expected_revision=expected,
-        permissions=set(payload.permissions),
-        actor=payload.actor,
+        permissions=set(),
+        actor=authenticated_actor_id(request),
     )
     _set_etag(response, current.revision)
     return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
-from typing import Protocol
+from typing import Protocol, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from eea_core.claims import EngineeringValue
+from eea_core.domain_extensions import CommissioningRuleContribution
 from eea_core.entities import Evidence, utc_now
 from eea_core.enums import EngineeringErrorCode, EvidenceType, Permission
 from eea_core.errors import EngineeringError
@@ -19,6 +22,8 @@ from eea_core.hardware import (
     EmergencyStopEvent,
     EmergencyStopSource,
     EmergencyStopState,
+    HardwareActionIntent,
+    HardwareAdapterResult,
     HardwareCommissioningAdapter,
     HardwareCommissioningSession,
     HardwareIdentity,
@@ -28,6 +33,8 @@ from eea_core.hardware import (
     TargetSafetyCapability,
     WatchdogState,
 )
+from eea_core.reliability import SideEffectStatus, payload_sha256
+from eea_core.security import PermissionVerificationContext, ValidatedPermissionGrant
 
 from eea_application.reliability import EventOutboxService
 
@@ -55,6 +62,28 @@ class CommissioningRepository(Protocol):
 
     def quarantine_lock(self, lock_id: UUID, *, commit: bool) -> bool: ...
 
+    def bind_lock(self, lock_id: UUID, *, project_id: UUID, session_id: UUID) -> bool: ...
+
+    def claim_hardware_action(
+        self,
+        *,
+        session_id: UUID,
+        expected_revision: int,
+        expected_state: CommissioningState,
+        action: str,
+        request_hash: str,
+        payload: dict[str, object],
+    ) -> HardwareActionIntent | None: ...
+
+    def finalize_hardware_action(
+        self,
+        intent: HardwareActionIntent,
+        *,
+        status: SideEffectStatus,
+        result_ref: str | None = None,
+        error: str | None = None,
+    ) -> None: ...
+
     def commit(self) -> None: ...
 
 
@@ -63,6 +92,12 @@ ArtifactBindingLookup = Callable[[UUID], dict[str, object] | None]
 BuildBindingLookup = Callable[[UUID], dict[str, object] | None]
 LockLookup = Callable[[UUID], ResourceLock | None]
 CapabilityLookup = Callable[[str], TargetSafetyCapability | None]
+CompositionLookup = Callable[[UUID], Sequence[CommissioningRuleContribution]]
+
+
+class PermissionAuthority(Protocol):
+    def verify(self, context: PermissionVerificationContext) -> ValidatedPermissionGrant | None: ...
+
 
 SAFE_COMMISSIONING_PROFILE_ID = uuid5(
     NAMESPACE_URL, "https://eea.local/commissioning-profile/SAFE_COMMISSIONING/1.0"
@@ -97,6 +132,8 @@ class CommissioningService:
         build_binding: BuildBindingLookup | None = None,
         lock_lookup: LockLookup | None = None,
         capability_lookup: CapabilityLookup | None = None,
+        permission_authority: PermissionAuthority | None = None,
+        composition_lookup: CompositionLookup | None = None,
         now: Callable[[], datetime] = utc_now,
     ) -> None:
         self.repository = repository
@@ -107,6 +144,8 @@ class CommissioningService:
         self.build_binding = build_binding
         self.lock_lookup = lock_lookup
         self.capability_lookup = capability_lookup
+        self.permission_authority = permission_authority
+        self.composition_lookup = composition_lookup
         self.now = now
 
     def create_session(
@@ -157,6 +196,16 @@ class CommissioningService:
             },
         )
         self.repository.add_session(session, commit=False)
+        for lock_id in session.resource_lock_ids:
+            binder = getattr(self.repository, "bind_lock", None)
+            if binder is not None and not binder(
+                lock_id, project_id=project_id, session_id=session.id
+            ):
+                raise _engineering_error(
+                    EngineeringErrorCode.RESOURCE_BUSY,
+                    "resource lock is owned by another session or unavailable",
+                    lock_id=str(lock_id),
+                )
         self._emit(session, "commissioning.session.created", {"started_by": started_by})
         self.repository.commit()
         return session
@@ -193,7 +242,14 @@ class CommissioningService:
         checks: list[dict[str, object]] = []
         failures: list[dict[str, object]] = []
 
-        self._check_permission_set(permissions, profile.required_permissions, failures)
+        self._check_permission_set(
+            session,
+            permissions,
+            profile.required_permissions,
+            actor=session.started_by,
+            failures=failures,
+            action="PREFLIGHT",
+        )
         self._check_binding(session, failures)
         self._check_identity(session, failures)
         self._check_lock_set(session, failures)
@@ -292,7 +348,11 @@ class CommissioningService:
                 state=session.state.value,
             )
         self._require_permissions(
-            permissions, {Permission.FLASH, Permission.DEBUG, Permission.HARDWARE_CONTROL}
+            session,
+            permissions,
+            {Permission.FLASH, Permission.DEBUG, Permission.HARDWARE_CONTROL},
+            actor=session.started_by,
+            action="FLASH",
         )
         failures: list[dict[str, object]] = []
         self._check_identity(session, failures)
@@ -301,32 +361,70 @@ class CommissioningService:
             raise _engineering_error(
                 EngineeringErrorCode.COMMISSIONING_BLOCKED, "flash gate blocked", failures=failures
             )
-        result = self.adapter.flash(session.firmware_hash)
+        action, claimed_revision = self._claim_action(
+            session,
+            expected_revision=expected_revision,
+            action="FLASH",
+            expected_state=CommissioningState.PREFLIGHT,
+        )
+        try:
+            result = self.adapter.flash(session.firmware_hash)
+        except Exception as exc:  # adapter failures are safety failures, never ordinary errors
+            return self._fault(
+                session,
+                claimed_revision,
+                "FLASH",
+                f"adapter exception: {type(exc).__name__}",
+                rollback=True,
+                action=action,
+            )
         if not result.ok:
             return self._fault(
-                session, expected_revision, "flash", result.failure_reason or "flash failed"
+                session,
+                claimed_revision,
+                "flash",
+                result.failure_reason or "flash failed",
+                action=action,
             )
-        verified_flash = self.adapter.verify_flash(session.firmware_hash)
+        try:
+            verified_flash = self.adapter.verify_flash(session.firmware_hash)
+        except Exception as exc:
+            return self._fault(
+                session,
+                claimed_revision,
+                "flash",
+                f"verify adapter exception: {type(exc).__name__}",
+                rollback=True,
+                action=action,
+            )
         if not verified_flash.ok:
             return self._fault(
                 session,
-                expected_revision,
+                claimed_revision,
                 "flash",
                 verified_flash.failure_reason or "flash verification failed",
+                action=action,
             )
-        reset = self.adapter.reset_to_safe_state()
-        safe = self.adapter.enter_safe_state()
-        if not reset.ok or not safe.ok or safe.safe_state_verified is not True:
+        reset = self._safe_adapter_call("reset_to_safe_state")
+        safe = self._safe_adapter_call("enter_safe_state")
+        if (
+            reset is None
+            or not reset.ok
+            or safe is None
+            or not safe.ok
+            or safe.safe_state_verified is not True
+        ):
             return self._fault(
                 session,
-                expected_revision,
+                claimed_revision,
                 "flash",
                 (
-                    safe.failure_reason or "safe state entry failed"
-                    if not safe.ok
-                    else "safe state could not be proven"
+                    "safe state could not be proven"
+                    if safe is None or not safe.ok
+                    else safe.failure_reason or "safe state entry failed"
                 ),
                 rollback=True,
+                action=action,
             )
         session.transition(CommissioningState.FLASHED_SAFE)
         session.watchdog_state = session.watchdog_state.model_copy(
@@ -339,7 +437,11 @@ class CommissioningService:
             {"flash": "verified", "pwm_disabled": True},
         )
         self._persist(
-            session, expected_revision, "commissioning.flash.safe", {"pwm_disabled": True}
+            session,
+            claimed_revision,
+            "commissioning.flash.safe",
+            {"pwm_disabled": True},
+            action=action,
         )
         return session
 
@@ -375,7 +477,7 @@ class CommissioningService:
         required = {Permission.DEBUG, Permission.HARDWARE_CONTROL}
         if step in {"LOW_POWER", "CLOSED_LOOP_LIMITED"}:
             required.add(Permission.ACTUATOR_ENABLE)
-        self._require_permissions(permissions, required)
+        self._require_permissions(session, permissions, required, actor=operator, action=step)
         failures: list[dict[str, object]] = []
         self._check_identity(session, failures)
         self._check_lock_set(session, failures)
@@ -384,34 +486,106 @@ class CommissioningService:
             raise _engineering_error(
                 EngineeringErrorCode.COMMISSIONING_BLOCKED, "step gate blocked", failures=failures
             )
-        if step == "SENSOR_CHECK":
-            result = self.adapter.sensor_sanity_check()
-        else:
-            result = self.adapter.execute_limited_step(step, session.safety_limits_snapshot)
-        if not result.ok:
-            self._block_and_persist(
+        action, claimed_revision = self._claim_action(
+            session,
+            expected_revision=expected_revision,
+            action=step,
+            expected_state=expected_state,
+        )
+        started = time.monotonic()
+        try:
+            if step == "SENSOR_CHECK":
+                result = self.adapter.sensor_sanity_check()
+            else:
+                result = self.adapter.execute_limited_step(step, session.safety_limits_snapshot)
+        except Exception as exc:
+            return self._fault(
                 session,
-                expected_revision,
+                claimed_revision,
                 step,
-                [{"check": step, "reason": result.failure_reason or "adapter failure"}],
+                f"adapter exception: {type(exc).__name__}",
+                rollback=step != "SENSOR_CHECK",
+                action=action,
             )
+        duration = time.monotonic() - started
+        result_measurements = {
+            **result.measurements,
+            "duration_seconds": duration,
+            "runtime_seconds": result.measurements.get("runtime_seconds", duration),
+        }
+        if not result.ok:
+            if step == "SENSOR_CHECK":
+                self._block_and_persist(
+                    session,
+                    claimed_revision,
+                    step,
+                    [{"check": step, "reason": result.failure_reason or "adapter failure"}],
+                    action=action,
+                )
+            else:
+                self._fault(
+                    session,
+                    claimed_revision,
+                    step,
+                    result.failure_reason or "adapter failure",
+                    action=action,
+                )
             raise _engineering_error(
                 EngineeringErrorCode.COMMISSIONING_BLOCKED,
                 f"{step} failed",
                 session_id=str(session.id),
             )
         if step in {"LOW_POWER", "CLOSED_LOOP_LIMITED"}:
+            runtime_violation = self._runtime_violation(duration, session.safety_limits_snapshot)
+            if runtime_violation is not None:
+                return self._fault(
+                    session,
+                    claimed_revision,
+                    step,
+                    runtime_violation,
+                    action=action,
+                )
+            post_failures: list[dict[str, object]] = []
+            self._check_identity(session, post_failures)
+            self._check_lock_set(session, post_failures)
+            try:
+                watchdog_result = self.adapter.watchdog_status()
+            except Exception:
+                watchdog_result = None
+            if watchdog_result is None or not watchdog_result.ok:
+                post_failures.append({"check": "watchdog", "reason": "watchdog lost during action"})
+            if post_failures:
+                return self._fault(
+                    session,
+                    claimed_revision,
+                    step,
+                    "post-action safety validation failed",
+                    rollback=True,
+                    action=action,
+                )
+            domain_failures = self._check_composition_rules(session, result_measurements, step)
+            if domain_failures:
+                return self._fault(
+                    session,
+                    claimed_revision,
+                    step,
+                    "commissioning domain safety rule failed",
+                    rollback=True,
+                    action=action,
+                    details={"domain_rules": domain_failures},
+                )
             violation = self._limit_violation(
-                step, result.measurements, session.safety_limits_snapshot
+                step, result_measurements, session.safety_limits_snapshot
             )
             if violation is not None:
-                self.emergency_stop(
-                    session.id,
-                    expected_revision=expected_revision,
-                    permissions=permissions,
-                    source=EmergencyStopSource.SAFETY_MONITOR,
-                    reason=violation,
-                    actor=operator,
+                self._fault(
+                    session,
+                    claimed_revision,
+                    step,
+                    violation,
+                    rollback=True,
+                    action=action,
+                    state_override=CommissioningState.EMERGENCY_STOP,
                 )
                 raise _engineering_error(EngineeringErrorCode.SAFETY_LIMIT_VIOLATION, violation)
         next_state = {
@@ -422,13 +596,14 @@ class CommissioningService:
         session.transition(next_state)
         session.current_step = step
         self._step(
-            session, step, CommissioningStepStatus.PASS, result.measurements, operator=operator
+            session, step, CommissioningStepStatus.PASS, result_measurements, operator=operator
         )
         self._persist(
             session,
-            expected_revision,
+            claimed_revision,
             f"commissioning.step.{step.lower()}.passed",
-            result.measurements,
+            result_measurements,
+            action=action,
         )
         return session
 
@@ -447,7 +622,13 @@ class CommissioningService:
                 EngineeringErrorCode.COMMISSIONING_BLOCKED,
                 "approval requires limited closed-loop pass",
             )
-        self._require_permissions(permissions, {Permission.ACTUATOR_ENABLE})
+        grants = self._require_permissions(
+            session,
+            permissions,
+            {Permission.ACTUATOR_ENABLE},
+            actor=actor,
+            action="APPROVE",
+        )
         if not all(
             any(
                 step.step_id == name and step.status is CommissioningStepStatus.PASS
@@ -468,6 +649,15 @@ class CommissioningService:
             "target_id": session.target_id,
             "hardware_identity": session.hardware_identity.model_dump(mode="json"),
             "safety_limits": session.safety_limits_snapshot.model_dump(mode="json"),
+            "profile_id": str(session.commissioning_profile_id),
+            "profile_version": self._profile(session).version,
+            "source_revision_id": str(session.source_revision_id)
+            if session.source_revision_id
+            else None,
+            "build_input_snapshot_id": str(session.build_input_snapshot_id)
+            if session.build_input_snapshot_id
+            else None,
+            "permission_token_ids": [str(item.token_id) for item in grants],
             "step_ids": [
                 step.step_id
                 for step in session.step_results
@@ -493,10 +683,23 @@ class CommissioningService:
             raise _engineering_error(
                 EngineeringErrorCode.COMMISSIONING_REQUIRED, "explicit approval is required"
             )
-        self._require_permissions(permissions, {Permission.ACTUATOR_ENABLE})
+        self._require_permissions(
+            session,
+            permissions,
+            {Permission.ACTUATOR_ENABLE},
+            actor=actor,
+            action="ENABLE_NORMAL_OPERATION",
+        )
         if (
             session.approval_snapshot is None
             or session.approval_snapshot.get("session_revision") != expected_revision
+            or session.approval_snapshot.get("firmware_hash") != session.firmware_hash
+            or session.approval_snapshot.get("target_id") != session.target_id
+            or session.approval_snapshot.get("source_revision_id")
+            != (str(session.source_revision_id) if session.source_revision_id else None)
+            or session.approval_snapshot.get("build_input_snapshot_id")
+            != (str(session.build_input_snapshot_id) if session.build_input_snapshot_id else None)
+            or session.approval_snapshot.get("profile_id") != str(session.commissioning_profile_id)
         ):
             raise _engineering_error(
                 EngineeringErrorCode.COMMISSIONING_BLOCKED, "approval is stale"
@@ -536,23 +739,28 @@ class CommissioningService:
         if session.state is CommissioningState.EMERGENCY_STOP:
             return session
         self._check_revision(session, expected_revision)
-        if source is EmergencyStopSource.USER:
-            self._require_permissions(permissions, {Permission.HARDWARE_CONTROL})
-        if session.state in {
-            CommissioningState.ABORTED,
-            CommissioningState.ROLLBACK_REQUIRED,
-            CommissioningState.NORMAL_OPERATION,
-        }:
+        if session.state is CommissioningState.ABORTED:
             raise _engineering_error(
                 EngineeringErrorCode.COMMISSIONING_BLOCKED,
-                "terminal commissioning state cannot be mutated",
-                state=session.state.value,
+                "an explicitly safe aborted session requires a new commissioning session",
             )
-        stop = self.adapter.emergency_stop()
-        safe = self.adapter.enter_safe_state()
+        action, claimed_revision = self._claim_action(
+            session,
+            expected_revision=expected_revision,
+            action="EMERGENCY_STOP",
+            expected_state=session.state,
+        )
+        # E-stop is a safety action and must remain reachable even when a grant is unavailable.
+        stop = self._safe_adapter_call("emergency_stop")
+        safe = self._safe_adapter_call("enter_safe_state")
         quarantined, quarantine_failures = self._quarantine_locks(session)
         verified = (
-            stop.ok and safe.ok and safe.safe_state_verified is True and not quarantine_failures
+            stop is not None
+            and stop.ok
+            and safe is not None
+            and safe.ok
+            and safe.safe_state_verified is True
+            and not quarantine_failures
         )
         session.emergency_stop_state = (
             EmergencyStopState.ACTIVE if verified else EmergencyStopState.UNKNOWN
@@ -591,18 +799,16 @@ class CommissioningService:
             {"verified": verified},
             operator=actor,
         )
-        if not self.repository.save_session(
-            session, expected_revision=expected_revision, commit=False
-        ):
-            raise _engineering_error(
-                EngineeringErrorCode.REVISION_CONFLICT, "commissioning CAS failed"
-            )
-        self._emit(
+        self._persist(
             session,
+            claimed_revision,
             "commissioning.emergency_stop",
             {"event_id": str(event.id), "verified": verified},
+            action=action,
+            action_status=(
+                SideEffectStatus.APPLIED if verified else SideEffectStatus.RECONCILE_REQUIRED
+            ),
         )
-        self.repository.commit()
         return session
 
     def handle_watchdog_loss(
@@ -649,10 +855,21 @@ class CommissioningService:
     ) -> HardwareCommissioningSession:
         session = self.get(session_id)
         self._check_revision(session, expected_revision)
-        self._require_permissions(permissions, {Permission.HARDWARE_CONTROL})
-        safe = self.adapter.enter_safe_state()
+        self._require_permissions(
+            session,
+            permissions,
+            {Permission.HARDWARE_CONTROL},
+            actor=actor,
+            action="ABORT",
+        )
+        safe = self._safe_adapter_call("enter_safe_state")
         quarantined, quarantine_failures = self._quarantine_locks(session)
-        safe_verified = safe.ok and safe.safe_state_verified is True and not quarantine_failures
+        safe_verified = (
+            safe is not None
+            and safe.ok
+            and safe.safe_state_verified is True
+            and not quarantine_failures
+        )
         session.transition(
             CommissioningState.ABORTED if safe_verified else CommissioningState.ROLLBACK_REQUIRED
         )
@@ -804,36 +1021,127 @@ class CommissioningService:
             failures.append(
                 {"check": "resource_lock", "reason": "lock lease is missing or expired"}
             )
-        elif not any(lock.resource_id == session.target_id for lock in locks if lock is not None):
+            return
+        for lock in (item for item in locks if item is not None):
+            if lock.project_id != session.project_id:
+                failures.append(
+                    {"check": "resource_lock", "reason": "lock project scope is not bound"}
+                )
+            if lock.owner_session != session.id:
+                failures.append(
+                    {"check": "resource_lock", "reason": "lock owner session is not bound"}
+                )
+        if not any(
+            lock.resource_type.value == "HardwareTarget" and lock.resource_id == session.target_id
+            for lock in locks
+            if lock is not None
+        ):
             failures.append(
                 {"check": "resource_lock", "reason": "HardwareTarget lock is not bound"}
             )
+        for lock in (item for item in locks if item is not None):
+            if lock.resource_type.value == "DebugProbe" and lock.resource_id not in {
+                session.probe_identity.serial,
+                session.probe_identity.port_path,
+            }:
+                failures.append(
+                    {"check": "resource_lock", "reason": "DebugProbe lock is not bound"}
+                )
 
-    @staticmethod
     def _check_permission_set(
+        self,
+        session: HardwareCommissioningSession,
         permissions: set[Permission],
         required: Sequence[Permission],
+        *,
+        actor: str,
         failures: list[dict[str, object]],
+        action: str,
     ) -> None:
-        missing = sorted(
-            permission.value for permission in required if permission not in permissions
-        )
-        if missing:
-            failures.append(
-                {"check": "permission", "reason": "required permission missing", "missing": missing}
+        try:
+            self._validated_permissions(
+                session, permissions, set(required), actor=actor, action=action
             )
+        except EngineeringError as exc:
+            failures.append({"check": "permission", "reason": exc.message, **exc.details})
 
-    @staticmethod
-    def _require_permissions(permissions: set[Permission], required: set[Permission]) -> None:
-        missing = sorted(
-            permission.value for permission in required if permission not in permissions
+    def _require_permissions(
+        self,
+        session: HardwareCommissioningSession,
+        permissions: set[Permission],
+        required: set[Permission],
+        *,
+        actor: str,
+        action: str,
+    ) -> list[ValidatedPermissionGrant]:
+        return self._validated_permissions(
+            session, permissions, required, actor=actor, action=action
         )
-        if missing:
-            raise _engineering_error(
-                EngineeringErrorCode.PERMISSION_REQUIRED,
-                "hardware permission is missing; permissions are not escalated by the agent",
-                missing=missing,
-            )
+
+    def _validated_permissions(
+        self,
+        session: HardwareCommissioningSession,
+        requested: set[Permission],
+        required: set[Permission],
+        *,
+        actor: str,
+        action: str,
+    ) -> list[ValidatedPermissionGrant]:
+        if self.permission_authority is None:
+            # Direct application tests from M18D predate the server authority.  The API never
+            # uses this compatibility path; production API services always inject an authority.
+            missing = sorted(item.value for item in required if item not in requested)
+            if missing:
+                raise _engineering_error(
+                    EngineeringErrorCode.PERMISSION_REQUIRED,
+                    "hardware permission is missing; permissions are not escalated by the agent",
+                    missing=missing,
+                )
+            return [
+                ValidatedPermissionGrant(
+                    token_id=uuid5(NAMESPACE_URL, f"legacy-test-grant:{session.id}:{item.value}"),
+                    actor_id=actor,
+                    project_id=session.project_id,
+                    permission=item,
+                    resource_type="HardwareTarget",
+                    resource_id=session.target_id,
+                    session_id=session.id,
+                )
+                for item in sorted(required, key=lambda value: value.value)
+            ]
+        grants: list[ValidatedPermissionGrant] = []
+        for permission in sorted(required, key=lambda value: value.value):
+            verified: ValidatedPermissionGrant | None = None
+            for raw_id in session.permission_token_ids:
+                try:
+                    token_id = UUID(raw_id)
+                except ValueError:
+                    continue
+                grant = self.permission_authority.verify(
+                    PermissionVerificationContext(
+                        token_id=token_id,
+                        actor_id=actor,
+                        project_id=session.project_id,
+                        permission=permission,
+                        resource_type="HardwareTarget",
+                        resource_id=session.target_id,
+                        session_id=session.id,
+                        now=self.now(),
+                    )
+                )
+                if grant is not None:
+                    verified = grant
+                    break
+            if verified is None:
+                raise _engineering_error(
+                    EngineeringErrorCode.PERMISSION_REQUIRED,
+                    "server-side permission token is missing, expired, or out of scope",
+                    action=action,
+                    permission=permission.value,
+                )
+            grants.append(verified)
+        session.metadata["validated_permission_token_ids"] = [str(item.token_id) for item in grants]
+        return grants
 
     def _step(
         self,
@@ -878,6 +1186,14 @@ class CommissioningService:
                 "target_identity": session.hardware_identity.model_dump(mode="json"),
                 "probe_identity": session.probe_identity.model_dump(mode="json"),
                 "safety_limits": session.safety_limits_snapshot.model_dump(mode="json"),
+                "permission_token_ids": list(
+                    cast(
+                        list[object],
+                        session.metadata.get(
+                            "validated_permission_token_ids", session.permission_token_ids
+                        ),
+                    )
+                ),
                 "measurements": measurements,
                 "tool": self.adapter.name,
                 "tool_version": self.adapter.version,
@@ -893,7 +1209,28 @@ class CommissioningService:
         expected_revision: int,
         event_type: str,
         payload: dict[str, object],
+        *,
+        action: HardwareActionIntent | None = None,
+        action_status: SideEffectStatus = SideEffectStatus.APPLIED,
     ) -> None:
+        if action is not None:
+            session.active_action_id = None
+            session.active_action_kind = None
+            session.active_action_started_at = None
+            session.active_action_expected_revision = None
+            session.active_action_request_hash = None
+            session.active_action_journal_id = None
+            self.repository.finalize_hardware_action(
+                action,
+                status=action_status,
+                result_ref=str(session.id),
+                error=(
+                    cast(str, payload["reason"])
+                    if action_status is not SideEffectStatus.APPLIED
+                    and isinstance(payload.get("reason"), str)
+                    else None
+                ),
+            )
         if not self.repository.save_session(
             session, expected_revision=expected_revision, commit=False
         ):
@@ -902,6 +1239,65 @@ class CommissioningService:
             )
         self._emit(session, event_type, payload)
         self.repository.commit()
+
+    def _claim_action(
+        self,
+        session: HardwareCommissioningSession,
+        *,
+        expected_revision: int,
+        action: str,
+        expected_state: CommissioningState,
+    ) -> tuple[HardwareActionIntent | None, int]:
+        if session.active_action_id is not None:
+            raise _engineering_error(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "a previous hardware action has not been reconciled",
+                action_id=str(session.active_action_id),
+            )
+        claimer = getattr(self.repository, "claim_hardware_action", None)
+        if claimer is None:
+            return None, expected_revision
+        payload = {
+            "project_id": str(session.project_id),
+            "firmware_hash": session.firmware_hash,
+            "target_identity": session.hardware_identity.model_dump(mode="json"),
+            "probe_identity": session.probe_identity.model_dump(mode="json"),
+            "safety_limits": session.safety_limits_snapshot.model_dump(mode="json"),
+            "resource_lock_ids": [str(item) for item in session.resource_lock_ids],
+            "permission_token_ids": [str(item) for item in session.permission_token_ids],
+        }
+        request_hash = payload_sha256(
+            {
+                "session_id": str(session.id),
+                "revision": expected_revision,
+                "action": action,
+                **payload,
+            }
+        )
+        intent = claimer(
+            session_id=session.id,
+            expected_revision=expected_revision,
+            expected_state=expected_state,
+            action=action,
+            request_hash=request_hash,
+            payload=payload,
+        )
+        if intent is None:
+            raise _engineering_error(
+                EngineeringErrorCode.RESOURCE_BUSY,
+                "another service owns this commissioning action or recovery is required",
+                session_id=str(session.id),
+                action=action,
+            )
+        session.active_action_id = intent.action_id
+        session.active_action_kind = intent.action
+        session.active_action_started_at = intent.started_at
+        session.active_action_expected_revision = intent.expected_revision
+        session.active_action_request_hash = intent.request_hash
+        session.active_action_journal_id = intent.journal_id
+        session.revision = intent.claimed_revision
+        self.repository.commit()
+        return intent, intent.claimed_revision
 
     def _emit(
         self, session: HardwareCommissioningSession, event_type: str, payload: dict[str, object]
@@ -926,13 +1322,45 @@ class CommissioningService:
         reason: str,
         *,
         rollback: bool = False,
+        action: HardwareActionIntent | None = None,
+        details: dict[str, object] | None = None,
+        state_override: CommissioningState | None = None,
     ) -> HardwareCommissioningSession:
-        session.transition(
-            CommissioningState.ROLLBACK_REQUIRED if rollback else CommissioningState.FAULTED
+        stop = self._safe_adapter_call("emergency_stop")
+        safe = self._safe_adapter_call("enter_safe_state")
+        quarantined, quarantine_failures = self._quarantine_locks(session)
+        safe_proven = (
+            stop is not None
+            and stop.ok
+            and safe is not None
+            and safe.ok
+            and safe.safe_state_verified is True
+            and not quarantine_failures
         )
-        self._step(session, step_id, CommissioningStepStatus.FAIL, {"reason": reason})
+        final_state = state_override or (
+            CommissioningState.ROLLBACK_REQUIRED
+            if rollback or not safe_proven
+            else CommissioningState.FAULTED
+        )
+        session.transition(final_state)
+        measurements: dict[str, object] = {
+            "reason": reason,
+            "safe_state_proven": safe_proven,
+            "quarantined_resource_ids": [str(item) for item in quarantined],
+            "quarantine_failures": quarantine_failures,
+        }
+        if details:
+            measurements.update(details)
+        self._step(session, step_id, CommissioningStepStatus.FAIL, measurements)
         self._persist(
-            session, expected_revision, "commissioning.session.faulted", {"reason": reason}
+            session,
+            expected_revision,
+            "commissioning.session.faulted",
+            measurements,
+            action=action,
+            action_status=(
+                SideEffectStatus.FAILED if safe_proven else SideEffectStatus.RECONCILE_REQUIRED
+            ),
         )
         return session
 
@@ -942,57 +1370,173 @@ class CommissioningService:
         expected_revision: int,
         step_id: str,
         failures: list[dict[str, object]],
+        *,
+        action: HardwareActionIntent | None = None,
     ) -> None:
         session.transition(CommissioningState.BLOCKED)
         self._step(session, step_id, CommissioningStepStatus.BLOCKED, {"failures": failures})
         self._persist(
-            session, expected_revision, "commissioning.step.blocked", {"failures": failures}
+            session,
+            expected_revision,
+            "commissioning.step.blocked",
+            {"failures": failures},
+            action=action,
+            action_status=SideEffectStatus.FAILED,
         )
+
+    def _safe_adapter_call(self, operation: str) -> HardwareAdapterResult | None:
+        try:
+            result = cast(HardwareAdapterResult, getattr(self.adapter, operation)())
+        except Exception:
+            return None
+        if (
+            result.ok
+            and operation in {"emergency_stop", "enter_safe_state"}
+            and result.safe_state_verified is True
+        ):
+            return result
+        return result
+
+    def _runtime_violation(self, duration: float, limits: SafetyLimit) -> str | None:
+        if limits.max_test_runtime is None:
+            return "max_test_runtime is required for limited operation"
+        ceiling = limits.max_test_runtime.require_normalized_nominal()
+        return (
+            f"runtime exceeded safety limit ({duration} > {ceiling})"
+            if duration > ceiling
+            else None
+        )
+
+    def _check_composition_rules(
+        self,
+        session: HardwareCommissioningSession,
+        measurements: dict[str, object],
+        step: str,
+    ) -> list[dict[str, object]]:
+        if step != "CLOSED_LOOP_LIMITED" or self.composition_lookup is None:
+            return []
+        failures: list[dict[str, object]] = []
+        results: list[dict[str, object]] = []
+        for contribution in self.composition_lookup(session.project_id):
+            value = measurements.get(contribution.measurement_key)
+            passed = (
+                value is True
+                or value == "PASS"
+                or (isinstance(value, dict) and value.get("status") == "PASS")
+            )
+            results.append(
+                {
+                    "rule_id": contribution.rule_id,
+                    "status": "PASS" if passed else "UNKNOWN",
+                }
+            )
+            if contribution.safety_critical and not passed:
+                failures.append(
+                    {
+                        "rule_id": contribution.rule_id,
+                        "measurement": contribution.measurement_key,
+                        "reason": "mandatory domain safety contribution is missing or not PASS",
+                    }
+                )
+        session.metadata["commissioning_rule_results"] = results
+        return failures
 
     @staticmethod
     def _limit_violation(
         step: str, measurements: dict[str, object], limits: SafetyLimit
     ) -> str | None:
-        numeric = {
-            key: value for key, value in measurements.items() if isinstance(value, int | float)
+        dimensions = {
+            "phase_current": limits.max_phase_current,
+            "iq": limits.max_iq,
+            "id": limits.max_id,
+            "speed": limits.max_speed,
+            "bus_voltage": limits.max_bus_voltage,
+            "temperature": limits.max_temperature,
+            "current_ramp_rate": limits.current_ramp_rate,
+            "speed_ramp_rate": limits.speed_ramp_rate,
+            "position_delta": limits.max_position_delta,
         }
-        checks: list[tuple[str, float | None, float | None]] = []
-        current = (
-            limits.max_phase_current.require_normalized_nominal()
-            if limits.max_phase_current
-            else None
-        )
-        speed = limits.max_speed.require_normalized_nominal() if limits.max_speed else None
-        checks.extend(
-            (
-                (
-                    "phase_current",
-                    current,
-                    float(numeric["phase_current"]) if "phase_current" in numeric else None,
-                ),
-                (
-                    "iq",
-                    limits.max_iq.require_normalized_nominal() if limits.max_iq else None,
-                    float(numeric["iq"]) if "iq" in numeric else None,
-                ),
-                ("speed", speed, float(numeric["speed"]) if "speed" in numeric else None),
-                (
-                    "duty_cycle",
-                    limits.max_duty_cycle,
-                    float(numeric["duty_cycle"]) if "duty_cycle" in numeric else None,
-                ),
-            )
-        )
+        normalized: dict[str, float] = {}
+        for name, ceiling in dimensions.items():
+            if ceiling is None or name not in measurements:
+                continue
+            value = CommissioningService._canonical_measurement(measurements[name], ceiling)
+            if value is None:
+                return f"{step} measurement {name} is missing, unknown, or dimension-mismatched"
+            normalized[name] = value
         required = {
-            "LOW_POWER": {"phase_current", "duty_cycle"},
-            "CLOSED_LOOP_LIMITED": {"phase_current", "speed", "duty_cycle"},
+            "LOW_POWER": {"phase_current", "duty_cycle", "bus_voltage", "temperature"},
+            "CLOSED_LOOP_LIMITED": {
+                "phase_current",
+                "iq",
+                "id",
+                "speed",
+                "duty_cycle",
+                "bus_voltage",
+                "temperature",
+            },
         }[step]
-        if not required.issubset(numeric):
+        if measurements.get("position_control_active") is True:
+            required.add("position_delta")
+        if not required.issubset(measurements):
             return f"{step} did not produce all mandatory safety measurements"
-        for name, ceiling, observed in checks:
-            if ceiling is not None and observed is not None and observed > ceiling + 1e-12:
-                return f"{name} exceeded safety limit ({observed} > {ceiling})"
+        if "runtime_seconds" not in measurements:
+            return f"{step} did not produce mandatory runtime measurement"
+        runtime_raw = measurements["runtime_seconds"]
+        if not isinstance(runtime_raw, (int, float, str)) or isinstance(runtime_raw, bool):
+            return f"{step} runtime measurement is unknown"
+        try:
+            runtime = float(runtime_raw)
+        except (TypeError, ValueError):
+            return f"{step} runtime measurement is unknown"
+        if limits.max_test_runtime is None:
+            return f"{step} max_test_runtime is not configured"
+        if runtime > limits.max_test_runtime.require_normalized_nominal() + 1e-12:
+            runtime_ceiling = limits.max_test_runtime.require_normalized_nominal()
+            return f"runtime exceeded safety limit ({runtime} > {runtime_ceiling})"
+        if limits.max_duty_cycle is not None:
+            duty_raw = measurements["duty_cycle"]
+            if not isinstance(duty_raw, (int, float, str)) or isinstance(duty_raw, bool):
+                return f"{step} duty_cycle measurement is unknown"
+            try:
+                duty = float(duty_raw)
+            except (TypeError, ValueError):
+                return f"{step} duty_cycle measurement is unknown"
+            if not 0 <= duty <= limits.max_duty_cycle + 1e-12:
+                return f"duty_cycle exceeded safety limit ({duty} > {limits.max_duty_cycle})"
+        for name, observed in normalized.items():
+            limit_value = dimensions[name]
+            if (
+                limit_value is not None
+                and observed > limit_value.require_normalized_nominal() + 1e-12
+            ):
+                maximum = limit_value.require_normalized_nominal()
+                return f"{name} exceeded safety limit ({observed} > {maximum})"
         return None
+
+    @staticmethod
+    def _canonical_measurement(raw: object, ceiling: EngineeringValue) -> float | None:
+        value: EngineeringValue | None = None
+        if isinstance(raw, EngineeringValue):
+            value = raw
+        elif isinstance(raw, dict):
+            candidate = raw.get("engineering_value", raw)
+            if isinstance(candidate, dict) and {
+                "value",
+                "unit",
+                "dimension",
+            }.issubset(candidate):
+                try:
+                    value = EngineeringValue(
+                        unit=str(candidate["unit"]),
+                        dimension=candidate["dimension"],
+                        nominal=float(candidate["value"]),
+                    )
+                except (TypeError, ValueError):
+                    return None
+        if value is None or value.dimension is not ceiling.dimension:
+            return None
+        return value.require_normalized_nominal()
 
 
 __all__ = [

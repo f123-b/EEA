@@ -2,20 +2,36 @@
 
 from __future__ import annotations
 
+from datetime import UTC, timedelta
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
+from eea_application.reliability import EventOutboxService
 from eea_core.entities import Evidence, utc_now
 from eea_core.hardware import (
     CommissioningProfile,
+    CommissioningState,
     CommissioningStepResult,
     EmergencyStopEvent,
+    HardwareActionIntent,
     HardwareCommissioningSession,
     ResourceLock,
+    ResourceLockStatus,
+    ResourceType,
     TargetSafetyCapability,
+)
+from eea_core.reliability import (
+    SideEffectJournal,
+    SideEffectStatus,
+)
+from eea_core.security import (
+    PermissionToken,
+    PermissionVerificationContext,
+    ValidatedPermissionGrant,
 )
 from sqlalchemy import select, update
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from eea_backend.models import (
@@ -26,10 +42,15 @@ from eea_backend.models import (
     CommissioningSessionRecord,
     CommissioningStepResultRecord,
     EmergencyStopEventRecord,
+    PermissionTokenRecord,
     ResourceLockRecord,
     SafetyLimitRecord,
     SourceRevisionRecord,
     TargetSafetyCapabilityRecord,
+)
+from eea_backend.reliability_repositories import (
+    SqlAlchemyOutboxRepository,
+    SqlAlchemySideEffectJournalRepository,
 )
 from eea_backend.repositories import SqlAlchemyEvidenceRepository
 
@@ -121,6 +142,12 @@ def _session(
             "approval_snapshot": record.approval_snapshot,
             "completed_at": record.completed_at,
             "aborted_at": record.aborted_at,
+            "active_action_id": record.active_action_id,
+            "active_action_kind": record.active_action_kind,
+            "active_action_started_at": record.active_action_started_at,
+            "active_action_expected_revision": record.active_action_expected_revision,
+            "active_action_request_hash": record.active_action_request_hash,
+            "active_action_journal_id": record.active_action_journal_id,
         }
     )
 
@@ -145,6 +172,86 @@ def _lock(record: ResourceLockRecord) -> ResourceLock:
             "status": record.status,
         }
     )
+
+
+class SqlAlchemyPermissionAuthority:
+    """Server-side verifier; request-body permission lists never reach this authority."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def issue(self, token: PermissionToken, *, commit: bool = True) -> PermissionToken:
+        record = PermissionTokenRecord(
+            id=str(token.id),
+            schema_version=token.schema_version,
+            revision=token.revision,
+            created_at=token.created_at,
+            updated_at=token.updated_at,
+            entity_metadata=token.metadata,
+            project_id=str(token.project_id),
+            actor_id=token.actor_id,
+            permission=token.permission.value,
+            resource_type=token.resource_type,
+            resource_id=token.resource_id,
+            issued_at=token.issued_at,
+            expires_at=token.expires_at,
+            status=token.status.value,
+            session_id=str(token.session_id) if token.session_id else None,
+            reason=token.reason,
+            evidence_ids=[str(item) for item in token.evidence_ids],
+        )
+        self.session.add(record)
+        self.session.flush()
+        if commit:
+            self.session.commit()
+        return token
+
+    def verify(self, context: PermissionVerificationContext) -> ValidatedPermissionGrant | None:
+        record = self.session.get(PermissionTokenRecord, str(context.token_id))
+        if record is None:
+            return None
+        token = PermissionToken.model_validate(
+            {
+                "id": record.id,
+                "schema_version": record.schema_version,
+                "revision": record.revision,
+                "created_at": record.created_at,
+                "updated_at": record.updated_at,
+                "metadata": record.entity_metadata,
+                "project_id": record.project_id,
+                "actor_id": record.actor_id,
+                "permission": record.permission,
+                "resource_type": record.resource_type,
+                "resource_id": record.resource_id,
+                "issued_at": record.issued_at,
+                "expires_at": record.expires_at,
+                "status": record.status,
+                "session_id": record.session_id,
+                "reason": record.reason,
+                "evidence_ids": record.evidence_ids,
+            }
+        )
+        if not token.is_valid(context.now):
+            return None
+        if (
+            token.actor_id != context.actor_id
+            or token.project_id != context.project_id
+            or token.permission is not context.permission
+            or token.resource_type != context.resource_type
+            or token.resource_id != context.resource_id
+            or (token.session_id is not None and token.session_id != context.session_id)
+        ):
+            return None
+        return ValidatedPermissionGrant(
+            token_id=token.id,
+            actor_id=token.actor_id,
+            project_id=token.project_id,
+            permission=token.permission,
+            resource_type=token.resource_type,
+            resource_id=token.resource_id,
+            session_id=token.session_id,
+            verified_at=context.now,
+        )
 
 
 class SqlAlchemyCommissioningRepository:
@@ -235,6 +342,14 @@ class SqlAlchemyCommissioningRepository:
             approval_snapshot=session.approval_snapshot,
             completed_at=session.completed_at,
             aborted_at=session.aborted_at,
+            active_action_id=str(session.active_action_id) if session.active_action_id else None,
+            active_action_kind=session.active_action_kind,
+            active_action_started_at=session.active_action_started_at,
+            active_action_expected_revision=session.active_action_expected_revision,
+            active_action_request_hash=session.active_action_request_hash,
+            active_action_journal_id=(
+                str(session.active_action_journal_id) if session.active_action_journal_id else None
+            ),
         )
         self.session.add(record)
         self.session.add(
@@ -294,6 +409,18 @@ class SqlAlchemyCommissioningRepository:
                     approval_snapshot=session.approval_snapshot,
                     completed_at=session.completed_at,
                     aborted_at=session.aborted_at,
+                    active_action_id=(
+                        str(session.active_action_id) if session.active_action_id else None
+                    ),
+                    active_action_kind=session.active_action_kind,
+                    active_action_started_at=session.active_action_started_at,
+                    active_action_expected_revision=session.active_action_expected_revision,
+                    active_action_request_hash=session.active_action_request_hash,
+                    active_action_journal_id=(
+                        str(session.active_action_journal_id)
+                        if session.active_action_journal_id
+                        else None
+                    ),
                 ),
             ),
         )
@@ -385,6 +512,130 @@ class SqlAlchemyCommissioningRepository:
         record = self.session.get(ResourceLockRecord, str(lock_id))
         return _lock(record) if record else None
 
+    def bind_lock(self, lock_id: UUID, *, project_id: UUID, session_id: UUID) -> bool:
+        result = self.session.execute(
+            update(ResourceLockRecord)
+            .where(
+                ResourceLockRecord.id == str(lock_id),
+                ResourceLockRecord.project_id == str(project_id),
+                ResourceLockRecord.status == ResourceLockStatus.ACTIVE.value,
+                ResourceLockRecord.owner_session.is_(None),
+            )
+            .values(owner_session=str(session_id), updated_at=utc_now())
+        )
+        self.session.flush()
+        return bool(getattr(result, "rowcount", 0) == 1)
+
+    def acquire_lock(
+        self,
+        *,
+        project_id: UUID,
+        resource_type: ResourceType,
+        resource_id: str,
+        owner_session: UUID | None,
+        owner_job_id: UUID | None = None,
+        lease_seconds: int = 30,
+    ) -> ResourceLock | None:
+        """Acquire one exclusive resource with an atomic update/insert boundary."""
+
+        now = utc_now()
+        expires = now + timedelta(seconds=lease_seconds)
+        existing = self.session.scalar(
+            select(ResourceLockRecord).where(
+                ResourceLockRecord.resource_type == resource_type.value,
+                ResourceLockRecord.resource_id == resource_id,
+                ResourceLockRecord.status == ResourceLockStatus.ACTIVE.value,
+            )
+        )
+        if existing is not None:
+            if existing.owner_session == (str(owner_session) if owner_session else None):
+                existing.heartbeat_at = now
+                existing.lease_expires_at = expires
+                existing.updated_at = now
+                self.session.flush()
+                return _lock(existing)
+            lease_expires_at = existing.lease_expires_at
+            if lease_expires_at.tzinfo is None:
+                lease_expires_at = lease_expires_at.replace(tzinfo=UTC)
+            if lease_expires_at >= now:
+                return None
+            reclaimed = self.session.execute(
+                update(ResourceLockRecord)
+                .where(
+                    ResourceLockRecord.id == existing.id,
+                    ResourceLockRecord.status == ResourceLockStatus.ACTIVE.value,
+                    ResourceLockRecord.lease_expires_at < now,
+                )
+                .values(
+                    project_id=str(project_id),
+                    owner_session=str(owner_session) if owner_session else None,
+                    owner_job_id=str(owner_job_id) if owner_job_id else None,
+                    acquired_at=now,
+                    heartbeat_at=now,
+                    lease_expires_at=expires,
+                    revision=ResourceLockRecord.revision + 1,
+                    updated_at=now,
+                )
+            )
+            if getattr(reclaimed, "rowcount", 0) == 1:
+                self.session.flush()
+                refreshed = self.session.get(ResourceLockRecord, existing.id)
+                return _lock(refreshed) if refreshed is not None else None
+            return None
+        record = ResourceLockRecord(
+            id=str(uuid4()),
+            schema_version="1.0",
+            revision=1,
+            created_at=now,
+            updated_at=now,
+            entity_metadata={},
+            project_id=str(project_id),
+            resource_type=resource_type.value,
+            resource_id=resource_id,
+            owner_job_id=str(owner_job_id) if owner_job_id else None,
+            owner_session=str(owner_session) if owner_session else None,
+            acquired_at=now,
+            heartbeat_at=now,
+            lease_expires_at=expires,
+            status=ResourceLockStatus.ACTIVE.value,
+        )
+        try:
+            with self.session.begin_nested():
+                self.session.add(record)
+                self.session.flush()
+        except (IntegrityError, OperationalError):
+            return None
+        return _lock(record)
+
+    def heartbeat_lock(
+        self, lock_id: UUID, *, owner_session: UUID, lease_seconds: int = 30
+    ) -> bool:
+        now = utc_now()
+        result = self.session.execute(
+            update(ResourceLockRecord)
+            .where(
+                ResourceLockRecord.id == str(lock_id),
+                ResourceLockRecord.status == ResourceLockStatus.ACTIVE.value,
+                ResourceLockRecord.owner_session == str(owner_session),
+            )
+            .values(heartbeat_at=now, lease_expires_at=now + timedelta(seconds=lease_seconds))
+        )
+        self.session.flush()
+        return bool(getattr(result, "rowcount", 0) == 1)
+
+    def release_lock(self, lock_id: UUID, *, owner_session: UUID) -> bool:
+        result = self.session.execute(
+            update(ResourceLockRecord)
+            .where(
+                ResourceLockRecord.id == str(lock_id),
+                ResourceLockRecord.status == ResourceLockStatus.ACTIVE.value,
+                ResourceLockRecord.owner_session == str(owner_session),
+            )
+            .values(status=ResourceLockStatus.RELEASED.value, updated_at=utc_now())
+        )
+        self.session.flush()
+        return bool(getattr(result, "rowcount", 0) == 1)
+
     def quarantine_lock(self, lock_id: UUID, *, commit: bool) -> bool:
         existing = self.session.get(ResourceLockRecord, str(lock_id))
         if existing is None:
@@ -415,6 +666,110 @@ class SqlAlchemyCommissioningRepository:
         if commit:
             self.session.commit()
         return True
+
+    def claim_hardware_action(
+        self,
+        *,
+        session_id: UUID,
+        expected_revision: int,
+        expected_state: CommissioningState,
+        action: str,
+        request_hash: str,
+        payload: dict[str, object],
+    ) -> HardwareActionIntent | None:
+        """Atomically claim a session and prepare its M18A side-effect journal."""
+
+        now = utc_now()
+        action_id = uuid4()
+        journal_id = uuid4()
+        event_service = EventOutboxService(SqlAlchemyOutboxRepository(self.session))
+        result = self.session.execute(
+            update(CommissioningSessionRecord)
+            .where(
+                CommissioningSessionRecord.id == str(session_id),
+                CommissioningSessionRecord.revision == expected_revision,
+                CommissioningSessionRecord.state == expected_state.value,
+                CommissioningSessionRecord.active_action_id.is_(None),
+            )
+            .values(
+                revision=expected_revision + 1,
+                active_action_id=str(action_id),
+                active_action_kind=action,
+                active_action_started_at=now,
+                active_action_expected_revision=expected_revision,
+                active_action_request_hash=request_hash,
+                active_action_journal_id=str(journal_id),
+                updated_at=now,
+            )
+        )
+        if getattr(result, "rowcount", 0) != 1:
+            self.session.rollback()
+            return None
+        event = event_service.enqueue(
+            event_type="commissioning.hardware_action.requested",
+            aggregate_type="HardwareCommissioningSession",
+            aggregate_id=str(session_id),
+            event_key=f"commissioning.hardware-action:{session_id}:{expected_revision}:{action}",
+            aggregate_revision=expected_revision + 1,
+            project_id=payload.get("project_id"),
+            payload={
+                **payload,
+                "session_id": str(session_id),
+                "action_id": str(action_id),
+                "action": action,
+                "expected_revision": expected_revision,
+                "request_hash": request_hash,
+                "journal_id": str(journal_id),
+            },
+            commit=False,
+        )
+        journal = SqlAlchemySideEffectJournalRepository(self.session).prepare(
+            SideEffectJournal(
+                id=journal_id,
+                event_id=event.id,
+                consumer_id="hardware-commissioning",
+                effect_key=f"hardware-action:{action_id}",
+                effect_type="commissioning.hardware-action",
+                request_hash=request_hash,
+                status=SideEffectStatus.PREPARED,
+                prepared_at=now,
+                updated_at=now,
+            )
+        )
+        return HardwareActionIntent(
+            action_id=action_id,
+            session_id=session_id,
+            action=action,
+            expected_revision=expected_revision,
+            claimed_revision=expected_revision + 1,
+            request_hash=request_hash,
+            event_id=event.id,
+            journal_id=journal.id,
+            started_at=now,
+        )
+
+    def finalize_hardware_action(
+        self,
+        intent: HardwareActionIntent,
+        *,
+        status: SideEffectStatus,
+        result_ref: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        journal_repo = SqlAlchemySideEffectJournalRepository(self.session)
+        item = journal_repo.get(
+            intent.event_id, "hardware-commissioning", f"hardware-action:{intent.action_id}"
+        )
+        if item is None:
+            raise ValueError("hardware action journal is missing")
+        if status is SideEffectStatus.APPLIED:
+            journal_repo.mark_applied(item, result_ref=result_ref, now=utc_now())
+        elif status is SideEffectStatus.FAILED:
+            journal_repo.mark_failed(item, error=error or "hardware action failed", now=utc_now())
+        else:
+            journal_repo.mark_reconcile_required(
+                item, error=error or "hardware action outcome is unknown", now=utc_now()
+            )
 
     def get_capability(self, target_id: str) -> TargetSafetyCapability | None:
         record = self.session.scalar(

@@ -29,6 +29,7 @@ from eea_application.reliability import (
 from eea_core.dependency_graph import DependencyNodeRef
 from eea_core.entities import utc_now
 from eea_core.enums import DependencyNodeStatus, JobStatus
+from eea_core.hardware import CommissioningState, EmergencyStopState, ResourceLockStatus
 from eea_core.reliability import (
     OutboxEvent,
     OutboxEventStatus,
@@ -44,9 +45,11 @@ from eea_backend.dependency_providers import build_dependency_provider_registry
 from eea_backend.dependency_repositories import SqlAlchemyDependencyGraphRepository
 from eea_backend.models import (
     ArtifactRecord,
+    CommissioningSessionRecord,
     EngineeringDependencyNodeStateRecord,
     JobRecord,
     OutboxEventRecord,
+    ResourceLockRecord,
     SideEffectJournalRecord,
 )
 from eea_backend.reliability_repositories import (
@@ -404,8 +407,96 @@ class RecoveryService:
     def startup_recover(self, *, batch_limit: int = 100) -> dict[str, Any]:
         reclaimed = self.recover_expired_outbox_leases(limit=batch_limit)
         interrupted = self.reconcile_interrupted_jobs(limit=batch_limit)
+        hardware_actions = self.reconcile_pending_hardware_actions(limit=batch_limit)
         dispatched = self.dispatch_ready_events(limit=batch_limit)
-        return {"reclaimed": reclaimed, "interrupted_jobs": interrupted, "dispatch": dispatched}
+        return {
+            "reclaimed": reclaimed,
+            "interrupted_jobs": interrupted,
+            "hardware_actions": hardware_actions,
+            "dispatch": dispatched,
+        }
+
+    def reconcile_pending_hardware_actions(
+        self, *, limit: int = 100, project_id: UUID | None = None
+    ) -> int:
+        """Quarantine unknown hardware outcomes without replaying a dangerous command.
+
+        A prepared commissioning action is a durable claim, not permission to retry.  Startup
+        has no hardware adapter authority, so the only safe deterministic outcome is explicit
+        reconciliation-required state plus lock quarantine.  A later operator workflow may
+        verify the target and finalize the existing journal; it must never issue a blind retry.
+        """
+
+        with self._session_factory() as session:
+
+            def reconcile() -> int:
+                statement = (
+                    select(SideEffectJournalRecord, OutboxEventRecord)
+                    .join(
+                        OutboxEventRecord,
+                        SideEffectJournalRecord.event_id == OutboxEventRecord.id,
+                    )
+                    .where(
+                        SideEffectJournalRecord.status == SideEffectStatus.PREPARED.value,
+                        SideEffectJournalRecord.effect_type == "commissioning.hardware-action",
+                    )
+                    .limit(limit)
+                )
+                if project_id is not None:
+                    statement = statement.where(OutboxEventRecord.project_id == str(project_id))
+                rows = list(session.execute(statement))
+                reconciled = 0
+                now = self.clock.now()
+                for journal_record, event_record in rows:
+                    changed = session.execute(
+                        update(SideEffectJournalRecord)
+                        .where(
+                            SideEffectJournalRecord.id == journal_record.id,
+                            SideEffectJournalRecord.status == SideEffectStatus.PREPARED.value,
+                        )
+                        .values(
+                            status=SideEffectStatus.RECONCILE_REQUIRED.value,
+                            last_error=(
+                                "hardware action outcome is unknown after startup; "
+                                "explicit reconciliation is required"
+                            ),
+                            updated_at=now,
+                        )
+                    )
+                    if getattr(changed, "rowcount", 0) != 1:
+                        continue
+                    payload = event_record.payload
+                    session_id = payload.get("session_id")
+                    if isinstance(session_id, str):
+                        commissioning = session.get(CommissioningSessionRecord, session_id)
+                        if (
+                            commissioning is not None
+                            and commissioning.active_action_journal_id == journal_record.id
+                        ):
+                            commissioning.state = CommissioningState.ROLLBACK_REQUIRED.value
+                            commissioning.emergency_stop_state = EmergencyStopState.UNKNOWN.value
+                            commissioning.updated_at = now
+                            commissioning.revision += 1
+                            for raw_lock_id in payload.get("resource_lock_ids", []):
+                                if not isinstance(raw_lock_id, str):
+                                    continue
+                                session.execute(
+                                    update(ResourceLockRecord)
+                                    .where(
+                                        ResourceLockRecord.id == raw_lock_id,
+                                        ResourceLockRecord.status
+                                        == ResourceLockStatus.ACTIVE.value,
+                                    )
+                                    .values(
+                                        status=ResourceLockStatus.QUARANTINED.value,
+                                        updated_at=now,
+                                        revision=ResourceLockRecord.revision + 1,
+                                    )
+                                )
+                    reconciled += 1
+                return reconciled
+
+            return int(commit_with_busy_retry(session, self.busy_retry, reconcile) or 0)
 
 
 class OutboxDispatcher:
@@ -639,6 +730,13 @@ def _commissioning_event(session: Session, event: OutboxEvent) -> str:
     )
 
 
+def _commissioning_hardware_action_requested(session: Session, event: OutboxEvent) -> str:
+    """Acknowledge the durable intent without ever executing hardware during delivery."""
+
+    del session
+    return str(event.payload.get("action_id", event.aggregate_id))
+
+
 def default_handler_registry() -> OutboxHandlerRegistry:
     commissioning_events = (
         "commissioning.session.created",
@@ -677,6 +775,12 @@ def default_handler_registry() -> OutboxHandlerRegistry:
                     _commissioning_event,
                 )
                 for event_type in commissioning_events
+            ),
+            HandlerRegistration(
+                "commissioning-hardware-action-intent-v1",
+                "commissioning.hardware_action.requested",
+                frozenset({1}),
+                _commissioning_hardware_action_requested,
             ),
         )
     )

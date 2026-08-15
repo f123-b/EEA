@@ -421,6 +421,12 @@ class HardwareCommissioningSession(EntityBase):
     approval_snapshot: dict[str, object] | None = None
     completed_at: datetime | None = None
     aborted_at: datetime | None = None
+    active_action_id: UUID | None = None
+    active_action_kind: str | None = None
+    active_action_started_at: datetime | None = None
+    active_action_expected_revision: int | None = None
+    active_action_request_hash: Sha256 | None = None
+    active_action_journal_id: UUID | None = None
 
     def transition(self, target: CommissioningState) -> None:
         allowed: dict[CommissioningState, set[CommissioningState]] = {
@@ -445,14 +451,20 @@ class HardwareCommissioningSession(EntityBase):
             CommissioningState.FAULTED,
             CommissioningState.ROLLBACK_REQUIRED,
         }
-        terminal = {
-            CommissioningState.NORMAL_OPERATION,
-            CommissioningState.ABORTED,
-            CommissioningState.EMERGENCY_STOP,
-            CommissioningState.ROLLBACK_REQUIRED,
-        }
-        if target not in allowed[self.state] and not (
-            target in exceptional and self.state not in terminal
+        emergency_stop_allowed = (
+            target is CommissioningState.EMERGENCY_STOP
+            and self.state is not CommissioningState.EMERGENCY_STOP
+        )
+        exceptional_allowed = (
+            target in exceptional
+            and target is not CommissioningState.EMERGENCY_STOP
+            and self.state
+            not in {CommissioningState.NORMAL_OPERATION, CommissioningState.EMERGENCY_STOP}
+        )
+        if (
+            target not in allowed[self.state]
+            and not emergency_stop_allowed
+            and not exceptional_allowed
         ):
             raise ValueError(f"illegal commissioning transition {self.state} -> {target}")
         self.state = target
@@ -480,6 +492,22 @@ class HardwareAdapterResult(BaseModel):
     raw_result_ref: str | None = None
     failure_reason: str | None = None
     safe_state_verified: bool | None = None
+
+
+class HardwareActionIntent(BaseModel):
+    """Durable claim returned before a hardware side effect is allowed."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    action_id: UUID
+    session_id: UUID
+    action: str = Field(min_length=1, max_length=100)
+    expected_revision: int = Field(ge=1)
+    claimed_revision: int = Field(ge=1)
+    request_hash: Sha256
+    event_id: UUID
+    journal_id: UUID
+    started_at: datetime
 
 
 class HardwareCommissioningAdapter(Protocol):
@@ -519,6 +547,7 @@ __all__ = [
     "EmergencyStopEvent",
     "EmergencyStopSource",
     "EmergencyStopState",
+    "HardwareActionIntent",
     "HardwareAdapterResult",
     "HardwareCommissioningAdapter",
     "HardwareCommissioningSession",

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from eea_core.enums import EngineeringDimension
 from eea_core.hardware import (
     HardwareAdapterResult,
     HardwareCommissioningAdapter,
@@ -31,8 +32,15 @@ class FakeHardwareCommissioningAdapter(HardwareCommissioningAdapter):
     safe_state_calls: int = 0
     emergency_stop_calls: int = 0
 
+    @staticmethod
+    def _measurement(value: float, unit: str, dimension: EngineeringDimension) -> dict[str, object]:
+        return {"value": value, "unit": unit, "dimension": dimension.value}
+
     def _failed(self, *operations: str) -> bool:
-        return bool(self.failures.intersection(operations))
+        return bool(
+            self.failures.intersection(operations)
+            or any(f"{operation}_timeout" in self.failures for operation in operations)
+        )
 
     def _result(
         self, operation: str, *, measurements: dict[str, object] | None = None
@@ -117,7 +125,11 @@ class FakeHardwareCommissioningAdapter(HardwareCommissioningAdapter):
             return HardwareAdapterResult(
                 ok=True,
                 measurements={
-                    "phase_current": limits.max_phase_current.require_normalized_nominal() * 2
+                    "phase_current": self._measurement(
+                        limits.max_phase_current.require_normalized_nominal() * 2,
+                        "A",
+                        EngineeringDimension.CURRENT,
+                    )
                 }
                 if limits.max_phase_current
                 else {"phase_current": 2.0},
@@ -125,15 +137,48 @@ class FakeHardwareCommissioningAdapter(HardwareCommissioningAdapter):
         if "overspeed" in self.failures and step_id == "CLOSED_LOOP_LIMITED":
             return HardwareAdapterResult(
                 ok=True,
-                measurements={"speed": limits.max_speed.require_normalized_nominal() * 2}
+                measurements={
+                    "speed": self._measurement(
+                        limits.max_speed.require_normalized_nominal() * 2,
+                        "rpm",
+                        EngineeringDimension.ANGULAR_VELOCITY,
+                    )
+                }
                 if limits.max_speed
                 else {"speed": 2.0},
             )
         default_measurements: dict[str, object] = {}
         if step_id == "LOW_POWER":
-            default_measurements = {"phase_current": 0.1, "duty_cycle": 0.05}
+            default_measurements = {
+                "phase_current": self._measurement(0.1, "A", EngineeringDimension.CURRENT),
+                "duty_cycle": 0.05,
+                "bus_voltage": self._measurement(12, "V", EngineeringDimension.VOLTAGE),
+                "temperature": self._measurement(25, "C", EngineeringDimension.TEMPERATURE),
+            }
         elif step_id == "CLOSED_LOOP_LIMITED":
-            default_measurements = {"phase_current": 0.1, "speed": 0.5, "duty_cycle": 0.05}
+            default_measurements = {
+                "phase_current": self._measurement(0.1, "A", EngineeringDimension.CURRENT),
+                "iq": self._measurement(0.1, "A", EngineeringDimension.CURRENT),
+                "id": self._measurement(0.1, "A", EngineeringDimension.CURRENT),
+                "speed": self._measurement(0.5, "rpm", EngineeringDimension.ANGULAR_VELOCITY),
+                "duty_cycle": 0.05,
+                "bus_voltage": self._measurement(12, "V", EngineeringDimension.VOLTAGE),
+                "temperature": self._measurement(25, "C", EngineeringDimension.TEMPERATURE),
+                "encoder_direction": True,
+                "encoder_plausibility": True,
+                "electrical_angle_sign": True,
+                "phase_sequence": True,
+                "current_sense": True,
+                "adc_sampling_window": True,
+                "pwm_output_safety": True,
+                "speed_feedback_sign": True,
+                "pi_saturation": True,
+                "startup_alignment": True,
+                "current_offset": True,
+                "gate_driver_fault": True,
+                "watchdog": True,
+                "emergency_stop": True,
+            }
         result = self._result(
             operation,
             measurements=self.measurements.get(step_id, default_measurements),

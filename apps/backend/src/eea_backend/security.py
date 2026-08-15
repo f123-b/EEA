@@ -19,8 +19,17 @@ def require_session_token(
 
     configured = request.app.state.settings.session_token
     if configured is None:
+        request.state.actor_id = "local-authenticated-session"
         return
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise EngineeringError(EngineeringErrorCode.AUTH_REQUIRED, "Missing bearer token")
     if not hmac.compare_digest(credentials.credentials, configured.get_secret_value()):
         raise EngineeringError(EngineeringErrorCode.AUTH_REQUIRED, "Invalid bearer token")
+    request.state.actor_id = "configured-authenticated-session"
+
+
+def authenticated_actor_id(request: Request) -> str:
+    actor_id = getattr(request.state, "actor_id", None)
+    if not isinstance(actor_id, str) or not actor_id:
+        raise EngineeringError(EngineeringErrorCode.AUTH_REQUIRED, "authenticated actor is missing")
+    return actor_id

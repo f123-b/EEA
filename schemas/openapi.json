@@ -15555,6 +15555,80 @@
         ]
       }
     },
+    "/api/v1/commissioning/sessions/{session_id}/enable-normal-operation": {
+      "post": {
+        "operationId": "enable_normal_commissioning_session_api_v1_commissioning_sessions__session_id__enable_normal_operation_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissioningRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CommissioningSessionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Enable Normal Commissioning Session",
+        "tags": [
+          "commissioning"
+        ]
+      }
+    },
     "/api/v1/commissioning/sessions/{session_id}/flash": {
       "post": {
         "operationId": "flash_commissioning_session_api_v1_commissioning_sessions__session_id__flash_post",
