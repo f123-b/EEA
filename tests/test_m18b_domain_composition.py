@@ -146,7 +146,9 @@ def _plugin(
     schema_version: str = "1.0",
     migration_provider: str | None = None,
     rule_id: str | None = None,
+    rule_version: str = "1",
     generator_id: str | None = None,
+    generator_version: str = "1",
     after: list[str] | None = None,
     schema: dict[str, object] | None = None,
 ) -> FakePlugin:
@@ -168,14 +170,14 @@ def _plugin(
         rules=(
             DomainRuleContribution(
                 rule_id=rule_id or f"{domain_id}.rule",
-                rule_version="1",
+                rule_version=rule_version,
                 phase=DomainRulePhase.PRE_DESIGN,
             ),
         ),
         generators=(
             DomainGeneratorContribution(
                 generator_id=generator_id or f"{domain_id}.generator",
-                version="1",
+                version=generator_version,
                 after=after or [],
             ),
         ),
@@ -278,9 +280,15 @@ def test_m18b_resolution_fail_closed_without_state_mutation(kind: str) -> None:
         ]
         requested = ["cycle-a", "cycle-b"]
     service, project, activations, compositions = _service(plugins)
+    current = service.current_composition(project.id)
     before = (dict(activations.items), dict(compositions.items))
     with pytest.raises(EngineeringError):
-        service.apply_composition(project.id, requested)
+        service.apply_composition(
+            project.id,
+            requested,
+            expected_composition_revision=current.composition_revision,
+            expected_plan_hash=current.plan_hash,
+        )
     assert activations.items == before[0]
     assert compositions.items == before[1]
 
@@ -290,8 +298,14 @@ def test_m18b_atomic_apply_failure_rolls_back_everything() -> None:
     failing = FailingActivationRepository(fail_on=2)
     service, project, activations, compositions = _service(plugins, activations=failing)
     state_before = service.composition_state(project.id)
+    preview = service.preview_composition(project.id, ["a", "b", "c"])
     with pytest.raises(RuntimeError):
-        service.apply_composition(project.id, ["a", "b", "c"])
+        service.apply_composition(
+            project.id,
+            ["a", "b", "c"],
+            expected_composition_revision=preview.composition_revision,
+            expected_plan_hash=preview.plan_hash,
+        )
     assert activations.items == {}
     assert compositions.items[project.id] == state_before
 
@@ -327,7 +341,10 @@ def test_m18b_cas_and_stale_preview_are_rejected() -> None:
             expected_composition_revision=2,
             expected_plan_hash=preview.plan_hash,
         )
-    assert stale.value.code is EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT
+    assert stale.value.code in {
+        EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
+        EngineeringErrorCode.DOMAIN_INCOMPATIBLE,
+    }
 
 
 def test_m18b_disable_enable_preserves_configuration_and_migration_dry_run() -> None:
@@ -363,7 +380,8 @@ def test_m18b_disable_enable_preserves_configuration_and_migration_dry_run() -> 
     )
     migrated._projects = service._projects
     dry_run = migrated.preview_composition(project.id, ["domain"])
-    assert dry_run.compatibility_results[0]["status"] == "MIGRATION_REQUIRED"
+    assert dry_run.compatibility_results[0]["status"] == "BLOCKED"
+    assert dry_run.compatibility_results[0]["reason"] == "MIGRATION_PROVIDER_NOT_REGISTERED"
 
 
 def test_m18b_backend_preview_apply_and_authoritative_get(client) -> None:

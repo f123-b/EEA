@@ -37,7 +37,12 @@ from eea_core.repositories import (
     DomainCompositionStateRepository,
     ProjectRepository,
 )
-from eea_ports.domain_extensions import DomainPlugin, DomainValidationContext
+from eea_ports.domain_extensions import (
+    DomainMigrationDryRunContext,
+    DomainMigrationDryRunProvider,
+    DomainPlugin,
+    DomainValidationContext,
+)
 from pydantic import BaseModel, ValidationError
 
 SUPPORTED_DOMAIN_API_VERSION = "1"
@@ -100,6 +105,12 @@ def _canonical_plan_payload(
         "domain_snapshots": sorted(plan.domain_snapshots, key=lambda item: str(item["domain_id"])),
         "rule_order": list(plan.rule_order),
         "generator_order": list(plan.generator_order),
+        "rules": [item.model_dump(mode="json") for item in plan.rules],
+        "generators": [item.model_dump(mode="json") for item in plan.generators],
+        "context_contributions": [
+            item.model_dump(mode="json") for item in plan.context_contributions
+        ],
+        "ui_contributions": [item.model_dump(mode="json") for item in plan.ui_contributions],
         "configurations": {key: configuration_map[key] for key in sorted(configuration_map)},
     }
 
@@ -406,7 +417,12 @@ def _parse_model[ModelT: BaseModel](
 class DomainExtensionRegistry:
     """Registry with deterministic dependency, capability, rule, and generator ordering."""
 
-    def __init__(self, plugins: Iterable[DomainPlugin] = ()) -> None:
+    def __init__(
+        self,
+        plugins: Iterable[DomainPlugin] = (),
+        *,
+        migration_providers: Mapping[str, object] | None = None,
+    ) -> None:
         self._plugins: dict[str, DomainPlugin] = {}
         self._descriptors: dict[str, DomainDescriptor] = {}
         self._schemas: dict[str, dict[str, object]] = {}
@@ -414,6 +430,7 @@ class DomainExtensionRegistry:
         self._generators: dict[str, tuple[DomainGeneratorContribution, ...]] = {}
         self._contexts: dict[str, tuple[DomainContextContribution, ...]] = {}
         self._ui_extensions: dict[str, tuple[DomainUIContribution, ...]] = {}
+        self._migration_providers = dict(migration_providers or {})
         for plugin in plugins:
             self.register(plugin)
 
@@ -523,6 +540,19 @@ class DomainExtensionRegistry:
             self.schema(domain_id), sort_keys=True, separators=(",", ":"), ensure_ascii=True
         ).encode("utf-8")
         return hashlib.sha256(payload).hexdigest()
+
+    def migration_provider(self, domain_id: str) -> DomainMigrationDryRunProvider | None:
+        """Return a registered executable provider for a descriptor, if any."""
+
+        descriptor = self.get_descriptor(domain_id)
+        provider_name = descriptor.migration_provider
+        if not provider_name:
+            return None
+        provider = self._migration_providers.get(provider_name)
+        if provider is None:
+            return None
+        candidate = getattr(provider, "dry_run", provider)
+        return cast(DomainMigrationDryRunProvider, candidate) if callable(candidate) else None
 
     def validate_configuration(self, domain_id: str, configuration: object) -> None:
         descriptor = self.get_descriptor(domain_id)
@@ -1025,6 +1055,9 @@ class DomainExtensionService:
         *,
         selected_capabilities: Mapping[str, str] | None = None,
     ) -> DomainCompositionPlan:
+        additional = list(additional_domain_ids)
+        if not additional and selected_capabilities is None:
+            return self.current_composition(project_id)
         state = self._get_composition_state(project_id)
         active = [
             item.domain_id
@@ -1035,7 +1068,7 @@ class DomainExtensionService:
         if selection is None and state is not None:
             selection = state.selected_capabilities
         plan = self.registry.resolve_composition(
-            [*active, *additional_domain_ids], selected_capabilities=selection
+            [*active, *additional], selected_capabilities=selection
         )
         configurations = {
             item.domain_id: item.configuration
@@ -1058,19 +1091,82 @@ class DomainExtensionService:
 
     def current_composition(self, project_id: UUID) -> DomainCompositionPlan:
         state = self.composition_state(project_id)
+        active_domain_ids = [
+            item.domain_id
+            for item in self._activations.list_for_project(project_id)
+            if item.status is DomainActivationStatus.ACTIVE
+        ]
         configurations = {
             item.domain_id: item.configuration
             for item in self._activations.list_for_project(project_id)
             if item.status is DomainActivationStatus.ACTIVE
         }
-        plan = self.registry.resolve_composition(
-            state.active_domain_ids,
-            selected_capabilities=state.selected_capabilities or None,
+        try:
+            plan = self.registry.resolve_composition(
+                active_domain_ids,
+                selected_capabilities=state.selected_capabilities or None,
+            )
+            candidate = self._decorate_plan(
+                plan,
+                revision=state.revision,
+                configurations=configurations,
+            )
+        except EngineeringError as exc:
+            raise self._authoritative_conflict(
+                state,
+                candidate_plan=None,
+                changed_fields=["candidate_resolution"],
+                candidate_error={"code": exc.code.value, "message": exc.message},
+            ) from exc
+
+        fields = (
+            "active_domain_ids",
+            "ordered_domain_ids",
+            "selected_capabilities",
+            "capability_routes",
+            "dependency_edges",
+            "domain_snapshots",
+            "rule_order",
+            "generator_order",
+            "plan_hash",
         )
-        return self._decorate_plan(
-            plan,
-            revision=state.revision,
-            configurations=configurations,
+        changed_fields = [
+            field for field in fields if getattr(state, field) != getattr(candidate, field)
+        ]
+        if changed_fields:
+            raise self._authoritative_conflict(state, candidate, changed_fields=changed_fields)
+        return candidate
+
+    @staticmethod
+    def _authoritative_conflict(
+        state: DomainCompositionState,
+        candidate_plan: DomainCompositionPlan | None,
+        *,
+        changed_fields: list[str],
+        candidate_error: dict[str, object] | None = None,
+    ) -> EngineeringError:
+        candidate_snapshots = candidate_plan.domain_snapshots if candidate_plan else []
+        stored_snapshot_map = {str(item.get("domain_id")): item for item in state.domain_snapshots}
+        candidate_snapshot_map = {str(item.get("domain_id")): item for item in candidate_snapshots}
+        details: dict[str, object] = {
+            "stored_plan_hash": state.plan_hash,
+            "candidate_plan_hash": candidate_plan.plan_hash if candidate_plan else None,
+            "stored_revision": state.revision,
+            "changed_fields": changed_fields,
+            "changed_domains": sorted(
+                domain_id
+                for domain_id in set(stored_snapshot_map) | set(candidate_snapshot_map)
+                if stored_snapshot_map.get(domain_id) != candidate_snapshot_map.get(domain_id)
+            ),
+            "stored_domain_snapshots": state.domain_snapshots,
+            "candidate_domain_snapshots": candidate_snapshots,
+        }
+        if candidate_error is not None:
+            details["candidate_error"] = candidate_error
+        return EngineeringError(
+            EngineeringErrorCode.DOMAIN_INCOMPATIBLE,
+            "Persisted Domain composition does not match the current registry",
+            details=details,
         )
 
     def preview_composition(
@@ -1080,22 +1176,25 @@ class DomainExtensionService:
         *,
         selected_capabilities: Mapping[str, str] | None = None,
         configurations: Mapping[str, Mapping[str, object]] | None = None,
+        _allow_empty_target: bool = False,
     ) -> DomainCompositionPlan:
         """Resolve the exact requested composition against the current SSOT revision."""
 
         self._ensure_project(project_id)
         state = self._ensure_composition_state(project_id)
         requested = list(dict.fromkeys(domain_ids))
-        target_ids = requested if requested else list(state.active_domain_ids)
+        target_ids = (
+            requested if requested or _allow_empty_target else list(state.active_domain_ids)
+        )
         base_selection = dict(state.selected_capabilities)
         selection = (
-            dict(selected_capabilities)
-            if selected_capabilities
-            else {
+            {
                 key: value
                 for key, value in base_selection.items()
                 if key in self._capabilities_for(target_ids)
             }
+            if selected_capabilities is None
+            else dict(selected_capabilities)
         )
         plan = self.registry.resolve_composition(
             target_ids,
@@ -1165,6 +1264,13 @@ class DomainExtensionService:
                         "current_plugin_id": descriptor.plugin_id,
                     }
                 )
+            if existing.plugin_version != descriptor.version and descriptor.migration_provider:
+                changes.update(
+                    {
+                        "previous_plugin_version": existing.plugin_version,
+                        "current_plugin_version": descriptor.version,
+                    }
+                )
             if existing.domain_schema_version != descriptor.schema_version:
                 changes.update(
                     {
@@ -1183,41 +1289,127 @@ class DomainExtensionService:
                     }
                 )
             if changes:
-                status = "MIGRATION_REQUIRED" if descriptor.migration_provider else "BLOCKED"
-                result = {"domain_id": domain_id, "status": status, **changes}
-                if status == "BLOCKED" and not descriptor.migration_provider:
-                    result["reason"] = "NO_MIGRATION_PROVIDER"
+                result = self._migration_compatibility_result(
+                    domain_id,
+                    existing,
+                    descriptor,
+                    plan,
+                    configurations[domain_id],
+                    changes,
+                )
                 results.append(result)
-                if status == "BLOCKED" and fail_on_blocked:
+                if result["status"] in {"BLOCKED", "MIGRATION_REQUIRED"} and fail_on_blocked:
                     raise EngineeringError(
                         EngineeringErrorCode.DOMAIN_INCOMPATIBLE,
-                        "Domain upgrade has no migration provider",
-                        details={"domain_id": domain_id, **changes},
+                        "Domain migration dry-run did not authorize application",
+                        details=result,
                     )
-                try:
-                    self.registry.validate_configuration(domain_id, configurations[domain_id])
-                except EngineeringError as exc:
-                    if not fail_on_blocked:
-                        results[-1] = {
-                            **results[-1],
-                            "status": "BLOCKED",
-                            "reason": "CONFIGURATION_MIGRATION_UNAVAILABLE",
-                        }
-                        continue
-                    raise EngineeringError(
-                        EngineeringErrorCode.DOMAIN_INCOMPATIBLE,
-                        "Domain migration dry-run cannot preserve configuration",
-                        details={"domain_id": domain_id, "reason": exc.message},
-                    ) from exc
             elif (
-                existing.plugin_version != descriptor.version
-                or existing.status is not DomainActivationStatus.ACTIVE
+                existing.status is not DomainActivationStatus.ACTIVE
                 or existing.configuration != configurations[domain_id]
             ):
                 results.append({"domain_id": domain_id, "status": "COMPATIBLE"})
             else:
                 results.append({"domain_id": domain_id, "status": "NO_CHANGE"})
         return results
+
+    def _migration_compatibility_result(
+        self,
+        domain_id: str,
+        existing: DomainActivation,
+        descriptor: DomainDescriptor,
+        plan: DomainCompositionPlan,
+        configuration: Mapping[str, object],
+        changes: Mapping[str, object],
+    ) -> dict[str, object]:
+        target_snapshot = next(
+            (
+                snapshot
+                for snapshot in plan.domain_snapshots
+                if snapshot.get("domain_id") == domain_id
+            ),
+            {},
+        )
+        base: dict[str, object] = {"domain_id": domain_id, **dict(changes)}
+        provider = self.registry.migration_provider(domain_id)
+        if provider is None:
+            base.update(
+                {
+                    "status": "BLOCKED",
+                    "applicable": False,
+                    "reason": (
+                        "NO_MIGRATION_PROVIDER"
+                        if not descriptor.migration_provider
+                        else "MIGRATION_PROVIDER_NOT_REGISTERED"
+                    ),
+                    "target_configuration_schema": self.registry.schema(domain_id),
+                }
+            )
+            return base
+
+        context = DomainMigrationDryRunContext(
+            source_domain_snapshot={
+                "domain_id": existing.domain_id,
+                "plugin_id": existing.plugin_id,
+                "plugin_version": existing.plugin_version,
+                "domain_schema_version": existing.domain_schema_version,
+                "configuration_schema_version": existing.configuration_schema_version,
+                "configuration_schema_hash": existing.configuration_schema_hash,
+            },
+            target_domain_snapshot=dict(target_snapshot),
+            existing_configuration=dict(existing.configuration),
+            target_configuration_schema=self.registry.schema(domain_id),
+        )
+        try:
+            raw_result = provider(context)
+        except Exception as exc:
+            return {
+                **base,
+                "status": "BLOCKED",
+                "applicable": False,
+                "reason": "MIGRATION_DRY_RUN_ERROR",
+                "error": str(exc),
+                "target_configuration_schema": self.registry.schema(domain_id),
+            }
+
+        if isinstance(raw_result, Mapping):
+            status = raw_result.get("status")
+            applicable = raw_result.get("applicable")
+            reason = raw_result.get("reason")
+            target_schema = raw_result.get(
+                "target_configuration_schema", self.registry.schema(domain_id)
+            )
+        else:
+            status = getattr(raw_result, "status", None)
+            applicable = getattr(raw_result, "applicable", None)
+            reason = getattr(raw_result, "reason", None)
+            target_schema = getattr(
+                raw_result, "target_configuration_schema", self.registry.schema(domain_id)
+            )
+        valid_statuses = {"NO_CHANGE", "COMPATIBLE", "MIGRATION_REQUIRED", "BLOCKED"}
+        if (
+            status not in valid_statuses
+            or not isinstance(applicable, bool)
+            or not isinstance(reason, str)
+            or not isinstance(target_schema, Mapping)
+        ):
+            return {
+                **base,
+                "status": "BLOCKED",
+                "applicable": False,
+                "reason": "MIGRATION_DRY_RUN_INVALID_RESULT",
+                "target_configuration_schema": self.registry.schema(domain_id),
+            }
+        if not applicable and status != "BLOCKED":
+            status = "BLOCKED"
+            reason = "MIGRATION_DRY_RUN_REJECTED"
+        return {
+            **base,
+            "status": status,
+            "applicable": applicable,
+            "reason": reason,
+            "target_configuration_schema": dict(target_schema),
+        }
 
     def activate(
         self,
@@ -1227,15 +1419,21 @@ class DomainExtensionService:
         configuration: dict[str, object] | None = None,
         activated_by: str = "system",
     ) -> DomainActivation:
-        current = self._ensure_composition_state(project_id)
+        current = self.current_composition(project_id)
         requested = set(current.active_domain_ids)
         requested.add(domain_id)
         configurations = {domain_id: dict(configuration)} if configuration is not None else None
+        preview = self.preview_composition(
+            project_id,
+            requested,
+            configurations=configurations,
+        )
         self.apply_composition(
             project_id,
             requested,
             configurations=configurations,
-            expected_composition_revision=current.revision,
+            expected_composition_revision=preview.composition_revision,
+            expected_plan_hash=preview.plan_hash,
             applied_by=activated_by,
         )
         return self.state(project_id, domain_id)
@@ -1252,6 +1450,23 @@ class DomainExtensionService:
         applied_by: str = "system",
     ) -> DomainCompositionPlan:
         """Atomically apply one canonical plan, guarded by revision and plan hash."""
+
+        if (
+            expected_composition_revision is None
+            or isinstance(expected_composition_revision, bool)
+            or expected_composition_revision < 1
+        ):
+            raise EngineeringError(
+                EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
+                "Composition revision token is required",
+                details={"expected_composition_revision": expected_composition_revision},
+            )
+        if expected_plan_hash is None or re.fullmatch(r"[0-9a-f]{64}", expected_plan_hash) is None:
+            raise EngineeringError(
+                EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
+                "Composition plan hash token must be a lowercase SHA-256 digest",
+                details={"expected_plan_hash": expected_plan_hash},
+            )
 
         session = self._repository_session()
         if session is not None and not session.in_transaction():
@@ -1294,11 +1509,7 @@ class DomainExtensionService:
         bootstrap = current is None
         if current is None:
             current = self._bootstrap_composition_state(project_id)
-        expected_revision = (
-            current.revision
-            if expected_composition_revision is None
-            else expected_composition_revision
-        )
+        expected_revision = expected_composition_revision
         if expected_revision != current.revision:
             raise EngineeringError(
                 EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
@@ -1311,16 +1522,15 @@ class DomainExtensionService:
 
         requested = list(dict.fromkeys(domain_ids))
         target_ids = requested if requested else []
-        explicit_selection = selected_capabilities is not None and bool(selected_capabilities)
-        if explicit_selection:
-            selection = dict(selected_capabilities or {})
-        else:
+        if selected_capabilities is None:
             probe = self.registry.resolve_composition(target_ids)
             selection = {
                 key: value
                 for key, value in current.selected_capabilities.items()
                 if key in probe.capability_routes
             }
+        else:
+            selection = dict(selected_capabilities)
         plan = self.registry.resolve_composition(
             target_ids,
             selected_capabilities=selection or None,
@@ -1335,13 +1545,15 @@ class DomainExtensionService:
             configurations=config_map,
             compatibility_results=compatibility,
         )
-        if expected_plan_hash is not None and decorated.plan_hash != expected_plan_hash:
+        if decorated.plan_hash != expected_plan_hash:
             raise EngineeringError(
                 EngineeringErrorCode.DOMAIN_COMPOSITION_CONFLICT,
                 "Composition plan changed after preview",
                 details={
                     "expected_plan_hash": expected_plan_hash,
                     "current_plan_hash": decorated.plan_hash,
+                    "stored_plan_hash": current.plan_hash,
+                    "stored_revision": current.revision,
                 },
             )
 
@@ -1600,11 +1812,13 @@ class DomainExtensionService:
                 "A required Domain cannot be disabled while dependents remain active",
                 details={"domain_id": domain_id, "required_by_active_domains": missing},
             )
-        current = self._ensure_composition_state(project_id)
+        self.current_composition(project_id)
+        preview = self.preview_composition(project_id, remaining, _allow_empty_target=True)
         self.apply_composition(
             project_id,
             remaining,
-            expected_composition_revision=current.revision,
+            expected_composition_revision=preview.composition_revision,
+            expected_plan_hash=preview.plan_hash,
             applied_by="system",
         )
         return self.state(project_id, domain_id)

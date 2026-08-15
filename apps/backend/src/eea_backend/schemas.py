@@ -381,10 +381,10 @@ class DomainCompositionApplyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     domain_ids: list[str] = Field(default_factory=list, max_length=100)
-    selected_capabilities: dict[str, str] = Field(default_factory=dict)
+    selected_capabilities: dict[str, str] | None = None
     configurations: dict[str, dict[str, object]] = Field(default_factory=dict)
-    expected_composition_revision: int | None = Field(default=None, ge=1)
-    expected_plan_hash: str | None = Field(default=None, min_length=1, max_length=64)
+    expected_composition_revision: int = Field(..., ge=1)
+    expected_plan_hash: str = Field(..., pattern=r"^[0-9a-f]{64}$")
     applied_by: str = Field(default="system", min_length=1, max_length=200)
 
 
@@ -392,7 +392,7 @@ class DomainValidationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     domain_ids: list[str] = Field(default_factory=list, max_length=100)
-    selected_capabilities: dict[str, str] = Field(default_factory=dict)
+    selected_capabilities: dict[str, str] | None = None
     configurations: dict[str, dict[str, object]] = Field(default_factory=dict)
     domain_ir: dict[str, object] | None = None
     mcu_config_id: UUID | None = None

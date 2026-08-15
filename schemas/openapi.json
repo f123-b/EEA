@@ -4661,38 +4661,34 @@
             "type": "array"
           },
           "expected_composition_revision": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Composition Revision"
+            "minimum": 1.0,
+            "title": "Expected Composition Revision",
+            "type": "integer"
           },
           "expected_plan_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Plan Hash",
+            "type": "string"
+          },
+          "selected_capabilities": {
             "anyOf": [
               {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Expected Plan Hash"
-          },
-          "selected_capabilities": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Selected Capabilities",
-            "type": "object"
+            "title": "Selected Capabilities"
           }
         },
+        "required": [
+          "expected_composition_revision",
+          "expected_plan_hash"
+        ],
         "title": "DomainCompositionApplyRequest",
         "type": "object"
       },
@@ -5377,11 +5373,18 @@
             "title": "Mcu Config Id"
           },
           "selected_capabilities": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Selected Capabilities",
-            "type": "object"
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Capabilities"
           }
         },
         "title": "DomainValidationRequest",
