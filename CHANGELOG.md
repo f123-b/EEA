@@ -20,7 +20,7 @@ the frozen documentation changelogs under `docs/`.
   desktop typecheck, and desktop build pass. GitHub CI push run `31868017475` and
   pull request run `31868019387` both have backend PASS and desktop PASS.
   `M18B = IMPLEMENTED`, `M18BR = IMPLEMENTED`, `READY_FOR_M18B_FINAL_REVIEW = YES`,
-  and M18C remains not started.
+  with M18B acceptance pending human review; M18C remains not started.
 
 - M18B Domain Composition Contract at implementation commit
   `fa2c22ee20b9f6ebbf1b78df7124987c6d4e8391`: added the project-scoped
@@ -34,8 +34,8 @@ the frozen documentation changelogs under `docs/`.
   mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop lint,
   desktop typecheck, and desktop build pass. `M18B = IMPLEMENTED` and
   `READY_FOR_M18B_FINAL_REVIEW = YES`; GitHub CI runs `31866031198` (push) and
-  `31866046633` (pull request) both have backend PASS and desktop PASS. `M18B = ACCEPTED`
-  and M18C remain not started.
+  `31866046633` (pull request) both have backend PASS and desktop PASS. M18B acceptance
+  remained pending human review and M18C remained not started.
 
 - M18A Final Acceptance: reviewed implementation HEAD
   `68401b60b88935e7c19bc0309c1845eab3328555`; implementation commit
