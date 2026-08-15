@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from eea_application.source_workspace import GeneratedOwnership, SourceWorkspaceState
+from eea_application.source_workspace import (
+    GeneratedOwnership,
+    SourceMutationJournal,
+    SourceWorkspaceState,
+)
 from eea_core.entities import utc_now
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
@@ -124,6 +129,11 @@ class SqlAlchemySourceRepository:
             ),
             workspace_revision=record.workspace_revision,
             base_commit=record.base_commit,
+            active_mutation_id=(
+                UUID(record.active_mutation_id) if record.active_mutation_id else None
+            ),
+            active_mutation_started_at=record.active_mutation_started_at,
+            active_mutation_expected_revision=record.active_mutation_expected_revision,
         )
 
     def get_workspace(self, project_id: UUID) -> SourceWorkspaceState | None:
@@ -204,43 +214,191 @@ class SqlAlchemySourceRepository:
         expected_workspace_revision: int | None = None,
         commit: bool = True,
     ) -> None:
-        record = self.session.scalar(
-            select(SourceWorkspaceRecord).where(SourceWorkspaceRecord.project_id == str(project_id))
-        )
-        if record is None:
-            raise ValueError("source workspace metadata is missing")
-        if expected_current_revision_id is not None:
-            current_id = (
-                UUID(record.current_source_revision_id)
-                if record.current_source_revision_id
-                else None
-            )
-            if current_id != expected_current_revision_id:
-                raise EngineeringError(
-                    EngineeringErrorCode.SOURCE_REVISION_CONFLICT,
-                    "Source workspace changed during mutation",
-                )
-        elif record.current_source_revision_id is not None:
-            raise EngineeringError(
-                EngineeringErrorCode.SOURCE_REVISION_CONFLICT,
-                "Source workspace was initialized concurrently",
-            )
-        if (
-            expected_workspace_revision is not None
-            and record.workspace_revision != expected_workspace_revision
-        ):
-            raise EngineeringError(
-                EngineeringErrorCode.SOURCE_REVISION_CONFLICT,
-                "Workspace revision changed during mutation",
-            )
-        record.current_source_revision_id = str(revision_id)
-        record.workspace_revision = workspace_revision
-        record.base_commit = base_commit
-        record.updated_at = utc_now()
-        record.revision += 1
         revision = self.session.get(SourceRevisionRecord, str(revision_id))
-        record.repository_id = revision.repository_id if revision else record.repository_id
-        record.last_reconciled_manifest_hash = revision.source_manifest_hash if revision else None
+        if revision is None:
+            raise ValueError("source revision is missing")
+        conditions = [SourceWorkspaceRecord.project_id == str(project_id)]
+        if expected_current_revision_id is None:
+            conditions.append(SourceWorkspaceRecord.current_source_revision_id.is_(None))
+        else:
+            conditions.append(
+                SourceWorkspaceRecord.current_source_revision_id
+                == str(expected_current_revision_id)
+            )
+        if expected_workspace_revision is not None:
+            conditions.append(
+                SourceWorkspaceRecord.workspace_revision == expected_workspace_revision
+            )
+        conditions.append(SourceWorkspaceRecord.active_mutation_id.is_(None))
+        result = cast(
+            CursorResult[Any],
+            self.session.execute(
+                update(SourceWorkspaceRecord)
+                .where(*conditions)
+                .values(
+                    current_source_revision_id=str(revision_id),
+                    workspace_revision=workspace_revision,
+                    base_commit=base_commit,
+                    repository_id=revision.repository_id,
+                    last_reconciled_manifest_hash=revision.source_manifest_hash,
+                    updated_at=utc_now(),
+                    revision=SourceWorkspaceRecord.revision + 1,
+                )
+            ),
+        )
+        if result.rowcount != 1:
+            raise EngineeringError(
+                EngineeringErrorCode.SOURCE_REVISION_CONFLICT,
+                "Source workspace changed during mutation",
+            )
+        if commit:
+            self.session.commit()
+        else:
+            self.session.flush()
+
+    def claim_source_mutation(
+        self,
+        project_id: UUID,
+        operation_id: UUID,
+        expected_source_revision_id: UUID | None,
+        expected_workspace_revision: int,
+        *,
+        commit: bool = True,
+    ) -> None:
+        conditions = [
+            SourceWorkspaceRecord.project_id == str(project_id),
+            SourceWorkspaceRecord.workspace_revision == expected_workspace_revision,
+            SourceWorkspaceRecord.active_mutation_id.is_(None),
+        ]
+        if expected_source_revision_id is None:
+            conditions.append(SourceWorkspaceRecord.current_source_revision_id.is_(None))
+        else:
+            conditions.append(
+                SourceWorkspaceRecord.current_source_revision_id == str(expected_source_revision_id)
+            )
+        result = cast(
+            CursorResult[Any],
+            self.session.execute(
+                update(SourceWorkspaceRecord)
+                .where(*conditions)
+                .values(
+                    active_mutation_id=str(operation_id),
+                    active_mutation_started_at=utc_now(),
+                    active_mutation_expected_revision=expected_workspace_revision,
+                    updated_at=utc_now(),
+                    revision=SourceWorkspaceRecord.revision + 1,
+                )
+            ),
+        )
+        if result.rowcount != 1:
+            # A failed conditional UPDATE still opens a transaction on
+            # SQLite. Roll it back before the diagnostic read so a losing
+            # session cannot retain a database lock.
+            self.session.rollback()
+            record = self.session.scalar(
+                select(SourceWorkspaceRecord).where(
+                    SourceWorkspaceRecord.project_id == str(project_id)
+                )
+            )
+            if record is not None and record.active_mutation_id is not None:
+                code = EngineeringErrorCode.RESOURCE_BUSY
+                message = "Source workspace is owned by another active mutation"
+            else:
+                code = EngineeringErrorCode.SOURCE_REVISION_CONFLICT
+                message = "Source workspace revision changed before mutation claim"
+            self.session.rollback()
+            raise EngineeringError(
+                code,
+                message,
+                details={"operation_id": str(operation_id)},
+            )
+        if commit:
+            self.session.commit()
+        else:
+            self.session.flush()
+
+    def release_source_mutation(
+        self, project_id: UUID, operation_id: UUID, *, commit: bool = True
+    ) -> None:
+        result = cast(
+            CursorResult[Any],
+            self.session.execute(
+                update(SourceWorkspaceRecord)
+                .where(
+                    SourceWorkspaceRecord.project_id == str(project_id),
+                    SourceWorkspaceRecord.active_mutation_id == str(operation_id),
+                )
+                .values(
+                    active_mutation_id=None,
+                    active_mutation_started_at=None,
+                    active_mutation_expected_revision=None,
+                    updated_at=utc_now(),
+                    revision=SourceWorkspaceRecord.revision + 1,
+                )
+            ),
+        )
+        if result.rowcount != 1:
+            raise EngineeringError(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "Source mutation ownership could not be released safely",
+                details={"operation_id": str(operation_id)},
+            )
+        if commit:
+            self.session.commit()
+        else:
+            self.session.flush()
+
+    def finalize_source_mutation(
+        self,
+        project_id: UUID,
+        operation_id: UUID,
+        expected_source_revision_id: UUID | None,
+        expected_workspace_revision: int,
+        new_source_revision_id: UUID,
+        new_workspace_revision: int,
+        base_commit: str | None,
+        *,
+        commit: bool = True,
+    ) -> None:
+        revision = self.session.get(SourceRevisionRecord, str(new_source_revision_id))
+        if revision is None:
+            raise ValueError("new source revision is missing")
+        conditions = [
+            SourceWorkspaceRecord.project_id == str(project_id),
+            SourceWorkspaceRecord.workspace_revision == expected_workspace_revision,
+            SourceWorkspaceRecord.active_mutation_id == str(operation_id),
+        ]
+        if expected_source_revision_id is None:
+            conditions.append(SourceWorkspaceRecord.current_source_revision_id.is_(None))
+        else:
+            conditions.append(
+                SourceWorkspaceRecord.current_source_revision_id == str(expected_source_revision_id)
+            )
+        result = cast(
+            CursorResult[Any],
+            self.session.execute(
+                update(SourceWorkspaceRecord)
+                .where(*conditions)
+                .values(
+                    current_source_revision_id=str(new_source_revision_id),
+                    workspace_revision=new_workspace_revision,
+                    base_commit=base_commit,
+                    repository_id=revision.repository_id,
+                    last_reconciled_manifest_hash=revision.source_manifest_hash,
+                    active_mutation_id=None,
+                    active_mutation_started_at=None,
+                    active_mutation_expected_revision=None,
+                    updated_at=utc_now(),
+                    revision=SourceWorkspaceRecord.revision + 1,
+                )
+            ),
+        )
+        if result.rowcount != 1:
+            raise EngineeringError(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "Source mutation finalization lost its database ownership",
+                details={"operation_id": str(operation_id)},
+            )
         if commit:
             self.session.commit()
         else:
@@ -384,11 +542,16 @@ class SqlAlchemySourceRepository:
     def begin_source_journal(
         self,
         project_id: UUID,
-        proposal_id: UUID,
-        previous_source_revision_id: UUID,
+        proposal_id: UUID | None,
+        previous_source_revision_id: UUID | None,
         affected_files: list[str],
+        *,
+        operation_id: UUID | None = None,
+        before_manifest: Mapping[str, str | None] | None = None,
+        after_manifest: Mapping[str, str] | None = None,
+        recovery_bundle_path: str | None = None,
     ) -> UUID:
-        operation_id = uuid4()
+        operation_id = operation_id or uuid4()
         now = utc_now()
         workspace = self.get_workspace(project_id)
         if workspace is None:
@@ -403,10 +566,17 @@ class SqlAlchemySourceRepository:
                 entity_metadata={},
                 project_id=str(project_id),
                 operation_id=str(operation_id),
-                proposal_id=str(proposal_id),
-                previous_source_revision_id=str(previous_source_revision_id),
+                proposal_id=str(proposal_id) if proposal_id is not None else None,
+                previous_source_revision_id=(
+                    str(previous_source_revision_id)
+                    if previous_source_revision_id is not None
+                    else None
+                ),
                 expected_workspace_revision=workspace.workspace_revision,
                 affected_files=affected_files,
+                before_manifest=dict(before_manifest or {}),
+                after_manifest=dict(after_manifest or {}),
+                recovery_bundle_path=recovery_bundle_path,
                 status="PREPARED",
                 last_error=None,
             )
@@ -414,42 +584,56 @@ class SqlAlchemySourceRepository:
         self.session.flush()
         return operation_id
 
-    def finish_source_journal(self, journal_id: UUID, status: str) -> None:
+    def finish_source_journal(
+        self, journal_id: UUID, status: str, *, last_error: str | None = None
+    ) -> None:
         row = self.session.get(SourceMutationJournalRecord, str(journal_id))
         if row is None:
             raise ValueError("source mutation journal entry is missing")
         row.status = status
+        row.last_error = last_error
         row.updated_at = utc_now()
         row.revision += 1
         self.session.flush()
 
-    def recover_source_journals(self, project_id: UUID, workspace_revision: int) -> int:
+    @staticmethod
+    def _to_journal(record: SourceMutationJournalRecord) -> SourceMutationJournal:
+        return SourceMutationJournal(
+            id=UUID(record.id),
+            project_id=UUID(record.project_id),
+            operation_id=UUID(record.operation_id),
+            proposal_id=UUID(record.proposal_id) if record.proposal_id else None,
+            previous_source_revision_id=(
+                UUID(record.previous_source_revision_id)
+                if record.previous_source_revision_id
+                else None
+            ),
+            expected_workspace_revision=record.expected_workspace_revision,
+            affected_files=list(record.affected_files),
+            before_manifest=dict(record.before_manifest),
+            after_manifest=dict(record.after_manifest),
+            recovery_bundle_path=record.recovery_bundle_path,
+            status=record.status,
+            last_error=record.last_error,
+        )
+
+    def get_source_journal(self, journal_id: UUID) -> SourceMutationJournal | None:
+        row = self.session.get(SourceMutationJournalRecord, str(journal_id))
+        return self._to_journal(row) if row else None
+
+    def list_prepared_source_journals(self, project_id: UUID) -> list[SourceMutationJournal]:
         rows = self.session.scalars(
             select(SourceMutationJournalRecord).where(
                 SourceMutationJournalRecord.project_id == str(project_id),
                 SourceMutationJournalRecord.status == "PREPARED",
             )
         )
-        recovered_count = 0
-        for row in rows:
-            recovered_operation = row.expected_workspace_revision < workspace_revision
-            row.status = "RECOVERED" if recovered_operation else "ROLLED_BACK"
-            row.last_error = (
-                "Workspace reconciliation finalized the filesystem mutation"
-                if recovered_operation
-                else "Workspace reconciliation found no committed workspace revision"
-            )
-            row.updated_at = utc_now()
-            row.revision += 1
-            proposal = self.session.get(PatchProposalRecord, row.proposal_id)
-            if proposal is not None and proposal.status in {"DRAFT", "READY"}:
-                proposal.status = "APPLIED" if recovered_operation else "FAILED"
-                proposal.failure_reason = None if recovered_operation else row.last_error
-                proposal.updated_at = utc_now()
-                proposal.revision += 1
-            recovered_count += 1
-        self.session.flush()
-        return recovered_count
+        return [self._to_journal(row) for row in rows]
+
+    def recover_source_journals(self, project_id: UUID, workspace_revision: int) -> int:
+        """Compatibility hook; recovery requires bundle classification in the service."""
+
+        return 0
 
     def commit(self) -> None:
         self.session.commit()

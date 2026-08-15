@@ -862,6 +862,9 @@ class SourceWorkspaceRecord(CoreRecordMixin, Base):
     workspace_revision: Mapped[int] = mapped_column(nullable=False, default=0)
     base_commit: Mapped[str | None] = mapped_column(String(100))
     last_reconciled_manifest_hash: Mapped[str | None] = mapped_column(String(64))
+    active_mutation_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    active_mutation_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    active_mutation_expected_revision: Mapped[int | None] = mapped_column()
 
 
 class PatchProposalRecord(CoreRecordMixin, Base):
@@ -921,7 +924,7 @@ class SourceMutationJournalRecord(CoreRecordMixin, Base):
     __tablename__ = "source_mutation_journal"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('PREPARED', 'COMPLETED', 'ROLLED_BACK', 'RECOVERED')",
+            "status IN ('PREPARED', 'COMPLETED', 'ROLLED_BACK', 'RECOVERED', 'RECOVERY_REQUIRED')",
             name="status",
         ),
         CheckConstraint(
@@ -932,14 +935,17 @@ class SourceMutationJournalRecord(CoreRecordMixin, Base):
 
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
     operation_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    proposal_id: Mapped[str] = mapped_column(
-        ForeignKey("patch_proposals.id"), nullable=False, index=True
+    proposal_id: Mapped[str | None] = mapped_column(
+        ForeignKey("patch_proposals.id"), nullable=True, index=True
     )
-    previous_source_revision_id: Mapped[str] = mapped_column(
-        ForeignKey("source_revisions.id"), nullable=False, index=True
+    previous_source_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=True, index=True
     )
     expected_workspace_revision: Mapped[int] = mapped_column(nullable=False)
     affected_files: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    before_manifest: Mapped[dict[str, str | None]] = mapped_column(JSON, nullable=False)
+    after_manifest: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    recovery_bundle_path: Mapped[str | None] = mapped_column(String(2000))
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     last_error: Mapped[str | None] = mapped_column(String(4000))
 

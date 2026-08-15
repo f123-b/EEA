@@ -4,6 +4,17 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
+from uuid import UUID
+
+
+@dataclass(frozen=True, slots=True)
+class RecoveryBundle:
+    """Durable, workspace-local evidence for one source mutation."""
+
+    operation_id: UUID
+    path: Path
+    before_manifest: Mapping[str, str | None]
+    after_manifest: Mapping[str, str]
 
 
 class SourceWorkspacePort(Protocol):
@@ -21,6 +32,21 @@ class SourceWorkspacePort(Protocol):
     def atomic_replace(self, files: Mapping[str, bytes]) -> None: ...
 
     def cleanup_temporary(self) -> None: ...
+
+    def prepare_recovery_bundle(
+        self,
+        operation_id: UUID,
+        before_files: Mapping[str, bytes | None],
+        after_files: Mapping[str, bytes],
+        *,
+        metadata: Mapping[str, object],
+    ) -> RecoveryBundle: ...
+
+    def classify_recovery_bundle(self, bundle_path: str) -> str: ...
+
+    def restore_recovery_bundle(self, bundle_path: str, target: str) -> None: ...
+
+    def cleanup_recovery_bundle(self, bundle_path: str) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,4 +72,10 @@ class GitWorkspacePort(Protocol):
     def commit(self, message: str, *, actor: str) -> GitCommit: ...
 
 
-__all__ = ["GitCommit", "GitStatus", "GitWorkspacePort", "SourceWorkspacePort"]
+__all__ = [
+    "GitCommit",
+    "GitStatus",
+    "GitWorkspacePort",
+    "RecoveryBundle",
+    "SourceWorkspacePort",
+]

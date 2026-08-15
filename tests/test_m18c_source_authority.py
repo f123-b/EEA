@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -10,7 +11,7 @@ import pytest
 from eea_adapters.source import FileSystemSourceWorkspaceAdapter, GitCliWorkspaceAdapter
 from eea_application.reliability import EventOutboxService
 from eea_application.source_workspace import SourceWorkspaceService
-from eea_backend.models import OutboxEventRecord, SourceMutationJournalRecord
+from eea_backend.models import OutboxEventRecord, SourceMutationJournalRecord, SourceWorkspaceRecord
 from eea_backend.reliability_repositories import SqlAlchemyOutboxRepository
 from eea_backend.source_repositories import SqlAlchemySourceRepository
 from eea_core.enums import EngineeringErrorCode
@@ -18,7 +19,7 @@ from eea_core.errors import EngineeringError
 from eea_core.reliability import OutboxEventStatus
 from eea_core.source import GeneratedSourceCandidate
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 
@@ -158,13 +159,33 @@ def test_reconcile_recovers_after_filesystem_replace_before_sql_finalize(
     root = client.app.state.settings.data_dir / "projects" / str(project_id) / "workspace"
     with Session(client.app.state.engine) as session:
         repository = SqlAlchemySourceRepository(session)
-        operation_id = repository.begin_source_journal(
+        operation_id = uuid4()
+        repository.claim_source_mutation(
+            project_id, operation_id, UUID(str(base["id"])), int(base["workspace_revision"])
+        )
+        bundle = FileSystemSourceWorkspaceAdapter(root).prepare_recovery_bundle(
+            operation_id,
+            {"crash.c": None},
+            {"crash.c": b"recovered\n"},
+            metadata={"project_id": str(project_id), "proposal_id": str(proposal["id"])},
+        )
+        journal_id = repository.begin_source_journal(
             project_id,
             UUID(str(proposal["id"])),
             UUID(str(base["id"])),
             ["crash.c"],
+            operation_id=operation_id,
+            before_manifest=dict(bundle.before_manifest),
+            after_manifest=dict(bundle.after_manifest),
+            recovery_bundle_path=str(bundle.path),
         )
         repository.commit()
+        session.execute(
+            update(SourceWorkspaceRecord)
+            .where(SourceWorkspaceRecord.project_id == str(project_id))
+            .values(active_mutation_started_at=datetime.now(UTC) - timedelta(hours=1))
+        )
+        session.commit()
         FileSystemSourceWorkspaceAdapter(root).atomic_replace({"crash.c": b"recovered\n"})
         service = SourceWorkspaceService(
             project_id,
@@ -174,7 +195,7 @@ def test_reconcile_recovers_after_filesystem_replace_before_sql_finalize(
             source_changed=EventOutboxService(SqlAlchemyOutboxRepository(session)),
         )
         recovered = service.reconcile()
-        journal = session.get(SourceMutationJournalRecord, str(operation_id))
+        journal = session.get(SourceMutationJournalRecord, str(journal_id))
         recovered_proposal = repository.get_proposal(UUID(str(proposal["id"])))
         assert recovered.id != UUID(str(base["id"]))
         assert journal is not None

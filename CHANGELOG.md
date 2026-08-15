@@ -7,6 +7,23 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18CR Source Mutation Atomicity & Cross-Session CAS Closure at implementation commit
+  `25ba1a23da6a5057fa7722f41be2f40ede90f747`, reviewed against M18C review HEAD
+  `6cc9b7057c5c210396ae4b2fcfdf5c5e6cd4baac`. Closed the two M18C P1 blockers: source
+  mutation ownership is now a database conditional-update claim/finalize protocol shared by
+  PatchProposal apply, generated candidate apply, Git commit, reconcile formalization, and
+  recovery; multi-file apply now persists a workspace-local `.eea/source-recovery/<operation>`
+  BEFORE/staged bundle plus PREPARED journal and only proves APPLIED after a complete AFTER
+  state. Active leases prevent reconcile from authoritatively scanning in-flight partial bytes;
+  expired leases use deterministic recovery. Added real two-Session, cross-Service, active
+  reconcile, partial hard-crash, and Git concurrency regressions. Focused M12/M17/M18/M18A/
+  M18B/M18BR/M18C/M18CR: **139 passed, 1 skipped**; local full pytest **378 passed, 4
+  skipped**, with **2 pre-existing Windows M5 sandbox environment failures**; coverage
+  **84.07%**. Ruff, format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts,
+  desktop lint, desktop typecheck, and desktop build pass. GitHub CI push run `31879721794`
+  has backend PASS and desktop PASS. `M18C = IMPLEMENTED`,
+  `M18CR = IMPLEMENTED`, `READY_FOR_M18C_FINAL_REVIEW = YES`, and `M18D = NOT_STARTED`.
+
 - M18C Final Acceptance at reviewed final HEAD
   `6cc9b7057c5c210396ae4b2fcfdf5c5e6cd4baac`: the Source Authority / Workspace / Git
   Contract established by implementation commit `c9f2644` is accepted. It establishes

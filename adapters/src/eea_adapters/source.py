@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable, Mapping
 from contextlib import suppress
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from eea_core.sandbox import SafePath
-from eea_ports.source import GitCommit, GitStatus
+from eea_ports.source import GitCommit, GitStatus, RecoveryBundle
 
 
 class FileSystemSourceWorkspaceAdapter:
@@ -68,7 +71,8 @@ class FileSystemSourceWorkspaceAdapter:
         self.ensure_exists()
         files: dict[str, bytes] = {}
         for candidate in self._root.rglob("*"):
-            if ".git" in candidate.relative_to(self._root).parts:
+            relative_parts = candidate.relative_to(self._root).parts
+            if ".git" in relative_parts or ".eea" in relative_parts:
                 continue
             if not candidate.is_file():
                 continue
@@ -126,6 +130,214 @@ class FileSystemSourceWorkspaceAdapter:
         for candidate in self._root.rglob(".eea-source-tmp-*"):
             if candidate.is_file():
                 candidate.unlink(missing_ok=True)
+
+    @staticmethod
+    def _hash(content: bytes) -> str:
+        return hashlib.sha256(content).hexdigest()
+
+    def _recovery_root(self) -> Path:
+        root = self._root / ".eea" / "source-recovery"
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+
+    @staticmethod
+    def _fsync_directory(path: Path) -> None:
+        try:
+            descriptor = os.open(path, os.O_RDONLY)
+        except OSError:
+            return
+        try:
+            os.fsync(descriptor)
+        except OSError:
+            pass
+        finally:
+            os.close(descriptor)
+
+    @classmethod
+    def _write_fsync(cls, path: Path, content: bytes) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        cls._fsync_directory(path.parent)
+
+    def prepare_recovery_bundle(
+        self,
+        operation_id: UUID,
+        before_files: Mapping[str, bytes | None],
+        after_files: Mapping[str, bytes],
+        *,
+        metadata: Mapping[str, object],
+    ) -> RecoveryBundle:
+        operation_uuid = operation_id
+        bundle_path = self._recovery_root() / str(operation_uuid)
+        if bundle_path.exists():
+            raise EngineeringError(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "Recovery bundle operation id already exists",
+                details={"operation_id": str(operation_uuid)},
+            )
+        before_manifest: dict[str, str | None] = {}
+        after_manifest: dict[str, str] = {}
+        for relative, content in before_files.items():
+            self._path(relative)
+            before_manifest[relative.replace("\\", "/")] = (
+                self._hash(content) if content is not None else None
+            )
+        for relative, content in after_files.items():
+            normalized = relative.replace("\\", "/")
+            self._path(normalized)
+            after_manifest[normalized] = self._hash(content)
+        for relative, content in before_files.items():
+            if content is not None:
+                self._write_fsync(bundle_path / "before" / relative, content)
+        for relative, content in after_files.items():
+            self._write_fsync(bundle_path / "staged" / relative, content)
+        manifest = {
+            "operation_id": str(operation_uuid),
+            "metadata": dict(metadata),
+            "files": {
+                path: {
+                    "before_hash": before_manifest[path],
+                    "before_exists": before_manifest[path] is not None,
+                    "after_hash": after_manifest[path],
+                    "after_exists": True,
+                }
+                for path in sorted(after_manifest)
+            },
+        }
+        manifest_path = bundle_path / "manifest.json"
+        self._write_fsync(
+            manifest_path,
+            json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+        )
+        self._fsync_directory(bundle_path)
+        return RecoveryBundle(
+            operation_id=operation_uuid,
+            path=bundle_path,
+            before_manifest=before_manifest,
+            after_manifest=after_manifest,
+        )
+
+    def _read_recovery_manifest(self, bundle_path: str) -> dict[str, object]:
+        candidate = Path(bundle_path).absolute()
+        recovery_root = self._recovery_root().absolute()
+        try:
+            candidate.relative_to(recovery_root)
+        except ValueError as exc:
+            raise EngineeringError(
+                EngineeringErrorCode.SANDBOX_VIOLATION,
+                "Recovery bundle is outside the workspace recovery directory",
+            ) from exc
+        try:
+            loaded = json.loads((candidate / "manifest.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise EngineeringError(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "Recovery bundle manifest is unreadable",
+                details={"bundle_path": str(candidate)},
+            ) from exc
+        if not isinstance(loaded, dict) or not isinstance(loaded.get("files"), dict):
+            raise EngineeringError(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "Recovery bundle manifest is invalid",
+            )
+        return loaded
+
+    def classify_recovery_bundle(self, bundle_path: str) -> str:
+        bundle = Path(bundle_path).absolute()
+        manifest = self._read_recovery_manifest(str(bundle))
+        files = manifest["files"]
+        assert isinstance(files, dict)
+        before = True
+        after = True
+        for relative, raw in files.items():
+            if not isinstance(relative, str) or not isinstance(raw, dict):
+                return "UNKNOWN"
+            target = self._path(relative)
+            actual = self._hash(target.read_bytes()) if target.is_file() else None
+            before = before and actual == raw.get("before_hash")
+            after = after and actual == raw.get("after_hash")
+        if after:
+            return "AFTER"
+        if before:
+            return "BEFORE"
+        if any(
+            self._hash(self._path(relative).read_bytes()) == raw.get("after_hash")
+            for relative, raw in files.items()
+            if (
+                isinstance(relative, str)
+                and isinstance(raw, dict)
+                and self._path(relative).is_file()
+            )
+        ):
+            return "PARTIAL"
+        return "UNKNOWN"
+
+    def restore_recovery_bundle(self, bundle_path: str, target: str) -> None:
+        if target not in {"BEFORE", "AFTER"}:
+            raise EngineeringError(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "Recovery target must be BEFORE or AFTER",
+            )
+        bundle = Path(bundle_path).absolute()
+        manifest = self._read_recovery_manifest(str(bundle))
+        files = manifest["files"]
+        assert isinstance(files, dict)
+        source_dir = bundle / ("before" if target == "BEFORE" else "staged")
+        replacements: dict[str, bytes] = {}
+        missing: list[str] = []
+        for relative, raw in files.items():
+            if not isinstance(relative, str) or not isinstance(raw, dict):
+                raise EngineeringError(
+                    EngineeringErrorCode.RECOVERY_REQUIRED, "Invalid recovery file"
+                )
+            exists = raw.get("before_exists") if target == "BEFORE" else raw.get("after_exists")
+            source = source_dir / relative
+            if exists:
+                try:
+                    content = source.read_bytes()
+                except OSError as exc:
+                    raise EngineeringError(
+                        EngineeringErrorCode.RECOVERY_REQUIRED,
+                        "Recovery bundle file is missing",
+                        details={"path": relative},
+                    ) from exc
+                expected_hash = (
+                    raw.get("before_hash") if target == "BEFORE" else raw.get("after_hash")
+                )
+                if self._hash(content) != expected_hash:
+                    raise EngineeringError(
+                        EngineeringErrorCode.RECOVERY_REQUIRED,
+                        "Recovery bundle file hash is invalid",
+                        details={"path": relative},
+                    )
+                replacements[relative] = content
+            else:
+                missing.append(relative)
+        self.atomic_replace(replacements)
+        for relative in missing:
+            self._path(relative).unlink(missing_ok=True)
+        if self.classify_recovery_bundle(str(bundle)) != target:
+            raise EngineeringError(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "Recovery bundle restore did not reach a consistent state",
+                details={"target": target},
+            )
+
+    def cleanup_recovery_bundle(self, bundle_path: str) -> None:
+        bundle = Path(bundle_path).absolute()
+        recovery_root = self._recovery_root().absolute()
+        try:
+            bundle.relative_to(recovery_root)
+        except ValueError as exc:
+            raise EngineeringError(
+                EngineeringErrorCode.SANDBOX_VIOLATION,
+                "Recovery bundle is outside the workspace recovery directory",
+            ) from exc
+        if bundle != recovery_root:
+            shutil.rmtree(bundle, ignore_errors=False)
 
 
 class GitCliWorkspaceAdapter:
