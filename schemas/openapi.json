@@ -325,6 +325,29 @@
         "title": "ApiEnvelope[CircuitValidationData]",
         "type": "object"
       },
+      "ApiEnvelope_CommissioningSessionData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CommissioningSessionData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[CommissioningSessionData]",
+        "type": "object"
+      },
       "ApiEnvelope_ComponentCatalogData_": {
         "properties": {
           "data": {
@@ -1659,6 +1682,60 @@
           "request_id"
         ],
         "title": "ApiEnvelope[dict[str, object]]",
+        "type": "object"
+      },
+      "ApiEnvelope_list_CommissioningProfileData__": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CommissioningProfileData"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[list[CommissioningProfileData]]",
+        "type": "object"
+      },
+      "ApiEnvelope_list_CommissioningStepResultData__": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CommissioningStepResultData"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[list[CommissioningStepResultData]]",
         "type": "object"
       },
       "ApiEnvelope_list_ComponentMaterializationData__": {
@@ -3013,6 +3090,808 @@
         ],
         "title": "ClockIR",
         "type": "object"
+      },
+      "CommissioningAbortRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "default": "system",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "CommissioningAbortRequest",
+        "type": "object"
+      },
+      "CommissioningApproveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "actor"
+        ],
+        "title": "CommissioningApproveRequest",
+        "type": "object"
+      },
+      "CommissioningEmergencyStopRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "default": "system",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "reason": {
+            "default": "emergency stop requested",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/EmergencyStopSource",
+            "default": "USER"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "CommissioningEmergencyStopRequest",
+        "type": "object"
+      },
+      "CommissioningProfileData": {
+        "properties": {
+          "applicable_domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applicable Domains",
+            "type": "array"
+          },
+          "applicable_target_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applicable Target Types",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "emergency_stop_policy": {
+            "additionalProperties": true,
+            "title": "Emergency Stop Policy",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "required_permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Required Permissions",
+            "type": "array"
+          },
+          "required_safety_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Safety Capabilities",
+            "type": "array"
+          },
+          "required_steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Steps",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "safe_state_policy": {
+            "$ref": "#/components/schemas/SafeState"
+          },
+          "safety_limits": {
+            "$ref": "#/components/schemas/SafetyLimit"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "user_approval_required": {
+            "title": "User Approval Required",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "watchdog_policy": {
+            "additionalProperties": true,
+            "title": "Watchdog Policy",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "name",
+          "version",
+          "applicable_target_types",
+          "applicable_domains",
+          "required_steps",
+          "required_permissions",
+          "user_approval_required",
+          "safety_limits",
+          "required_safety_capabilities",
+          "watchdog_policy",
+          "emergency_stop_policy",
+          "safe_state_policy"
+        ],
+        "title": "CommissioningProfileData",
+        "type": "object"
+      },
+      "CommissioningRevisionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "CommissioningRevisionRequest",
+        "type": "object"
+      },
+      "CommissioningSessionCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "board_revision": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Board Revision"
+          },
+          "build_input_snapshot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Input Snapshot Id"
+          },
+          "build_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Run Id"
+          },
+          "commissioning_profile_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commissioning Profile Id"
+          },
+          "firmware_artifact_id": {
+            "format": "uuid",
+            "title": "Firmware Artifact Id",
+            "type": "string"
+          },
+          "firmware_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Firmware Hash",
+            "type": "string"
+          },
+          "hardware_identity": {
+            "$ref": "#/components/schemas/HardwareIdentity"
+          },
+          "permission_token_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Permission Token Ids",
+            "type": "array"
+          },
+          "probe_identity": {
+            "$ref": "#/components/schemas/ProbeIdentity"
+          },
+          "resource_lock_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Resource Lock Ids",
+            "type": "array"
+          },
+          "source_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Revision Id"
+          },
+          "started_by": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Started By",
+            "type": "string"
+          },
+          "target_id": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Target Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_id",
+          "firmware_artifact_id",
+          "firmware_hash",
+          "hardware_identity",
+          "probe_identity",
+          "started_by"
+        ],
+        "title": "CommissioningSessionCreateRequest",
+        "type": "object"
+      },
+      "CommissioningSessionData": {
+        "properties": {
+          "aborted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aborted At"
+          },
+          "approval_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Snapshot"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "board_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Board Revision"
+          },
+          "build_input_snapshot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Input Snapshot Id"
+          },
+          "build_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Run Id"
+          },
+          "commissioning_profile_id": {
+            "format": "uuid",
+            "title": "Commissioning Profile Id",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step"
+          },
+          "emergency_stop_state": {
+            "$ref": "#/components/schemas/EmergencyStopState"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "firmware_artifact_id": {
+            "format": "uuid",
+            "title": "Firmware Artifact Id",
+            "type": "string"
+          },
+          "firmware_hash": {
+            "title": "Firmware Hash",
+            "type": "string"
+          },
+          "hardware_identity": {
+            "$ref": "#/components/schemas/HardwareIdentity"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "permission_token_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Permission Token Ids",
+            "type": "array"
+          },
+          "preflight_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Preflight Results",
+            "type": "array"
+          },
+          "probe_identity": {
+            "$ref": "#/components/schemas/ProbeIdentity"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "resource_lock_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Resource Lock Ids",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "safety_limits_snapshot": {
+            "$ref": "#/components/schemas/SafetyLimit"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Revision Id"
+          },
+          "started_by": {
+            "title": "Started By",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CommissioningState"
+          },
+          "step_results": {
+            "items": {
+              "$ref": "#/components/schemas/CommissioningStepResultData"
+            },
+            "title": "Step Results",
+            "type": "array"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "watchdog_state": {
+            "$ref": "#/components/schemas/WatchdogState"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "target_id",
+          "firmware_artifact_id",
+          "firmware_hash",
+          "build_run_id",
+          "source_revision_id",
+          "build_input_snapshot_id",
+          "hardware_identity",
+          "probe_identity",
+          "board_revision",
+          "commissioning_profile_id",
+          "state",
+          "current_step",
+          "started_by",
+          "approved_by",
+          "safety_limits_snapshot",
+          "preflight_results",
+          "step_results",
+          "evidence_ids",
+          "emergency_stop_state",
+          "watchdog_state",
+          "resource_lock_ids",
+          "permission_token_ids",
+          "approval_snapshot",
+          "completed_at",
+          "aborted_at"
+        ],
+        "title": "CommissioningSessionData",
+        "type": "object"
+      },
+      "CommissioningState": {
+        "enum": [
+          "CREATED",
+          "PREFLIGHT",
+          "FLASHED_SAFE",
+          "SENSOR_CHECK",
+          "LOW_POWER",
+          "CLOSED_LOOP_LIMITED",
+          "USER_APPROVAL",
+          "NORMAL_OPERATION",
+          "BLOCKED",
+          "ABORTED",
+          "EMERGENCY_STOP",
+          "FAULTED",
+          "ROLLBACK_REQUIRED"
+        ],
+        "title": "CommissioningState",
+        "type": "string"
+      },
+      "CommissioningStepExecuteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "operator": {
+            "default": "system",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Operator",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "CommissioningStepExecuteRequest",
+        "type": "object"
+      },
+      "CommissioningStepResultData": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "measurements": {
+            "additionalProperties": true,
+            "title": "Measurements",
+            "type": "object"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "operator": {
+            "title": "Operator",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "rule_version": {
+            "title": "Rule Version",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CommissioningStepStatus"
+          },
+          "step_id": {
+            "title": "Step Id",
+            "type": "string"
+          },
+          "thresholds": {
+            "additionalProperties": true,
+            "title": "Thresholds",
+            "type": "object"
+          },
+          "tool_version": {
+            "title": "Tool Version",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "session_id",
+          "step_id",
+          "status",
+          "started_at",
+          "completed_at",
+          "measurements",
+          "thresholds",
+          "evidence_ids",
+          "tool_version",
+          "rule_version",
+          "operator",
+          "failure_reason"
+        ],
+        "title": "CommissioningStepResultData",
+        "type": "object"
+      },
+      "CommissioningStepStatus": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "PASS",
+          "FAIL",
+          "BLOCKED",
+          "ABORTED"
+        ],
+        "title": "CommissioningStepStatus",
+        "type": "string"
       },
       "ComponentAuthority": {
         "enum": [
@@ -5529,6 +6408,32 @@
         "title": "DomainValidationResult",
         "type": "object"
       },
+      "EmergencyStopSource": {
+        "enum": [
+          "USER",
+          "HARDWARE_FAULT",
+          "WATCHDOG",
+          "RULE_ENGINE",
+          "SAFETY_MONITOR",
+          "TOOL_ADAPTER",
+          "AGENT_POLICY",
+          "LOCK_LOSS",
+          "TIMEOUT",
+          "CANCELLATION"
+        ],
+        "title": "EmergencyStopSource",
+        "type": "string"
+      },
+      "EmergencyStopState": {
+        "enum": [
+          "INACTIVE",
+          "REQUESTED",
+          "ACTIVE",
+          "UNKNOWN"
+        ],
+        "title": "EmergencyStopState",
+        "type": "string"
+      },
       "EngineeringDependencyEdge": {
         "additionalProperties": false,
         "description": "A uniform upstream -> downstream engineering dependency.",
@@ -7745,6 +8650,86 @@
           "pin_assignment_revisions"
         ],
         "title": "HardwareIRData",
+        "type": "object"
+      },
+      "HardwareIdentity": {
+        "additionalProperties": false,
+        "description": "Stable identity evidence; a port name alone is not sufficient.",
+        "properties": {
+          "board_revision": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Board Revision"
+          },
+          "detected_mcu": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected Mcu"
+          },
+          "port_path": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port Path"
+          },
+          "probe_serial": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probe Serial"
+          },
+          "target_identifier": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Identifier"
+          },
+          "usb_vid_pid": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usb Vid Pid"
+          }
+        },
+        "title": "HardwareIdentity",
         "type": "object"
       },
       "HealthResponse": {
@@ -9966,6 +10951,53 @@
         "title": "PowerNet",
         "type": "object"
       },
+      "ProbeIdentity": {
+        "additionalProperties": false,
+        "properties": {
+          "firmware_version": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firmware Version"
+          },
+          "port_path": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port Path"
+          },
+          "serial": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Serial",
+            "type": "string"
+          },
+          "transport": {
+            "default": "debug",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Transport",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serial"
+        ],
+        "title": "ProbeIdentity",
+        "type": "object"
+      },
       "ProjectConsistencyData": {
         "properties": {
           "engineering_freshness": {
@@ -11935,6 +12967,223 @@
         "title": "ReviewStatus",
         "type": "string"
       },
+      "SafeState": {
+        "additionalProperties": false,
+        "description": "A proof-shaped representation of the only acceptable default output state.",
+        "properties": {
+          "actuator_disabled": {
+            "default": true,
+            "title": "Actuator Disabled",
+            "type": "boolean"
+          },
+          "brake_policy": {
+            "default": "ENGAGED",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Brake Policy",
+            "type": "string"
+          },
+          "gate_enable_disabled": {
+            "default": true,
+            "title": "Gate Enable Disabled",
+            "type": "boolean"
+          },
+          "gpio_safe_outputs": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Gpio Safe Outputs",
+            "type": "object"
+          },
+          "pwm_disabled": {
+            "default": true,
+            "title": "Pwm Disabled",
+            "type": "boolean"
+          },
+          "relay_contactor_state": {
+            "default": "OPEN",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Relay Contactor State",
+            "type": "string"
+          },
+          "torque_command_zero": {
+            "default": true,
+            "title": "Torque Command Zero",
+            "type": "boolean"
+          },
+          "watchdog_behavior": {
+            "default": "TRIP_TO_SAFE_STATE",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Watchdog Behavior",
+            "type": "string"
+          }
+        },
+        "title": "SafeState",
+        "type": "object"
+      },
+      "SafetyLimit": {
+        "additionalProperties": false,
+        "description": "Structured, canonical-unit safety ceiling; all automated changes are tightening-only.",
+        "properties": {
+          "current_ramp_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_bus_voltage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_duty_cycle": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Duty Cycle"
+          },
+          "max_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_iq": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_phase_current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_position_delta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_pwm_enable_duration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_speed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_temperature": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_test_runtime": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "safe_brake_policy": {
+            "default": "ENGAGED",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Safe Brake Policy",
+            "type": "string"
+          },
+          "safe_output_state": {
+            "$ref": "#/components/schemas/SafeState"
+          },
+          "speed_ramp_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "watchdog_timeout": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "SafetyLimit",
+        "type": "object"
+      },
       "SchemaData": {
         "properties": {
           "json_schema": {
@@ -13685,6 +14934,50 @@
         ],
         "title": "VersionData",
         "type": "object"
+      },
+      "WatchdogState": {
+        "additionalProperties": false,
+        "properties": {
+          "armed": {
+            "default": false,
+            "title": "Armed",
+            "type": "boolean"
+          },
+          "expected_safe_action": {
+            "default": "SAFE_STATE",
+            "title": "Expected Safe Action",
+            "type": "string"
+          },
+          "heartbeat_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heartbeat At"
+          },
+          "last_observed_status": {
+            "default": "UNKNOWN",
+            "title": "Last Observed Status",
+            "type": "string"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "WatchdogState",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -13989,6 +15282,555 @@
         "tags": [
           "claims",
           "dependency-graph"
+        ]
+      }
+    },
+    "/api/v1/commissioning/sessions/{session_id}": {
+      "get": {
+        "operationId": "get_commissioning_session_api_v1_commissioning_sessions__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CommissioningSessionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Commissioning Session",
+        "tags": [
+          "commissioning"
+        ]
+      }
+    },
+    "/api/v1/commissioning/sessions/{session_id}/abort": {
+      "post": {
+        "operationId": "abort_commissioning_session_api_v1_commissioning_sessions__session_id__abort_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissioningAbortRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CommissioningSessionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Abort Commissioning Session",
+        "tags": [
+          "commissioning"
+        ]
+      }
+    },
+    "/api/v1/commissioning/sessions/{session_id}/approve": {
+      "post": {
+        "operationId": "approve_commissioning_session_api_v1_commissioning_sessions__session_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissioningApproveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CommissioningSessionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Approve Commissioning Session",
+        "tags": [
+          "commissioning"
+        ]
+      }
+    },
+    "/api/v1/commissioning/sessions/{session_id}/emergency-stop": {
+      "post": {
+        "operationId": "emergency_stop_commissioning_session_api_v1_commissioning_sessions__session_id__emergency_stop_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissioningEmergencyStopRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CommissioningSessionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Emergency Stop Commissioning Session",
+        "tags": [
+          "commissioning"
+        ]
+      }
+    },
+    "/api/v1/commissioning/sessions/{session_id}/flash": {
+      "post": {
+        "operationId": "flash_commissioning_session_api_v1_commissioning_sessions__session_id__flash_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissioningRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CommissioningSessionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Flash Commissioning Session",
+        "tags": [
+          "commissioning"
+        ]
+      }
+    },
+    "/api/v1/commissioning/sessions/{session_id}/preflight": {
+      "post": {
+        "operationId": "run_commissioning_preflight_api_v1_commissioning_sessions__session_id__preflight_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissioningRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CommissioningSessionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Run Commissioning Preflight",
+        "tags": [
+          "commissioning"
+        ]
+      }
+    },
+    "/api/v1/commissioning/sessions/{session_id}/steps": {
+      "get": {
+        "operationId": "list_commissioning_steps_api_v1_commissioning_sessions__session_id__steps_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_list_CommissioningStepResultData__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Commissioning Steps",
+        "tags": [
+          "commissioning"
+        ]
+      }
+    },
+    "/api/v1/commissioning/sessions/{session_id}/steps/{step_id}/execute": {
+      "post": {
+        "operationId": "execute_commissioning_step_api_v1_commissioning_sessions__session_id__steps__step_id__execute_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "step_id",
+            "required": true,
+            "schema": {
+              "title": "Step Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissioningStepExecuteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CommissioningSessionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Execute Commissioning Step",
+        "tags": [
+          "commissioning"
         ]
       }
     },
@@ -15767,6 +17609,112 @@
         "summary": "Validate Circuit",
         "tags": [
           "circuit"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/commissioning/profiles": {
+      "get": {
+        "operationId": "list_commissioning_profiles_api_v1_projects__project_id__commissioning_profiles_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_list_CommissioningProfileData__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Commissioning Profiles",
+        "tags": [
+          "commissioning"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/commissioning/sessions": {
+      "post": {
+        "operationId": "create_commissioning_session_api_v1_projects__project_id__commissioning_sessions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissioningSessionCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_CommissioningSessionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Commissioning Session",
+        "tags": [
+          "commissioning"
         ]
       }
     },

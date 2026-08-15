@@ -9,3 +9,6 @@ __all__ = [
     "GitCliWorkspaceAdapter",
     "TreeSitterCppSourceAnalyzer",
 ]
+from eea_adapters.hardware import FakeHardwareCommissioningAdapter
+
+__all__ = ["FakeHardwareCommissioningAdapter"]

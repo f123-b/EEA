@@ -7,10 +7,12 @@ from uuid import UUID, uuid4
 
 from eea_adapters.ai import LiteLLMProvider
 from eea_adapters.components import Stm32CubeG4Provider
+from eea_adapters.hardware import FakeHardwareCommissioningAdapter
 from eea_adapters.secrets import KeyringSecretService
 from eea_adapters.source import FileSystemSourceWorkspaceAdapter, GitCliWorkspaceAdapter
 from eea_adapters.static_analysis import CppcheckAdapter
 from eea_application.claims import ClaimPredicateRegistry
+from eea_application.commissioning import build_safe_commissioning_profile
 from eea_application.domains import DomainExtensionRegistry
 from eea_application.reliability import (
     EventOutboxService,
@@ -26,6 +28,7 @@ from eea_application.source_workspace import SourceWorkspaceService
 from eea_application.testing import TestExecutorRegistry
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
+from eea_core.hardware import HardwareIdentity, ProbeIdentity
 from eea_ports.ai import AIProvider
 from eea_ports.secrets import SecretReference
 from fastapi import APIRouter, Depends, FastAPI, Request
@@ -35,6 +38,7 @@ from sqlalchemy.orm import Session
 
 from eea_backend.api import router as core_router
 from eea_backend.claim_repositories import SqlAlchemyClaimPredicateRepository
+from eea_backend.commissioning_repositories import SqlAlchemyCommissioningRepository
 from eea_backend.database import check_database, create_database_engine
 from eea_backend.dependency_bootstrap import reconcile_project_dependencies
 from eea_backend.errors import engineering_error_handler, validation_error_handler
@@ -108,6 +112,15 @@ def seed_builtin_requirement_profiles(session: Session) -> None:
     seed_builtin_requirement_contracts(session)
 
 
+def seed_builtin_commissioning_profiles(session: Session) -> None:
+    """Install the deterministic SAFE_COMMISSIONING profile before accepting sessions."""
+
+    repository = SqlAlchemyCommissioningRepository(session)
+    profile = build_safe_commissioning_profile()
+    if repository.get_profile(profile.id) is None:
+        repository.add_profile(profile, commit=True)
+
+
 def reconcile_source_workspaces(session: Session) -> None:
     """Recover source bytes before transactional outbox delivery resumes."""
 
@@ -166,6 +179,8 @@ def create_app(
                 ):
                     with Session(engine) as session:
                         seed_builtin_requirement_contracts(session)
+                        if inspect(session.get_bind()).has_table("commissioning_profiles"):
+                            seed_builtin_commissioning_profiles(session)
                         for project_id in session.scalars(select(ProjectRecord.id)):
                             reconcile_project_dependencies(session, UUID(project_id))
                 if inspector.has_table("source_workspaces"):
@@ -211,6 +226,10 @@ def create_app(
         application.state.recovery_service,
         batch_limit=100,
         poll_interval_seconds=1.0,
+    )
+    application.state.hardware_commissioning_adapter = FakeHardwareCommissioningAdapter(
+        identity=HardwareIdentity(target_identifier="unconfigured-target"),
+        probe=ProbeIdentity(serial="unconfigured-probe"),
     )
     application.state.startup_recovery_completed = False
     application.state.last_recovery_summary = {}

@@ -73,6 +73,17 @@ from eea_core.firmware import (
     SharedResource,
     StartupConfig,
 )
+from eea_core.hardware import (
+    CommissioningState,
+    CommissioningStepStatus,
+    EmergencyStopSource,
+    EmergencyStopState,
+    HardwareIdentity,
+    ProbeIdentity,
+    SafeState,
+    SafetyLimit,
+    WatchdogState,
+)
 from eea_core.mcu_config import (
     DMAIR,
     ClockIR,
@@ -188,6 +199,126 @@ class RecoveryReconcileData(BaseModel):
     dispatched: dict[str, int]
     reconcile_required: int
     project: ProjectConsistencyData | None = None
+
+
+class CommissioningProfileData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    name: str
+    version: str
+    applicable_target_types: list[str]
+    applicable_domains: list[str]
+    required_steps: list[str]
+    required_permissions: list[Permission]
+    user_approval_required: bool
+    safety_limits: SafetyLimit
+    required_safety_capabilities: list[str]
+    watchdog_policy: dict[str, object]
+    emergency_stop_policy: dict[str, object]
+    safe_state_policy: SafeState
+
+
+class CommissioningStepResultData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    session_id: UUID
+    step_id: str
+    status: CommissioningStepStatus
+    started_at: datetime | None
+    completed_at: datetime | None
+    measurements: dict[str, object]
+    thresholds: dict[str, object]
+    evidence_ids: list[UUID]
+    tool_version: str
+    rule_version: str
+    operator: str
+    failure_reason: str | None
+
+
+class CommissioningSessionData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    target_id: str
+    firmware_artifact_id: UUID
+    firmware_hash: str
+    build_run_id: UUID | None
+    source_revision_id: UUID | None
+    build_input_snapshot_id: UUID | None
+    hardware_identity: HardwareIdentity
+    probe_identity: ProbeIdentity
+    board_revision: str | None
+    commissioning_profile_id: UUID
+    state: CommissioningState
+    current_step: str | None
+    started_by: str
+    approved_by: str | None
+    safety_limits_snapshot: SafetyLimit
+    preflight_results: list[dict[str, object]]
+    step_results: list[CommissioningStepResultData]
+    evidence_ids: list[UUID]
+    emergency_stop_state: EmergencyStopState
+    watchdog_state: WatchdogState
+    resource_lock_ids: list[UUID]
+    permission_token_ids: list[str]
+    approval_snapshot: dict[str, object] | None
+    completed_at: datetime | None
+    aborted_at: datetime | None
+
+
+class CommissioningSessionCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_id: str = Field(min_length=1, max_length=500)
+    firmware_artifact_id: UUID
+    firmware_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    hardware_identity: HardwareIdentity
+    probe_identity: ProbeIdentity
+    commissioning_profile_id: UUID | None = None
+    started_by: str = Field(min_length=1, max_length=200)
+    build_run_id: UUID | None = None
+    source_revision_id: UUID | None = None
+    build_input_snapshot_id: UUID | None = None
+    board_revision: str | None = Field(default=None, max_length=100)
+    resource_lock_ids: list[UUID] = Field(default_factory=list)
+    permission_token_ids: list[str] = Field(default_factory=list)
+
+
+class CommissioningRevisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int = Field(ge=1)
+    permissions: list[Permission] = Field(default_factory=list)
+
+
+class CommissioningStepExecuteRequest(CommissioningRevisionRequest):
+    operator: str = Field(default="system", min_length=1, max_length=200)
+
+
+class CommissioningApproveRequest(CommissioningRevisionRequest):
+    actor: str = Field(min_length=1, max_length=200)
+
+
+class CommissioningEmergencyStopRequest(CommissioningRevisionRequest):
+    source: EmergencyStopSource = EmergencyStopSource.USER
+    reason: str = Field(default="emergency stop requested", min_length=1, max_length=4000)
+    actor: str = Field(default="system", min_length=1, max_length=200)
+
+
+class CommissioningAbortRequest(CommissioningRevisionRequest):
+    actor: str = Field(default="system", min_length=1, max_length=200)
 
 
 class ErrorData(BaseModel):
