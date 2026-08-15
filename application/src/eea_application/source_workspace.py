@@ -11,9 +11,10 @@ import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from threading import Lock
 from typing import ClassVar, Protocol
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
@@ -38,6 +39,25 @@ class SourceWorkspaceState:
     current_source_revision_id: UUID | None
     workspace_revision: int
     base_commit: str | None
+    active_mutation_id: UUID | None = None
+    active_mutation_started_at: datetime | None = None
+    active_mutation_expected_revision: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SourceMutationJournal:
+    id: UUID
+    project_id: UUID
+    operation_id: UUID
+    proposal_id: UUID | None
+    previous_source_revision_id: UUID | None
+    expected_workspace_revision: int
+    affected_files: list[str]
+    before_manifest: dict[str, str | None]
+    after_manifest: dict[str, str]
+    recovery_bundle_path: str | None
+    status: str
+    last_error: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +96,33 @@ class SourceWorkspaceRepository(Protocol):
         commit: bool = True,
     ) -> None: ...
 
+    def claim_source_mutation(
+        self,
+        project_id: UUID,
+        operation_id: UUID,
+        expected_source_revision_id: UUID | None,
+        expected_workspace_revision: int,
+        *,
+        commit: bool = True,
+    ) -> None: ...
+
+    def release_source_mutation(
+        self, project_id: UUID, operation_id: UUID, *, commit: bool = True
+    ) -> None: ...
+
+    def finalize_source_mutation(
+        self,
+        project_id: UUID,
+        operation_id: UUID,
+        expected_source_revision_id: UUID | None,
+        expected_workspace_revision: int,
+        new_source_revision_id: UUID,
+        new_workspace_revision: int,
+        base_commit: str | None,
+        *,
+        commit: bool = True,
+    ) -> None: ...
+
     def save_proposal(self, proposal: PatchProposal, *, commit: bool = True) -> PatchProposal: ...
 
     def get_proposal(
@@ -99,12 +146,23 @@ class SourceWorkspaceRepository(Protocol):
     def begin_source_journal(
         self,
         project_id: UUID,
-        proposal_id: UUID,
-        previous_source_revision_id: UUID,
+        proposal_id: UUID | None,
+        previous_source_revision_id: UUID | None,
         affected_files: list[str],
+        *,
+        operation_id: UUID | None = None,
+        before_manifest: Mapping[str, str | None] | None = None,
+        after_manifest: Mapping[str, str] | None = None,
+        recovery_bundle_path: str | None = None,
     ) -> UUID: ...
 
-    def finish_source_journal(self, journal_id: UUID, status: str) -> None: ...
+    def get_source_journal(self, journal_id: UUID) -> SourceMutationJournal | None: ...
+
+    def list_prepared_source_journals(self, project_id: UUID) -> list[SourceMutationJournal]: ...
+
+    def finish_source_journal(
+        self, journal_id: UUID, status: str, *, last_error: str | None = None
+    ) -> None: ...
 
     def recover_source_journals(self, project_id: UUID, workspace_revision: int) -> int: ...
 
@@ -239,15 +297,26 @@ class SourceWorkspaceService:
         after: SourceRevision,
         *,
         emit_event: bool = True,
+        mutation_id: UUID | None = None,
     ) -> SourceRevision:
+        operation_id = mutation_id or uuid4()
+        expected_workspace_revision = before.workspace_revision if before is not None else 0
+        if mutation_id is None:
+            self.repository.claim_source_mutation(
+                self.project_id,
+                operation_id,
+                before.id if before is not None else None,
+                expected_workspace_revision,
+            )
         self.repository.save_revision(after, commit=False)
-        self.repository.set_current_revision(
+        self.repository.finalize_source_mutation(
             self.project_id,
+            operation_id,
+            before.id if before is not None else None,
+            expected_workspace_revision,
             after.id,
-            workspace_revision=after.workspace_revision,
-            base_commit=after.base_commit,
-            expected_current_revision_id=before.id if before is not None else None,
-            expected_workspace_revision=before.workspace_revision if before is not None else 0,
+            after.workspace_revision,
+            after.base_commit,
             commit=False,
         )
         if emit_event:
@@ -255,9 +324,187 @@ class SourceWorkspaceService:
         self.repository.commit()
         return after
 
+    @staticmethod
+    def _lease_is_valid(state: SourceWorkspaceState) -> bool:
+        if state.active_mutation_started_at is None:
+            return False
+        started = state.active_mutation_started_at
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        return datetime.now(UTC) - started.astimezone(UTC) < timedelta(minutes=5)
+
+    def _prepared_journals(self) -> list[SourceMutationJournal]:
+        return self.repository.list_prepared_source_journals(self.project_id)
+
+    def _recover_one_journal(
+        self,
+        journal: SourceMutationJournal,
+        current: SourceRevision | None,
+        state: SourceWorkspaceState,
+        *,
+        created_by: str,
+    ) -> SourceRevision | None:
+        if journal.recovery_bundle_path is None:
+            self.repository.finish_source_journal(
+                journal.id,
+                "RECOVERY_REQUIRED",
+                last_error="Prepared source mutation has no recovery bundle",
+            )
+            self.repository.commit()
+            raise EngineeringError(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "Prepared source mutation has no recovery evidence",
+                details={"operation_id": str(journal.operation_id)},
+            )
+        classification = self.workspace.classify_recovery_bundle(journal.recovery_bundle_path)
+        if classification == "PARTIAL":
+            try:
+                self.workspace.restore_recovery_bundle(journal.recovery_bundle_path, "AFTER")
+                classification = self.workspace.classify_recovery_bundle(
+                    journal.recovery_bundle_path
+                )
+            except EngineeringError:
+                self.workspace.restore_recovery_bundle(journal.recovery_bundle_path, "BEFORE")
+                classification = self.workspace.classify_recovery_bundle(
+                    journal.recovery_bundle_path
+                )
+        if classification == "UNKNOWN":
+            self.repository.finish_source_journal(
+                journal.id,
+                "RECOVERY_REQUIRED",
+                last_error="Recovery bundle is neither a complete BEFORE nor AFTER state",
+            )
+            self.repository.commit()
+            raise EngineeringError(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "Source mutation recovery is indeterminate",
+                details={"operation_id": str(journal.operation_id)},
+            )
+        if classification == "BEFORE":
+            if journal.proposal_id is not None:
+                proposal = self.repository.get_proposal(journal.proposal_id)
+                if proposal is not None and proposal.status in {
+                    PatchProposalStatus.DRAFT,
+                    PatchProposalStatus.READY,
+                }:
+                    self.repository.update_proposal(
+                        proposal.model_copy(
+                            update={
+                                "status": PatchProposalStatus.FAILED,
+                                "failure_reason": "Source mutation rolled back during recovery",
+                            }
+                        ),
+                        commit=False,
+                    )
+            self.repository.finish_source_journal(journal.id, "ROLLED_BACK")
+            if state.active_mutation_id == journal.operation_id:
+                self.repository.release_source_mutation(
+                    self.project_id, journal.operation_id, commit=False
+                )
+            self.repository.commit()
+            self.workspace.cleanup_recovery_bundle(journal.recovery_bundle_path)
+            return current
+        if current is None or current.id != journal.previous_source_revision_id:
+            current = self.repository.current_revision(self.project_id)
+        if current is None or current.id != journal.previous_source_revision_id:
+            raise EngineeringError(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "Source mutation recovery has no authoritative previous revision",
+            )
+        if state.active_mutation_id not in {None, journal.operation_id}:
+            raise EngineeringError(
+                EngineeringErrorCode.RESOURCE_BUSY,
+                "Source workspace is owned by another mutation during recovery",
+            )
+        if state.active_mutation_id is None:
+            self.repository.claim_source_mutation(
+                self.project_id,
+                journal.operation_id,
+                current.id,
+                journal.expected_workspace_revision,
+            )
+        files = self.workspace.list_files()
+        after = self._snapshot(
+            files,
+            workspace_revision=journal.expected_workspace_revision + 1,
+            created_by=created_by,
+            git_status=self._git_status(),
+        )
+        self.repository.save_revision(after, commit=False)
+        if journal.proposal_id is not None:
+            proposal = self.repository.get_proposal(journal.proposal_id)
+            if proposal is not None and proposal.status in {
+                PatchProposalStatus.DRAFT,
+                PatchProposalStatus.READY,
+            }:
+                self.repository.update_proposal(
+                    proposal.model_copy(
+                        update={"status": PatchProposalStatus.APPLIED, "failure_reason": None}
+                    ),
+                    commit=False,
+                )
+        self.repository.finish_source_journal(journal.id, "RECOVERED")
+        self.repository.finalize_source_mutation(
+            self.project_id,
+            journal.operation_id,
+            current.id,
+            journal.expected_workspace_revision,
+            after.id,
+            after.workspace_revision,
+            after.base_commit,
+            commit=False,
+        )
+        self._publish_change(current, after)
+        self.repository.commit()
+        self.workspace.cleanup_recovery_bundle(journal.recovery_bundle_path)
+        return after
+
+    def _recover_prepared_journals(
+        self,
+        state: SourceWorkspaceState,
+        current: SourceRevision | None,
+        *,
+        created_by: str,
+    ) -> SourceRevision | None:
+        journals = self._prepared_journals()
+        if state.active_mutation_id is not None and self._lease_is_valid(state):
+            return current
+        if state.active_mutation_id is not None and not journals:
+            raise EngineeringError(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "Active source mutation has no prepared journal",
+                details={"operation_id": str(state.active_mutation_id)},
+            )
+        for journal in journals:
+            if (
+                state.active_mutation_id is not None
+                and state.active_mutation_id != journal.operation_id
+            ):
+                raise EngineeringError(
+                    EngineeringErrorCode.RESOURCE_BUSY,
+                    "Source workspace is owned by another mutation",
+                )
+            current = self._recover_one_journal(journal, current, state, created_by=created_by)
+            state = self.repository.ensure_workspace(self.project_id, str(self.workspace.root))
+        return current
+
     def _reconcile(self, *, created_by: str = "eea:source-reconcile") -> SourceRevision:
         self.workspace.cleanup_temporary()
         self.workspace.ensure_exists()
+        state = self.repository.ensure_workspace(self.project_id, str(self.workspace.root))
+        current = self.repository.current_revision(self.project_id)
+        if state.active_mutation_id is not None and self._lease_is_valid(state):
+            if current is None:
+                raise EngineeringError(
+                    EngineeringErrorCode.RESOURCE_BUSY,
+                    "Source workspace has an active initial mutation",
+                )
+            return current
+        recovered = self._recover_prepared_journals(
+            state, current, created_by="eea:source-recovery"
+        )
+        if recovered is not None:
+            current = recovered
         state = self.repository.ensure_workspace(self.project_id, str(self.workspace.root))
         current = self.repository.current_revision(self.project_id)
         files = self.workspace.list_files()
@@ -281,10 +528,6 @@ class SourceWorkspaceService:
             result = self._persist_snapshot(current, candidate)
         else:
             result = current
-        recover_journals = getattr(self.repository, "recover_source_journals", None)
-        if recover_journals is not None:
-            recover_journals(self.project_id, result.workspace_revision)
-            self.repository.commit()
         return result
 
     def reconcile(self, *, created_by: str = "eea:source-reconcile") -> SourceRevision:
@@ -587,24 +830,98 @@ class SourceWorkspaceService:
                 EngineeringErrorCode.VALIDATION_ERROR,
                 "Patch proposal affected_files and edit payload do not match",
             )
+        operation_id = uuid4()
+        before_files = {path: files.get(path) for path in proposal.affected_files}
+        bundle = None
         journal_id: UUID | None = None
-        begin_journal = getattr(self.repository, "begin_source_journal", None)
-        if begin_journal is not None:
-            journal_id = begin_journal(
+        self.repository.claim_source_mutation(
+            self.project_id,
+            operation_id,
+            current.id,
+            current.workspace_revision,
+        )
+        try:
+            claimed_files = self.workspace.list_files()
+            for path in proposal.affected_files:
+                actual = _hash_bytes(claimed_files[path]) if path in claimed_files else None
+                if actual != proposal.expected_file_hashes.get(path):
+                    self.repository.release_source_mutation(
+                        self.project_id, operation_id, commit=True
+                    )
+                    self._mark_stale(proposal, f"Expected content hash does not match {path}")
+                    raise EngineeringError(
+                        EngineeringErrorCode.SOURCE_REVISION_CONFLICT,
+                        "Patch proposal content hash changed after mutation claim",
+                        details={"path": path},
+                    )
+            before_files = {path: claimed_files.get(path) for path in proposal.affected_files}
+            updates = {
+                path: value.encode("utf-8") for path, value in proposal.structured_edits.items()
+            }
+            if proposal.patch and not updates:
+                updates = self._parse_unified_patch(proposal.patch, claimed_files)
+            bundle = self.workspace.prepare_recovery_bundle(
+                operation_id,
+                before_files,
+                updates,
+                metadata={
+                    "project_id": str(self.project_id),
+                    "previous_source_revision_id": str(current.id),
+                    "expected_workspace_revision": current.workspace_revision,
+                    "proposal_id": str(proposal.id),
+                },
+            )
+            journal_id = self.repository.begin_source_journal(
                 self.project_id,
                 proposal.id,
                 current.id,
                 proposal.affected_files,
+                operation_id=operation_id,
+                before_manifest=dict(bundle.before_manifest),
+                after_manifest=dict(bundle.after_manifest),
+                recovery_bundle_path=str(bundle.path),
             )
             self.repository.commit()
+        except Exception:
+            if journal_id is None:
+                self.repository.release_source_mutation(self.project_id, operation_id, commit=True)
+                if bundle is not None:
+                    self.workspace.cleanup_recovery_bundle(str(bundle.path))
+            raise
+        assert bundle is not None
+        assert journal_id is not None
         try:
             self.workspace.atomic_replace(updates)
-        except Exception:
-            if journal_id is not None:
+        except Exception as exc:
+            classification = self.workspace.classify_recovery_bundle(str(bundle.path))
+            if classification == "BEFORE":
                 self.repository.finish_source_journal(journal_id, "ROLLED_BACK")
+                self.repository.release_source_mutation(self.project_id, operation_id, commit=False)
                 self.repository.commit()
-            raise
+                self.workspace.cleanup_recovery_bundle(str(bundle.path))
+            elif classification == "AFTER":
+                # The replace raised after all bytes reached the staged state;
+                # leave PREPARED evidence for deterministic startup finalize.
+                self.repository.commit()
+            else:
+                self.repository.finish_source_journal(
+                    journal_id,
+                    "PREPARED" if classification == "PARTIAL" else "RECOVERY_REQUIRED",
+                    last_error=(
+                        "Filesystem replacement stopped before a consistent state"
+                        if classification == "PARTIAL"
+                        else "Filesystem replacement reached an unknown state"
+                    ),
+                )
+                self.repository.commit()
+            raise exc
         try:
+            if self.workspace.classify_recovery_bundle(str(bundle.path)) != "AFTER":
+                raise EngineeringError(
+                    EngineeringErrorCode.RECOVERY_REQUIRED,
+                    "Filesystem replacement did not reach the staged recovery state",
+                    details={"operation_id": str(operation_id)},
+                )
             after = self._snapshot(
                 self.workspace.list_files(),
                 workspace_revision=current.workspace_revision + 1,
@@ -615,14 +932,14 @@ class SourceWorkspaceService:
                 update={"status": PatchProposalStatus.APPLIED, "failure_reason": None}
             )
             self.repository.update_proposal(applied, commit=False)
-            if journal_id is not None:
-                self.repository.finish_source_journal(journal_id, "COMPLETED")
-            self._persist_snapshot(current, after)
+            self.repository.finish_source_journal(journal_id, "COMPLETED")
+            self._persist_snapshot(current, after, mutation_id=operation_id)
+            self.workspace.cleanup_recovery_bundle(str(bundle.path))
             return applied, after
         except Exception:
             self.repository.rollback()
-            # The filesystem is intentionally left for startup reconciliation;
-            # DB rollback must never pretend the bytes were not changed.
+            # The committed PREPARED journal and bundle remain the recovery source
+            # of truth when SQL finalization fails after filesystem side effects.
             raise
 
     def commit(
@@ -639,21 +956,42 @@ class SourceWorkspaceService:
             raise EngineeringError(
                 EngineeringErrorCode.CAPABILITY_UNAVAILABLE, "Git adapter is unavailable"
             )
-        result = self.git.commit(message, actor=actor)
-        git_status = self._git_status()
-        after = self._snapshot(
-            self.workspace.list_files(),
-            workspace_revision=current.workspace_revision + 1,
-            created_by=f"git:{actor}",
-            git_status=GitStatus(
-                repository_id=git_status.repository_id,
-                commit_sha=result.commit_sha,
-                base_commit=result.commit_sha,
-                branch=git_status.branch,
-                dirty=False,
-            ),
+        if not message.strip():
+            raise EngineeringError(
+                EngineeringErrorCode.VALIDATION_ERROR,
+                "Commit message must be non-empty",
+            )
+        operation_id = uuid4()
+        self.repository.claim_source_mutation(
+            self.project_id,
+            operation_id,
+            current.id,
+            current.workspace_revision,
         )
-        return self._persist_snapshot(current, after, emit_event=False)
+        try:
+            # Re-check the bounded Git status after claiming the database row.
+            self._git_status()
+            result = self.git.commit(message, actor=actor)
+            git_status = self._git_status()
+            after = self._snapshot(
+                self.workspace.list_files(),
+                workspace_revision=current.workspace_revision + 1,
+                created_by=f"git:{actor}",
+                git_status=GitStatus(
+                    repository_id=git_status.repository_id,
+                    commit_sha=result.commit_sha,
+                    base_commit=result.commit_sha,
+                    branch=git_status.branch,
+                    dirty=False,
+                ),
+            )
+            return self._persist_snapshot(
+                current, after, emit_event=False, mutation_id=operation_id
+            )
+        except Exception:
+            # The Git operation has an unknown outcome if it raised after
+            # invoking the external process. Keep the lease for recovery.
+            raise
 
     def apply_generated_candidate(
         self,
