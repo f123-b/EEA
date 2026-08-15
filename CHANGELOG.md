@@ -7,6 +7,21 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18BR Composition Authority & Apply Closure at implementation HEAD
+  `cc5fd96654d41ee7fcf0b112671d5fa9b5305455`: made public `apply-composition` require
+  a valid preview revision and lowercase SHA-256 plan hash, made persisted
+  `DomainCompositionState` the runtime/restart SSOT with fail-closed drift detection,
+  replaced migration-provider string optimism with executable dry-run validation,
+  added explicit `None` versus `{}` capability selection semantics, and added real SQL
+  rollback/CAS regressions. Focused M14/M15/M18/M18R/M18A/M18AR/M18B/M18BR: **129 passed**;
+  local full pytest: **364 passed, 3 skipped**, with **2 pre-existing,
+  environment-specific Windows M5 sandbox failures**; coverage **84.61%**. Ruff,
+  mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop lint,
+  desktop typecheck, and desktop build pass. GitHub CI push run `31868017475` and
+  pull request run `31868019387` both have backend PASS and desktop PASS.
+  `M18B = IMPLEMENTED`, `M18BR = IMPLEMENTED`, `READY_FOR_M18B_FINAL_REVIEW = YES`,
+  and M18C remains not started.
+
 - M18B Domain Composition Contract at implementation commit
   `fa2c22ee20b9f6ebbf1b78df7124987c6d4e8391`: added the project-scoped
   `DomainCompositionState` SSOT, deterministic canonical plan hashes and capability
