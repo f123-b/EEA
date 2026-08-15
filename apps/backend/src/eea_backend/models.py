@@ -39,6 +39,15 @@ from eea_core.enums import (
     StaticAnalysisStatus,
     TraceabilityRelation,
 )
+from eea_core.hardware import (
+    CapabilityVerificationStatus,
+    CommissioningState,
+    CommissioningStepStatus,
+    EmergencyStopSource,
+    EmergencyStopState,
+    ResourceLockStatus,
+    ResourceType,
+)
 from eea_core.reliability import OutboxEventStatus, SideEffectStatus
 from sqlalchemy import (
     JSON,
@@ -480,6 +489,170 @@ class DomainCompositionStateRecord(CoreRecordMixin, Base):
     generator_order: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     plan_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     updated_by: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class CommissioningProfileRecord(CoreRecordMixin, Base):
+    __tablename__ = "commissioning_profiles"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        UniqueConstraint("name", "version", name="uq_commissioning_profiles_name_version"),
+    )
+
+    name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    version: Mapped[str] = mapped_column(String(50), nullable=False)
+    applicable_target_types: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    applicable_domains: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    required_steps: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    required_permissions: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    user_approval_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    safety_limits: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    required_safety_capabilities: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    watchdog_policy: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    emergency_stop_policy: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    safe_state_policy: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class HardwareTargetRecord(CoreRecordMixin, Base):
+    __tablename__ = "hardware_targets"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        UniqueConstraint("project_id", "name", name="uq_hardware_targets_project_name"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    identity: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    safe_state: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    safety_capability: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    safety_critical: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class TargetSafetyCapabilityRecord(CoreRecordMixin, Base):
+    __tablename__ = "target_safety_capabilities"
+    __table_args__ = (
+        CheckConstraint(
+            f"verification_status IN ({_enum_values(CapabilityVerificationStatus)})",
+            name="verification_status",
+        ),
+        UniqueConstraint("target_id", name="uq_target_safety_capabilities_target"),
+    )
+
+    target_id: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    capability: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    verification_status: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class ResourceLockRecord(CoreRecordMixin, Base):
+    __tablename__ = "resource_locks"
+    __table_args__ = (
+        CheckConstraint(f"resource_type IN ({_enum_values(ResourceType)})", name="resource_type"),
+        CheckConstraint(f"status IN ({_enum_values(ResourceLockStatus)})", name="status"),
+        Index("ix_resource_locks_resource_active", "resource_type", "resource_id", "status"),
+    )
+
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    resource_id: Mapped[str] = mapped_column(String(500), nullable=False)
+    owner_job_id: Mapped[str | None] = mapped_column(String(36))
+    owner_session: Mapped[str | None] = mapped_column(String(36))
+    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    lease_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class CommissioningSessionRecord(CoreRecordMixin, Base):
+    __tablename__ = "commissioning_sessions"
+    __table_args__ = (
+        CheckConstraint(f"state IN ({_enum_values(CommissioningState)})", name="state"),
+        CheckConstraint(
+            f"emergency_stop_state IN ({_enum_values(EmergencyStopState)})",
+            name="emergency_stop_state",
+        ),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    target_id: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    firmware_artifact_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    firmware_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    build_run_id: Mapped[str | None] = mapped_column(String(36))
+    source_revision_id: Mapped[str | None] = mapped_column(String(36))
+    build_input_snapshot_id: Mapped[str | None] = mapped_column(String(36))
+    hardware_identity: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    probe_identity: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    board_revision: Mapped[str | None] = mapped_column(String(100))
+    commissioning_profile_id: Mapped[str] = mapped_column(
+        ForeignKey("commissioning_profiles.id"), nullable=False
+    )
+    state: Mapped[str] = mapped_column(String(30), nullable=False)
+    current_step: Mapped[str | None] = mapped_column(String(100))
+    started_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(200))
+    safety_limits_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    preflight_results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    emergency_stop_state: Mapped[str] = mapped_column(String(30), nullable=False)
+    watchdog_state: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    resource_lock_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    permission_token_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    approval_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    aborted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SafetyLimitRecord(CoreRecordMixin, Base):
+    __tablename__ = "safety_limits"
+    __table_args__ = (UniqueConstraint("session_id", name="uq_safety_limits_session"),)
+
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("commissioning_sessions.id"), nullable=False, index=True
+    )
+    profile_id: Mapped[str] = mapped_column(ForeignKey("commissioning_profiles.id"), nullable=False)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    immutable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class CommissioningStepResultRecord(CoreRecordMixin, Base):
+    __tablename__ = "commissioning_step_results"
+    __table_args__ = (
+        CheckConstraint(f"status IN ({_enum_values(CommissioningStepStatus)})", name="status"),
+        UniqueConstraint("session_id", "step_id", name="uq_commissioning_step_session_step"),
+    )
+
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("commissioning_sessions.id"), nullable=False, index=True
+    )
+    step_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    measurements: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    thresholds: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    tool_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    rule_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    operator: Mapped[str] = mapped_column(String(200), nullable=False)
+    failure_reason: Mapped[str | None] = mapped_column(Text)
+
+
+class EmergencyStopEventRecord(CoreRecordMixin, Base):
+    __tablename__ = "emergency_stop_events"
+    __table_args__ = (
+        CheckConstraint(f"source IN ({_enum_values(EmergencyStopSource)})", name="source"),
+        UniqueConstraint("idempotency_key", name="uq_emergency_stop_idempotency_key"),
+    )
+
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("commissioning_sessions.id"), nullable=False, index=True
+    )
+    source: Mapped[str] = mapped_column(String(30), nullable=False)
+    reason: Mapped[str] = mapped_column(String(4000), nullable=False)
+    safe_state_attempted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    safe_state_verified: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    quarantined_resource_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(300), nullable=False)
+    actor: Mapped[str] = mapped_column(String(200), nullable=False)
 
 
 class RequirementProfileRecord(CoreRecordMixin, Base):

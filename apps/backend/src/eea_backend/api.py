@@ -12,6 +12,11 @@ from eea_adapters.source import FileSystemSourceWorkspaceAdapter, GitCliWorkspac
 from eea_application.ai import PromptRegistry, StructuredGenerationService
 from eea_application.architecture import ArchitectureService
 from eea_application.circuit import CircuitService
+from eea_application.commissioning import (
+    SAFE_COMMISSIONING_PROFILE_ID,
+    CommissioningService,
+    build_safe_commissioning_profile,
+)
 from eea_application.components import ComponentMaterializer, ComponentRegistryService
 from eea_application.dependency_graph import DependencyGraphService
 from eea_application.domains import DomainExtensionService
@@ -76,6 +81,7 @@ from eea_core.enums import (
 )
 from eea_core.errors import EngineeringError
 from eea_core.firmware import FirmwareBundle
+from eea_core.hardware import CommissioningProfile, HardwareCommissioningSession
 from eea_core.intelligence import Device, DevicePin, Document
 from eea_core.mcu_config import MCUConfigBundle
 from eea_core.pin_planner import PinAssignment, PinLock, PinPlan, PinRequirement
@@ -101,6 +107,7 @@ from eea_backend.architecture_repositories import SqlAlchemyArchitectureReposito
 from eea_backend.build_repositories import SqlAlchemyBuildRunRepository
 from eea_backend.circuit_repositories import SqlAlchemyCircuitRepository
 from eea_backend.claim_repositories import SqlAlchemyEngineeringClaimRepository
+from eea_backend.commissioning_repositories import SqlAlchemyCommissioningRepository
 from eea_backend.component_repositories import (
     SqlAlchemyComponentMaterializationRepository,
     SqlAlchemyComponentRepository,
@@ -161,6 +168,15 @@ from eea_backend.schemas import (
     CircuitValidateRequest,
     CircuitValidationData,
     ClaimLifecycleMutationRequest,
+    CommissioningAbortRequest,
+    CommissioningApproveRequest,
+    CommissioningEmergencyStopRequest,
+    CommissioningProfileData,
+    CommissioningRevisionRequest,
+    CommissioningSessionCreateRequest,
+    CommissioningSessionData,
+    CommissioningStepExecuteRequest,
+    CommissioningStepResultData,
     ComponentCatalogData,
     ComponentDetailData,
     ComponentMaterializationData,
@@ -358,6 +374,31 @@ def _patch_proposal_data(proposal: object) -> PatchProposalData:
 
 def _dependency_edge_data(edge: object) -> object:
     return {"edge": edge}
+
+
+def _commissioning_service(request: Request, session: Session) -> CommissioningService:
+    repository = SqlAlchemyCommissioningRepository(session)
+    return CommissioningService(
+        repository,
+        request.app.state.hardware_commissioning_adapter,
+        outbox=EventOutboxService(SqlAlchemyOutboxRepository(session)),
+        artifact_hash=repository.artifact_hash,
+        build_binding=repository.build_binding,
+        lock_lookup=repository.get_lock,
+        capability_lookup=repository.get_capability,
+    )
+
+
+def _commissioning_session_data(session: HardwareCommissioningSession) -> CommissioningSessionData:
+    return CommissioningSessionData.model_validate(session.model_dump(mode="json"))
+
+
+def _commissioning_profile_data(profile: CommissioningProfile) -> CommissioningProfileData:
+    return CommissioningProfileData.model_validate(profile.model_dump(mode="json"))
+
+
+def _commissioning_expected_revision(if_match: str | None, expected_revision: int) -> int:
+    return _expected_revision(if_match, expected_revision)
 
 
 @router.get(
@@ -4171,3 +4212,249 @@ def ignore_issue(
     session: SessionDependency,
 ) -> ApiEnvelope[IssueData]:
     return _mutate_issue(issue_id, payload, request, response, session, IssueStatus.IGNORED)
+
+
+# M18D Hardware Commissioning & Safety -------------------------------------------------------
+
+
+@router.get(
+    "/projects/{project_id}/commissioning/profiles",
+    response_model=ApiEnvelope[list[CommissioningProfileData]],
+    tags=["commissioning"],
+)
+def list_commissioning_profiles(
+    project_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[list[CommissioningProfileData]]:
+    _service(session).get(project_id)
+    repository = SqlAlchemyCommissioningRepository(session)
+    profiles = repository.list_profiles()
+    if not profiles:
+        profiles = [repository.add_profile(build_safe_commissioning_profile(), commit=True)]
+    return ApiEnvelope(
+        data=[_commissioning_profile_data(profile) for profile in profiles],
+        request_id=_request_id(request),
+    )
+
+
+@router.post(
+    "/projects/{project_id}/commissioning/sessions",
+    response_model=ApiEnvelope[CommissioningSessionData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["commissioning"],
+)
+def create_commissioning_session(
+    project_id: UUID,
+    payload: CommissioningSessionCreateRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+) -> ApiEnvelope[CommissioningSessionData]:
+    _service(session).get(project_id)
+    repository = SqlAlchemyCommissioningRepository(session)
+    profile_id = payload.commissioning_profile_id or SAFE_COMMISSIONING_PROFILE_ID
+    profile = repository.get_profile(profile_id)
+    if profile is None:
+        if profile_id != SAFE_COMMISSIONING_PROFILE_ID:
+            raise EngineeringError(
+                EngineeringErrorCode.COMMISSIONING_BLOCKED, "commissioning profile was not found"
+            )
+        profile = repository.add_profile(build_safe_commissioning_profile(), commit=False)
+    created = _commissioning_service(request, session).create_session(
+        project_id=project_id,
+        target_id=payload.target_id,
+        firmware_artifact_id=payload.firmware_artifact_id,
+        firmware_hash=payload.firmware_hash,
+        hardware_identity=payload.hardware_identity,
+        probe_identity=payload.probe_identity,
+        commissioning_profile=profile,
+        started_by=payload.started_by,
+        build_run_id=payload.build_run_id,
+        source_revision_id=payload.source_revision_id,
+        build_input_snapshot_id=payload.build_input_snapshot_id,
+        board_revision=payload.board_revision,
+        resource_lock_ids=payload.resource_lock_ids,
+        permission_token_ids=payload.permission_token_ids,
+    )
+    _set_etag(response, created.revision)
+    return ApiEnvelope(data=_commissioning_session_data(created), request_id=_request_id(request))
+
+
+@router.get(
+    "/commissioning/sessions/{session_id}",
+    response_model=ApiEnvelope[CommissioningSessionData],
+    tags=["commissioning"],
+)
+def get_commissioning_session(
+    session_id: UUID, request: Request, response: Response, session: SessionDependency
+) -> ApiEnvelope[CommissioningSessionData]:
+    current = _commissioning_service(request, session).get(session_id)
+    _set_etag(response, current.revision)
+    return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
+
+
+@router.get(
+    "/commissioning/sessions/{session_id}/steps",
+    response_model=ApiEnvelope[list[CommissioningStepResultData]],
+    tags=["commissioning"],
+)
+def list_commissioning_steps(
+    session_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[list[CommissioningStepResultData]]:
+    repository = SqlAlchemyCommissioningRepository(session)
+    current = _commissioning_service(request, session).get(session_id)
+    del current
+    return ApiEnvelope(
+        data=[
+            CommissioningStepResultData.model_validate(item.model_dump(mode="json"))
+            for item in repository.list_steps(session_id)
+        ],
+        request_id=_request_id(request),
+    )
+
+
+def _commissioning_mutation_revision(
+    request: Request, expected_revision: int, if_match: str | None
+) -> int:
+    return _expected_revision(if_match, expected_revision)
+
+
+@router.post(
+    "/commissioning/sessions/{session_id}/preflight",
+    response_model=ApiEnvelope[CommissioningSessionData],
+    tags=["commissioning"],
+)
+def run_commissioning_preflight(
+    session_id: UUID,
+    payload: CommissioningRevisionRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+) -> ApiEnvelope[CommissioningSessionData]:
+    expected = _commissioning_mutation_revision(request, payload.expected_revision, if_match)
+    current = _commissioning_service(request, session).preflight(
+        session_id, expected_revision=expected, permissions=set(payload.permissions)
+    )
+    _set_etag(response, current.revision)
+    return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
+
+
+@router.post(
+    "/commissioning/sessions/{session_id}/flash",
+    response_model=ApiEnvelope[CommissioningSessionData],
+    tags=["commissioning"],
+)
+def flash_commissioning_session(
+    session_id: UUID,
+    payload: CommissioningRevisionRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+) -> ApiEnvelope[CommissioningSessionData]:
+    expected = _commissioning_mutation_revision(request, payload.expected_revision, if_match)
+    current = _commissioning_service(request, session).flash(
+        session_id, expected_revision=expected, permissions=set(payload.permissions)
+    )
+    _set_etag(response, current.revision)
+    return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
+
+
+@router.post(
+    "/commissioning/sessions/{session_id}/steps/{step_id}/execute",
+    response_model=ApiEnvelope[CommissioningSessionData],
+    tags=["commissioning"],
+)
+def execute_commissioning_step(
+    session_id: UUID,
+    step_id: str,
+    payload: CommissioningStepExecuteRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+) -> ApiEnvelope[CommissioningSessionData]:
+    expected = _commissioning_mutation_revision(request, payload.expected_revision, if_match)
+    current = _commissioning_service(request, session).execute_step(
+        session_id,
+        step_id,
+        expected_revision=expected,
+        permissions=set(payload.permissions),
+        operator=payload.operator,
+    )
+    _set_etag(response, current.revision)
+    return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
+
+
+@router.post(
+    "/commissioning/sessions/{session_id}/approve",
+    response_model=ApiEnvelope[CommissioningSessionData],
+    tags=["commissioning"],
+)
+def approve_commissioning_session(
+    session_id: UUID,
+    payload: CommissioningApproveRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+) -> ApiEnvelope[CommissioningSessionData]:
+    expected = _commissioning_mutation_revision(request, payload.expected_revision, if_match)
+    current = _commissioning_service(request, session).approve(
+        session_id,
+        expected_revision=expected,
+        actor=payload.actor,
+        permissions=set(payload.permissions),
+    )
+    _set_etag(response, current.revision)
+    return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
+
+
+@router.post(
+    "/commissioning/sessions/{session_id}/emergency-stop",
+    response_model=ApiEnvelope[CommissioningSessionData],
+    tags=["commissioning"],
+)
+def emergency_stop_commissioning_session(
+    session_id: UUID,
+    payload: CommissioningEmergencyStopRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+) -> ApiEnvelope[CommissioningSessionData]:
+    expected = _commissioning_mutation_revision(request, payload.expected_revision, if_match)
+    current = _commissioning_service(request, session).emergency_stop(
+        session_id,
+        expected_revision=expected,
+        permissions=set(payload.permissions),
+        source=payload.source,
+        reason=payload.reason,
+        actor=payload.actor,
+    )
+    _set_etag(response, current.revision)
+    return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))
+
+
+@router.post(
+    "/commissioning/sessions/{session_id}/abort",
+    response_model=ApiEnvelope[CommissioningSessionData],
+    tags=["commissioning"],
+)
+def abort_commissioning_session(
+    session_id: UUID,
+    payload: CommissioningAbortRequest,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+) -> ApiEnvelope[CommissioningSessionData]:
+    expected = _commissioning_mutation_revision(request, payload.expected_revision, if_match)
+    current = _commissioning_service(request, session).abort(
+        session_id,
+        expected_revision=expected,
+        permissions=set(payload.permissions),
+        actor=payload.actor,
+    )
+    _set_etag(response, current.revision)
+    return ApiEnvelope(data=_commissioning_session_data(current), request_id=_request_id(request))

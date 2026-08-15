@@ -627,7 +627,34 @@ def _source_changed(session: Session, event: OutboxEvent) -> str:
     )
 
 
+def _commissioning_event(session: Session, event: OutboxEvent) -> str:
+    """Durably acknowledge commissioning safety transitions through M18A recovery."""
+
+    return _journal_effect(
+        session,
+        event,
+        f"commissioning-{event.event_type}-v1",
+        "commissioning-safety-transition",
+        result_ref=str(event.payload.get("session_id", event.aggregate_id)),
+    )
+
+
 def default_handler_registry() -> OutboxHandlerRegistry:
+    commissioning_events = (
+        "commissioning.session.created",
+        "commissioning.preflight.blocked",
+        "commissioning.preflight.passed",
+        "commissioning.flash.safe",
+        "commissioning.step.sensor_check.passed",
+        "commissioning.step.low_power.passed",
+        "commissioning.step.closed_loop_limited.passed",
+        "commissioning.step.blocked",
+        "commissioning.session.faulted",
+        "commissioning.approval.recorded",
+        "commissioning.session.normal_operation",
+        "commissioning.session.aborted",
+        "commissioning.emergency_stop",
+    )
     return OutboxHandlerRegistry(
         (
             HandlerRegistration(
@@ -641,6 +668,15 @@ def default_handler_registry() -> OutboxHandlerRegistry:
             ),
             HandlerRegistration(
                 "source-changed-v1", "source.changed", frozenset({1}), _source_changed
+            ),
+            *tuple(
+                HandlerRegistration(
+                    f"commissioning-{event_type}-v1",
+                    event_type,
+                    frozenset({1}),
+                    _commissioning_event,
+                )
+                for event_type in commissioning_events
             ),
         )
     )

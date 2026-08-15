@@ -31,5 +31,6 @@ __all__ = [
     "StaticAnalysisProvider",
 ]
 from eea_ports.domain_extensions import DomainPlugin
+from eea_ports.hardware import HardwareCommissioningPort
 
-__all__ = ["DomainPlugin"]
+__all__ = ["DomainPlugin", "HardwareCommissioningPort"]
