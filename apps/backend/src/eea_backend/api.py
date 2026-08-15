@@ -8,6 +8,7 @@ from typing import Annotated, Any, cast
 from uuid import UUID, uuid4
 
 from eea_adapters.devices import Stm32G431FixtureProvider
+from eea_adapters.source import FileSystemSourceWorkspaceAdapter, GitCliWorkspaceAdapter
 from eea_application.ai import PromptRegistry, StructuredGenerationService
 from eea_application.architecture import ArchitectureService
 from eea_application.circuit import CircuitService
@@ -27,6 +28,7 @@ from eea_application.requirements import (
 )
 from eea_application.review import ReviewEngine, TestCoverageService
 from eea_application.schematic import SchematicService
+from eea_application.source_workspace import SourceWorkspaceService
 from eea_application.static_analysis import FirmwareStaticAnalysisService
 from eea_application.testing import TestGenerationService, TestRunService
 from eea_core.architecture import ArchitectureBundle
@@ -204,6 +206,10 @@ from eea_backend.schemas import (
     MCUConfigValidateRequest,
     MCUConfigValidationData,
     OutboxStatusData,
+    PatchProposalApplyRequest,
+    PatchProposalCreateRequest,
+    PatchProposalData,
+    PatchProposalDiffData,
     PinAssignmentData,
     PinAssignmentMutationData,
     PinAssignmentMutationRequest,
@@ -239,6 +245,10 @@ from eea_backend.schemas import (
     SchematicGenerateRequest,
     SchematicValidateRequest,
     SoftwareComponentData,
+    SourceCommitRequest,
+    SourceFileContentData,
+    SourceRevisionData,
+    SourceWorkspaceStatusData,
     StaticAnalysisListData,
     StaticAnalysisRequest,
     TestCaseListData,
@@ -250,6 +260,7 @@ from eea_backend.schemas import (
     TraceabilityData,
 )
 from eea_backend.schematic_repositories import SqlAlchemySchematicRepository
+from eea_backend.source_repositories import SqlAlchemySourceRepository
 from eea_backend.static_analysis_repositories import SqlAlchemyFirmwareStaticAnalysisRepository
 
 router = APIRouter()
@@ -321,6 +332,28 @@ def _dependency_service(session: Session) -> DependencyGraphService:
         SqlAlchemyDependencyGraphRepository(session),
         build_dependency_provider_registry(session),
     )
+
+
+def _source_service(request: Request, session: Session, project_id: UUID) -> SourceWorkspaceService:
+    root = request.app.state.settings.data_dir / "projects" / str(project_id) / "workspace"
+    workspace = FileSystemSourceWorkspaceAdapter(root)
+    return SourceWorkspaceService(
+        project_id,
+        SqlAlchemySourceRepository(session),
+        workspace,
+        git=GitCliWorkspaceAdapter(root),
+        source_changed=EventOutboxService(SqlAlchemyOutboxRepository(session)),
+    )
+
+
+def _source_revision_data(revision: object) -> SourceRevisionData:
+    payload = revision.model_dump(mode="json") if hasattr(revision, "model_dump") else revision
+    return SourceRevisionData.model_validate(payload)
+
+
+def _patch_proposal_data(proposal: object) -> PatchProposalData:
+    payload = proposal.model_dump(mode="json") if hasattr(proposal, "model_dump") else proposal
+    return PatchProposalData.model_validate(payload)
 
 
 def _dependency_edge_data(edge: object) -> object:
@@ -2532,6 +2565,173 @@ def generate_protocol(
         )
     session.commit()
     return ApiEnvelope(data=bundle, request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/source/status",
+    response_model=ApiEnvelope[SourceWorkspaceStatusData],
+    tags=["source"],
+)
+def source_status(
+    project_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[SourceWorkspaceStatusData]:
+    _service(session).get(project_id)
+    data = _source_service(request, session, project_id).status()
+    return ApiEnvelope(
+        data=SourceWorkspaceStatusData.model_validate(data.model_dump(mode="json")),
+        request_id=_request_id(request),
+    )
+
+
+@router.get(
+    "/projects/{project_id}/source/revision",
+    response_model=ApiEnvelope[SourceRevisionData],
+    tags=["source"],
+)
+def source_revision(
+    project_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[SourceRevisionData]:
+    _service(session).get(project_id)
+    revision = _source_service(request, session, project_id).current_revision()
+    return ApiEnvelope(data=_source_revision_data(revision), request_id=_request_id(request))
+
+
+@router.get(
+    "/projects/{project_id}/source/files/content",
+    response_model=ApiEnvelope[SourceFileContentData],
+    tags=["source"],
+)
+def source_file_content(
+    project_id: UUID,
+    path: str,
+    request: Request,
+    response: Response,
+    session: SessionDependency,
+    if_match: str | None = Header(default=None, alias="If-Match"),
+) -> ApiEnvelope[SourceFileContentData]:
+    _service(session).get(project_id)
+    data = _source_service(request, session, project_id).read_file(path, if_match=if_match)
+    response.headers["ETag"] = data.etag
+    return ApiEnvelope(
+        data=SourceFileContentData.model_validate(data.model_dump(mode="json")),
+        request_id=_request_id(request),
+    )
+
+
+@router.post(
+    "/projects/{project_id}/source/patch-proposals",
+    response_model=ApiEnvelope[PatchProposalData],
+    status_code=status.HTTP_201_CREATED,
+    tags=["source"],
+)
+def create_source_patch_proposal(
+    project_id: UUID,
+    payload: PatchProposalCreateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[PatchProposalData]:
+    _service(session).get(project_id)
+    proposal = _source_service(request, session, project_id).create_proposal(**payload.model_dump())
+    return ApiEnvelope(data=_patch_proposal_data(proposal), request_id=_request_id(request))
+
+
+@router.get(
+    "/patch-proposals/{proposal_id}",
+    response_model=ApiEnvelope[PatchProposalData],
+    tags=["source"],
+)
+def get_source_patch_proposal(
+    proposal_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[PatchProposalData]:
+    repository = SqlAlchemySourceRepository(session)
+    proposal = repository.get_proposal(proposal_id)
+    if proposal is None:
+        raise EngineeringError(
+            EngineeringErrorCode.PATCH_PROPOSAL_NOT_FOUND,
+            "Patch proposal was not found",
+            details={"proposal_id": str(proposal_id)},
+        )
+    _service(session).get(proposal.project_id)
+    return ApiEnvelope(data=_patch_proposal_data(proposal), request_id=_request_id(request))
+
+
+@router.get(
+    "/patch-proposals/{proposal_id}/diff",
+    response_model=ApiEnvelope[PatchProposalDiffData],
+    tags=["source"],
+)
+def get_source_patch_proposal_diff(
+    proposal_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[PatchProposalDiffData]:
+    repository = SqlAlchemySourceRepository(session)
+    proposal = repository.get_proposal(proposal_id)
+    if proposal is None:
+        raise EngineeringError(
+            EngineeringErrorCode.PATCH_PROPOSAL_NOT_FOUND,
+            "Patch proposal was not found",
+            details={"proposal_id": str(proposal_id)},
+        )
+    _service(session).get(proposal.project_id)
+    diff = _source_service(request, session, proposal.project_id).diff(proposal_id)
+    return ApiEnvelope(
+        data=PatchProposalDiffData(proposal_id=proposal_id, diff=diff),
+        request_id=_request_id(request),
+    )
+
+
+@router.post(
+    "/patch-proposals/{proposal_id}/apply",
+    response_model=ApiEnvelope[dict[str, object]],
+    tags=["source"],
+)
+def apply_source_patch_proposal(
+    proposal_id: UUID,
+    payload: PatchProposalApplyRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[dict[str, object]]:
+    repository = SqlAlchemySourceRepository(session)
+    proposal = repository.get_proposal(proposal_id)
+    if proposal is None:
+        raise EngineeringError(
+            EngineeringErrorCode.PATCH_PROPOSAL_NOT_FOUND,
+            "Patch proposal was not found",
+            details={"proposal_id": str(proposal_id)},
+        )
+    _service(session).get(proposal.project_id)
+    applied, revision = _source_service(request, session, proposal.project_id).apply(
+        proposal_id,
+        expected_source_revision_id=payload.expected_source_revision_id,
+        expected_workspace_revision=payload.expected_workspace_revision,
+    )
+    return ApiEnvelope(
+        data={
+            "proposal": _patch_proposal_data(applied),
+            "source_revision": _source_revision_data(revision),
+            "changed_files": applied.affected_files,
+        },
+        request_id=_request_id(request),
+    )
+
+
+@router.post(
+    "/projects/{project_id}/source/commit",
+    response_model=ApiEnvelope[SourceRevisionData],
+    tags=["source"],
+)
+def commit_source_workspace(
+    project_id: UUID,
+    payload: SourceCommitRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[SourceRevisionData]:
+    _service(session).get(project_id)
+    revision = _source_service(request, session, project_id).commit(
+        expected_source_revision_id=payload.expected_source_revision_id,
+        message=payload.commit_message,
+        actor=payload.actor,
+    )
+    return ApiEnvelope(data=_source_revision_data(revision), request_id=_request_id(request))
 
 
 @router.post(

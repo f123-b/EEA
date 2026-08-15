@@ -26,6 +26,16 @@ from eea_core.protocol import (
     ProtocolTransport,
 )
 from eea_core.review import ReviewStatus
+from eea_core.source import (
+    BuildInputSnapshot,
+    GeneratedOwnershipStatus,
+    GeneratedSourceCandidate,
+    PatchProposal,
+    PatchProposalStatus,
+    SourceFileContent,
+    SourceRevision,
+    SourceWorkspaceStatus,
+)
 from eea_core.testing import (
     AutomationLevel,
     RequirementTestSnapshot,
@@ -40,6 +50,7 @@ from eea_core.testing import (
 
 __all__ = [
     "AutomationLevel",
+    "BuildInputSnapshot",
     "ChangeObservation",
     "DependencyImpact",
     "DependencyNodeRef",
@@ -49,6 +60,10 @@ __all__ = [
     "DomainDescriptor",
     "DomainIREnvelope",
     "DomainIRRef",
+    "GeneratedOwnershipStatus",
+    "GeneratedSourceCandidate",
+    "PatchProposal",
+    "PatchProposalStatus",
     "ProtocolDefinition",
     "ProtocolField",
     "ProtocolGenerationBundle",
@@ -57,6 +72,9 @@ __all__ = [
     "ProtocolTransport",
     "RequirementTestSnapshot",
     "ReviewStatus",
+    "SourceFileContent",
+    "SourceRevision",
+    "SourceWorkspaceStatus",
     "TestCase",
     "TestCaseResult",
     "TestExecutionStatus",

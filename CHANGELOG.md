@@ -7,6 +7,22 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18C Final Acceptance at reviewed final HEAD
+  `6cc9b7057c5c210396ae4b2fcfdf5c5e6cd4baac`: the Source Authority / Workspace / Git
+  Contract established by implementation commit `c9f2644` is accepted. It establishes
+  `SourceWorkspaceService` as the application boundary for editable
+  source bytes, filesystem/Git ports and adapters with SafePath enforcement, deterministic
+  `SourceRevision` reconciliation, optimistic `PatchProposal` apply, generated-owned
+  divergence blocking, bounded Git commit, durable `source.changed` outbox publication,
+  source mutation journal recovery, startup workspace reconciliation, migration
+  `0027_m18c_source_authority`, and M18C regression coverage. Focused M12/M17/M18/M18A/
+  M18B/M18BR/M18C: **123 passed, 1 skipped**; local full pytest **373 passed, 4 skipped**,
+  with **2 pre-existing Windows M5 sandbox environment failures**; coverage **84.42%**.
+  Ruff, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop lint,
+  desktop typecheck, and desktop build pass. GitHub CI push run `31871683749` and pull
+  request run `31871685995` both have backend and desktop PASS. `M18C = ACCEPTED`,
+  `READY_FOR_M18D = YES`, and `M18D = NOT_STARTED`.
+
 - M18B/M18BR Final Acceptance and merge closure: reviewed final HEAD
   `6131b0339fc7a92e9b0c1665a9c0edf18d193ef5`, with M18BR implementation HEAD
   `cc5fd96654d41ee7fcf0b112671d5fa9b5305455`. Final verification records focused

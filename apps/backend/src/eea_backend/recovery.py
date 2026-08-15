@@ -13,6 +13,7 @@ from time import monotonic
 from typing import Any
 from uuid import UUID
 
+from eea_application.dependency_graph import DependencyGraphService, DependencyNodeSnapshot
 from eea_application.reliability import (
     Clock,
     CrashInjector,
@@ -25,6 +26,7 @@ from eea_application.reliability import (
     SystemClock,
     new_recovery_worker_id,
 )
+from eea_core.dependency_graph import DependencyNodeRef
 from eea_core.entities import utc_now
 from eea_core.enums import DependencyNodeStatus, JobStatus
 from eea_core.reliability import (
@@ -38,6 +40,8 @@ from eea_core.reliability import (
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from eea_backend.dependency_providers import build_dependency_provider_registry
+from eea_backend.dependency_repositories import SqlAlchemyDependencyGraphRepository
 from eea_backend.models import (
     ArtifactRecord,
     EngineeringDependencyNodeStateRecord,
@@ -592,6 +596,37 @@ def _artifact_created(session: Session, event: OutboxEvent) -> str:
     )
 
 
+def _source_changed(session: Session, event: OutboxEvent) -> str:
+    """Durably project source mutation impact onto existing dependents."""
+
+    payload = event.payload
+    project_id = UUID(str(payload["project_id"]))
+    previous_id = str(payload["previous_source_revision_id"])
+    providers = build_dependency_provider_registry(session)
+    if providers.supports("SourceRevision"):
+        before = providers.resolve(project_id, "SourceRevision", previous_id)
+        after = DependencyNodeSnapshot(
+            ref=DependencyNodeRef(
+                entity_type=before.ref.entity_type,
+                entity_id=before.ref.entity_id,
+                revision=before.ref.revision + 1,
+                semantic_hash=str(payload["source_manifest_hash"]),
+            ),
+            valid=False,
+            reason="Source workspace changed; prior revision is no longer the current input",
+        )
+        DependencyGraphService(SqlAlchemyDependencyGraphRepository(session), providers).propagate(
+            project_id, before, after, commit=False
+        )
+    return _journal_effect(
+        session,
+        event,
+        "source-changed-v1",
+        "source-impact",
+        result_ref=str(payload["source_revision_id"]),
+    )
+
+
 def default_handler_registry() -> OutboxHandlerRegistry:
     return OutboxHandlerRegistry(
         (
@@ -603,6 +638,9 @@ def default_handler_registry() -> OutboxHandlerRegistry:
             ),
             HandlerRegistration(
                 "build-completed-v1", "build.completed", frozenset({1}), _build_completed
+            ),
+            HandlerRegistration(
+                "source-changed-v1", "source.changed", frozenset({1}), _source_changed
             ),
         )
     )

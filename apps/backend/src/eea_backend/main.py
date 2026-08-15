@@ -8,15 +8,21 @@ from uuid import UUID, uuid4
 from eea_adapters.ai import LiteLLMProvider
 from eea_adapters.components import Stm32CubeG4Provider
 from eea_adapters.secrets import KeyringSecretService
+from eea_adapters.source import FileSystemSourceWorkspaceAdapter, GitCliWorkspaceAdapter
 from eea_adapters.static_analysis import CppcheckAdapter
 from eea_application.claims import ClaimPredicateRegistry
 from eea_application.domains import DomainExtensionRegistry
-from eea_application.reliability import NoopCrashInjector, new_recovery_worker_id
+from eea_application.reliability import (
+    EventOutboxService,
+    NoopCrashInjector,
+    new_recovery_worker_id,
+)
 from eea_application.requirements import (
     build_claim_predicate_definitions,
     build_foc_benchmark_profile,
     ensure_requirement_prompt_registered,
 )
+from eea_application.source_workspace import SourceWorkspaceService
 from eea_application.testing import TestExecutorRegistry
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
@@ -32,13 +38,15 @@ from eea_backend.claim_repositories import SqlAlchemyClaimPredicateRepository
 from eea_backend.database import check_database, create_database_engine
 from eea_backend.dependency_bootstrap import reconcile_project_dependencies
 from eea_backend.errors import engineering_error_handler, validation_error_handler
-from eea_backend.models import ProjectRecord
+from eea_backend.models import ProjectRecord, SourceWorkspaceRecord
 from eea_backend.recovery import OutboxDispatcher, RecoveryService
+from eea_backend.reliability_repositories import SqlAlchemyOutboxRepository
 from eea_backend.repositories import SqlAlchemyPromptRepository
 from eea_backend.requirement_repositories import SqlAlchemyRequirementProfileRepository
 from eea_backend.schemas import ApiEnvelope, HealthResponse, VersionData
 from eea_backend.security import require_session_token
 from eea_backend.settings import Settings
+from eea_backend.source_repositories import SqlAlchemySourceRepository
 from eea_backend.version import __version__
 from plugins.builtin.motor_control import build_motor_control_plugin
 
@@ -100,6 +108,22 @@ def seed_builtin_requirement_profiles(session: Session) -> None:
     seed_builtin_requirement_contracts(session)
 
 
+def reconcile_source_workspaces(session: Session) -> None:
+    """Recover source bytes before transactional outbox delivery resumes."""
+
+    if not inspect(session.get_bind()).has_table("source_workspaces"):
+        return
+    for record in session.scalars(select(SourceWorkspaceRecord)):
+        workspace = FileSystemSourceWorkspaceAdapter(Path(record.root_path))
+        SourceWorkspaceService(
+            UUID(record.project_id),
+            SqlAlchemySourceRepository(session),
+            workspace,
+            git=GitCliWorkspaceAdapter(workspace.root),
+            source_changed=EventOutboxService(SqlAlchemyOutboxRepository(session)),
+        ).reconcile(created_by="eea:source-startup-reconcile")
+
+
 def _configured_ai_provider(settings: Settings) -> AIProvider | None:
     if not settings.ai_provider_enabled:
         return None
@@ -144,6 +168,9 @@ def create_app(
                         seed_builtin_requirement_contracts(session)
                         for project_id in session.scalars(select(ProjectRecord.id)):
                             reconcile_project_dependencies(session, UUID(project_id))
+                if inspector.has_table("source_workspaces"):
+                    with Session(engine) as session:
+                        reconcile_source_workspaces(session)
             with engine.connect() as connection:
                 if inspect(connection).has_table("outbox_events"):
                     summary = application.state.recovery_service.startup_recover(batch_limit=100)

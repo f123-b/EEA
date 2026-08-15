@@ -90,6 +90,7 @@ from eea_core.protocol import (
 )
 from eea_core.review import ReviewRun
 from eea_core.schematic import ErcIssue
+from eea_core.source import PatchProposalStatus
 from eea_core.static_analysis import StaticAnalysisToolResult
 from eea_core.testing import (
     AutomationLevel,
@@ -1115,6 +1116,90 @@ class SourceRevisionData(BaseModel):
     source_manifest_hash: str
     file_manifest: dict[str, str]
     created_by: str
+
+
+class SourceWorkspaceStatusData(BaseModel):
+    project_id: UUID
+    repository_id: str
+    workspace_revision: int
+    source_revision_id: UUID
+    dirty: bool
+    commit_sha: str | None
+    base_commit: str | None
+    tree_hash: str
+    source_manifest_hash: str
+    file_count: int
+    generated_owned_paths: list[str]
+
+
+class SourceFileContentData(BaseModel):
+    path: str
+    content: str
+    content_hash: str
+    source_revision_id: UUID
+    workspace_revision: int
+    etag: str
+
+
+class PatchProposalCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    base_source_revision_id: UUID
+    base_workspace_revision: int = Field(ge=0)
+    affected_files: list[str] = Field(min_length=1)
+    expected_file_hashes: dict[str, str | None] = Field(default_factory=dict)
+    patch: str | None = None
+    structured_edits: dict[str, str] = Field(default_factory=dict)
+    rationale: str = Field(min_length=1, max_length=20_000)
+    evidence_ids: list[UUID] = Field(default_factory=list)
+    expected_impact: dict[str, object] = Field(default_factory=dict)
+    required_builds: list[str] = Field(default_factory=list)
+    required_tests: list[str] = Field(default_factory=list)
+    created_by: str = Field(min_length=1, max_length=200)
+
+
+class PatchProposalApplyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_source_revision_id: UUID | None = None
+    expected_workspace_revision: int | None = Field(default=None, ge=0)
+
+
+class PatchProposalData(BaseModel):
+    id: UUID
+    schema_version: str
+    revision: int
+    created_at: datetime
+    updated_at: datetime
+    metadata: dict[str, object]
+    project_id: UUID
+    base_source_revision_id: UUID
+    base_workspace_revision: int
+    affected_files: list[str]
+    expected_file_hashes: dict[str, str | None]
+    patch: str | None
+    structured_edits: dict[str, str]
+    rationale: str
+    evidence_ids: list[UUID]
+    expected_impact: dict[str, object]
+    required_builds: list[str]
+    required_tests: list[str]
+    created_by: str
+    status: PatchProposalStatus
+    failure_reason: str | None
+
+
+class PatchProposalDiffData(BaseModel):
+    proposal_id: UUID
+    diff: str
+
+
+class SourceCommitRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_source_revision_id: UUID
+    commit_message: str = Field(min_length=1, max_length=500)
+    actor: str = Field(min_length=1, max_length=200)
 
 
 class FirmwareSourceFileData(BaseModel):
