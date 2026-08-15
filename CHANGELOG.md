@@ -7,6 +7,19 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18B Domain Composition Contract at implementation commit
+  `fa2c22ee20b9f6ebbf1b78df7124987c6d4e8391`: added the project-scoped
+  `DomainCompositionState` SSOT, deterministic canonical plan hashes and capability
+  selection persistence, preview/apply TOCTOU protection, atomic multi-Domain
+  activation/deactivation with CAS, migration compatibility dry-run reporting, the
+  composition API endpoints, migration `0026_m18b_domain_composition_contract`, and
+  M18B regression coverage. Focused M14/M15/M18/M18R/M18A/M18AR/M18B: **122 passed**;
+  local full pytest: **354 passed, 3 skipped**, with **2 pre-existing,
+  environment-specific Windows M5 sandbox failures**; coverage **84.40%**. Ruff,
+  mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop lint,
+  desktop typecheck, and desktop build pass. `M18B = IMPLEMENTED` and
+  `READY_FOR_M18B_FINAL_REVIEW = YES`; `M18B = ACCEPTED` and M18C remain not started.
+
 - M18A Final Acceptance: reviewed implementation HEAD
   `68401b60b88935e7c19bc0309c1845eab3328555`; implementation commit
   `fix(m18a): close dispatcher shutdown lifecycle`. Final verification:
