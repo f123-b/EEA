@@ -7,6 +7,21 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18D Hardware Commissioning & Safety at implementation commit
+  `fca5962be81309e50290bf1767f03457067fc40a`, built from verified main
+  `97d62e47c7bf287627d051197e6ef756abf89523`. Added the fail-closed commissioning state
+  machine, structured SafetyLimit/SafeState contracts, deny-by-default permission gates,
+  hardware identity and ResourceLock heartbeat/quarantine checks, E-stop/watchdog recovery,
+  immutable SourceRevision/BuildInputSnapshot binding, the Fake hardware adapter with fault
+  injection, MotorControl commissioning rules, migration `0030_m18d_hardware_commissioning_safety`,
+  and M18D regression coverage. Focused M18/M18R/M18A/M18AR/M18AR.1/M18B/M18BR/M18C/M18CR/M18D:
+  **179 passed, 1 skipped**; local full pytest **393 passed, 4 skipped**, with the two
+  pre-existing Windows M5 sandbox environment failures; coverage **84.11%**. Ruff check,
+  Ruff format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop lint,
+  desktop typecheck, and desktop build pass. `M18C = ACCEPTED_AND_MERGED`,
+  `M18CR = ACCEPTED_AND_MERGED`, `M18D = IMPLEMENTED`,
+  `READY_FOR_M18D_FINAL_REVIEW = YES`, and `M18E = NOT_STARTED`.
+
 - M18CR Source Mutation Atomicity & Cross-Session CAS Closure at implementation commit
   `25ba1a23da6a5057fa7722f41be2f40ede90f747`, reviewed against M18C review HEAD
   `6cc9b7057c5c210396ae4b2fcfdf5c5e6cd4baac`. Closed the two M18C P1 blockers: source
