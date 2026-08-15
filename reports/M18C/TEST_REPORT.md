@@ -55,7 +55,7 @@ exception-rollback regressions remain covered.
 - Desktop lint: PASS
 - Desktop typecheck: PASS
 - Desktop build: PASS
-- GitHub CI: pending push of the M18CR closure commits
+- GitHub CI push run `31879721794`: backend PASS, desktop PASS
 
 ## State
 

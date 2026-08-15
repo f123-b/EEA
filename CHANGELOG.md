@@ -20,7 +20,8 @@ the frozen documentation changelogs under `docs/`.
   M18B/M18BR/M18C/M18CR: **139 passed, 1 skipped**; local full pytest **378 passed, 4
   skipped**, with **2 pre-existing Windows M5 sandbox environment failures**; coverage
   **84.07%**. Ruff, format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts,
-  desktop lint, desktop typecheck, and desktop build pass. `M18C = IMPLEMENTED`,
+  desktop lint, desktop typecheck, and desktop build pass. GitHub CI push run `31879721794`
+  has backend PASS and desktop PASS. `M18C = IMPLEMENTED`,
   `M18CR = IMPLEMENTED`, `READY_FOR_M18C_FINAL_REVIEW = YES`, and `M18D = NOT_STARTED`.
 
 - M18C Final Acceptance at reviewed final HEAD
