@@ -7,6 +7,16 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18A Final Acceptance: reviewed implementation HEAD
+  `68401b60b88935e7c19bc0309c1845eab3328555`; implementation commit
+  `fix(m18a): close dispatcher shutdown lifecycle`. Final verification:
+  focused M18/M18R/M18A/M18AR/M18AR.1 **69 passed**; local full pytest
+  **345 passed, 3 skipped**, with **2 existing Windows M5 sandbox environment
+  failures**; coverage **84.37%**; Ruff check/format, mypy, clean Alembic
+  upgrade, `alembic check`, OpenAPI, TypeScript contracts, desktop lint,
+  desktop typecheck, and desktop build all pass. GitHub CI run `31859806569`
+  has backend PASS and desktop PASS. `M18A = ACCEPTED`, `M18AR = ACCEPTED`,
+  `M18AR.1 = ACCEPTED`, `READY_FOR_M18B = YES`, and `M18B = NOT_STARTED`.
 - M18R Semantic Freshness, Runtime Binding & Recovery Closure: added canonical
   semantic freshness rules, explicit provider-backed dependency binding,
   historical artifact hash revalidation, CAS merge/recovery semantics, complete
@@ -25,6 +35,31 @@ the frozen documentation changelogs under `docs/`.
   `READY_FOR_M18_FINAL_REVIEW = YES`, `READY_FOR_M18A = YES`, and
   `M18A = NOT_STARTED`. M18A scope is documented for the next milestone only;
   no M18A implementation was started.
+- M18A Transactional Outbox & Recovery: added migration `0025_m18a_transactional_outbox_recovery`,
+  durable OutboxEvent/ProcessedEvent/SideEffectJournal records, producer idempotency,
+  atomic ProjectCreated/ArtifactCreated/BuildCompleted publication, bounded leasing and
+  retry/dead-letter recovery, deterministic handler allowlisting, crash-injection replay
+  boundaries, interrupted-job reconciliation, reliability status/reconcile APIs, and
+  synchronized OpenAPI/TypeScript contracts. `M18A = IMPLEMENTED` and
+  `READY_FOR_M18A_REVIEW = YES`; M18B remains `NOT_STARTED`.
+- M18AR Dispatcher, Lease Identity & Transactional Race Closure: connected the durable
+  dispatcher to the application lifecycle with unique app-scoped worker identity, startup
+  recovery, wake/poll dispatch, savepoint-preserving idempotent race handling, authoritative
+  Artifact projection, derived-artifact replay closure, project-scoped reconciliation,
+  bounded SQLite busy retry, lease renewal/takeover protection, safe side-effect
+  reconciliation, recovery diagnostics, and ProjectConsistencyData. `M18AR = IMPLEMENTED`;
+  its implementation state was pending final acceptance at that point;
+  `M18B = NOT_STARTED`.
+- M18AR.1 Transaction Replay & Recovery CAS Closure: replaced unsafe
+  rollback-then-commit retry with complete unit-of-work replay, closed claim/
+  renew/finalize/reclaim and interrupted-job recovery CAS conditions, moved
+  synchronous dispatcher work off the asyncio loop, made recovery diagnostics
+  mutually exclusive, and excluded lost-lease finalize conflicts from retry/
+  dead-letter summaries. Added fault-injected write/commit busy regressions,
+  CAS race protection, exact diagnostics, lease-loss accounting, and
+  non-blocking dispatcher coverage. Focused M18/M18R/M18A/M18AR/M18AR.1:
+  **63 passed** at the implementation stage; the final acceptance verification
+  and status are recorded in the M18A Final Acceptance entry above.
 - M17 Test/Traceability/Review: added Core-neutral declarative TestIR and immutable TestRun
   contracts, deterministic requirement-based test generation, project-scoped controlled
   fail-closed executors, revision/source freshness checks, design/verification coverage,

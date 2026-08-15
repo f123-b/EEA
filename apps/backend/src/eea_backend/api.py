@@ -20,6 +20,7 @@ from eea_application.mcu_config import MCUConfigService
 from eea_application.pin_planner import PinPlannerService
 from eea_application.projects import ProjectService
 from eea_application.protocol import ProtocolGenerationError, ProtocolGenerator
+from eea_application.reliability import CrashPoint, EventOutboxService
 from eea_application.requirements import (
     RequirementAnalysisService,
     RequirementProfileRegistry,
@@ -77,6 +78,7 @@ from eea_core.intelligence import Device, DevicePin, Document
 from eea_core.mcu_config import MCUConfigBundle
 from eea_core.pin_planner import PinAssignment, PinLock, PinPlan, PinRequirement
 from eea_core.protocol import ProtocolGenerationBundle, ProtocolIR, ProtocolValidationResult
+from eea_core.reliability import payload_sha256, stable_event_key
 from eea_core.requirements import RequirementProfile
 from eea_core.review import ReviewPolicy, ReviewRun
 from eea_core.schema_registry import create_core_schema_registry
@@ -114,9 +116,16 @@ from eea_backend.m17_repositories import (
     SqlAlchemyTraceabilityRepository,
 )
 from eea_backend.mcu_config_repositories import SqlAlchemyMCUConfigRepository
-from eea_backend.models import ArtifactRecord, GeneratedProtocolOutputRecord
+from eea_backend.models import (
+    ArtifactRecord,
+    GeneratedProtocolOutputRecord,
+    JobRecord,
+    SideEffectJournalRecord,
+)
 from eea_backend.pin_planner_repositories import SqlAlchemyPinPlanRepository
 from eea_backend.protocol_repositories import SqlAlchemyProtocolRepository
+from eea_backend.recovery import RecoveryService
+from eea_backend.reliability_repositories import SqlAlchemyOutboxRepository
 from eea_backend.repositories import (
     SqlAlchemyAIUsageRepository,
     SqlAlchemyArtifactRepository,
@@ -190,6 +199,7 @@ from eea_backend.schemas import (
     MCUConfigGenerateRequest,
     MCUConfigValidateRequest,
     MCUConfigValidationData,
+    OutboxStatusData,
     PinAssignmentData,
     PinAssignmentMutationData,
     PinAssignmentMutationRequest,
@@ -198,6 +208,7 @@ from eea_backend.schemas import (
     PinPlannerGenerateRequest,
     PinPlanValidationData,
     PinPlanValidationRequest,
+    ProjectConsistencyData,
     ProjectCreate,
     ProjectData,
     ProjectListData,
@@ -206,6 +217,9 @@ from eea_backend.schemas import (
     ProtocolGenerateRequest,
     ProtocolUpdateRequest,
     ProtocolValidateRequest,
+    RecoveryReconcileData,
+    RecoveryReconcileRequest,
+    RecoveryStatusData,
     RequirementAnalysisData,
     RequirementData,
     RequirementNaturalLanguageAnalysisRequest,
@@ -250,6 +264,14 @@ SessionDependency = Annotated[Session, Depends(get_session)]
 
 def _service(session: Session) -> ProjectService:
     return ProjectService(SqlAlchemyProjectRepository(session))
+
+
+def _recovery_service(request: Request) -> RecoveryService:
+    return RecoveryService(
+        lambda: Session(request.app.state.engine),
+        worker_id=request.app.state.recovery_worker_id,
+        crash_injector=request.app.state.crash_injector,
+    )
 
 
 def _project_data(project: Project) -> ProjectData:
@@ -299,6 +321,149 @@ def _dependency_service(session: Session) -> DependencyGraphService:
 
 def _dependency_edge_data(edge: object) -> object:
     return {"edge": edge}
+
+
+@router.get(
+    "/system/outbox/status",
+    response_model=ApiEnvelope[OutboxStatusData],
+    tags=["system", "reliability"],
+)
+def outbox_status(request: Request, session: SessionDependency) -> ApiEnvelope[OutboxStatusData]:
+    repository = SqlAlchemyOutboxRepository(session)
+    rows = repository.list()
+    diagnostics = repository.diagnostics(now=utc_now())
+    side_effect_reconcile_required_count = sum(
+        1
+        for _ in session.scalars(
+            select(SideEffectJournalRecord).where(
+                SideEffectJournalRecord.status == "RECONCILE_REQUIRED"
+            )
+        )
+    )
+    counts = {
+        status: sum(item.status.value == status for item in rows)
+        for status in ("PENDING", "PROCESSING", "RETRY", "PROCESSED", "DEAD_LETTER")
+    }
+    data = OutboxStatusData(
+        pending=counts["PENDING"],
+        processing=counts["PROCESSING"],
+        retry=counts["RETRY"],
+        processed=counts["PROCESSED"],
+        dead_letter=counts["DEAD_LETTER"],
+        total=len(rows),
+        expired_processing_count=cast(int, diagnostics["expired_processing_count"]),
+        oldest_pending_at=cast(Any, diagnostics["oldest_pending_at"]),
+        oldest_pending_age_seconds=cast(float, diagnostics["oldest_pending_age_seconds"]),
+        side_effect_reconcile_required_count=side_effect_reconcile_required_count,
+    )
+    return ApiEnvelope(data=data, request_id=_request_id(request))
+
+
+@router.get(
+    "/system/recovery/status",
+    response_model=ApiEnvelope[RecoveryStatusData],
+    tags=["system", "reliability"],
+)
+def recovery_status(
+    request: Request, session: SessionDependency
+) -> ApiEnvelope[RecoveryStatusData]:
+    repository = SqlAlchemyOutboxRepository(session)
+    diagnostics = repository.diagnostics(now=utc_now())
+    reconcile_required = sum(
+        1
+        for row in session.scalars(
+            select(SideEffectJournalRecord).where(
+                SideEffectJournalRecord.status == "RECONCILE_REQUIRED"
+            )
+        )
+    )
+    interrupted_job_count = sum(
+        1
+        for row in session.scalars(
+            select(JobRecord).where(JobRecord.status == JobStatus.FAILED_NEEDS_RECONCILE.value)
+        )
+    )
+    pending_recovery_count = cast(int, diagnostics["pending_recovery_count"])
+    data = RecoveryStatusData(
+        healthy=(
+            pending_recovery_count == 0
+            and cast(int, diagnostics["expired_processing_count"]) == 0
+            and cast(int, diagnostics["dead_letter_count"]) == 0
+            and reconcile_required == 0
+            and interrupted_job_count == 0
+        ),
+        pending_recovery_count=pending_recovery_count,
+        expired_lease_count=cast(int, diagnostics["expired_processing_count"]),
+        dead_letter_count=cast(int, diagnostics["dead_letter_count"]),
+        reconcile_required_effect_count=reconcile_required,
+        interrupted_job_count=interrupted_job_count,
+        startup_recovery_completed=bool(request.app.state.startup_recovery_completed),
+        last_recovery_summary=cast(dict[str, object], request.app.state.last_recovery_summary),
+    )
+    return ApiEnvelope(data=data, request_id=_request_id(request))
+
+
+@router.post(
+    "/system/recovery/reconcile",
+    response_model=ApiEnvelope[RecoveryReconcileData],
+    tags=["system", "reliability"],
+)
+def reconcile_recovery(
+    payload: RecoveryReconcileRequest,
+    request: Request,
+) -> ApiEnvelope[RecoveryReconcileData]:
+    service = _recovery_service(request)
+    reclaimed = service.recover_expired_outbox_leases(
+        limit=payload.limit, project_id=payload.project_id
+    )
+    interrupted_jobs = service.reconcile_interrupted_jobs(
+        limit=payload.limit, project_id=payload.project_id
+    )
+    dispatched = service.dispatch_ready_events(limit=payload.limit, project_id=payload.project_id)
+    reconciled_side_effects = service.reconcile_side_effects(
+        limit=payload.limit, project_id=payload.project_id
+    )
+    reconcile_required = service.inspect_reconcile_required(
+        limit=payload.limit, project_id=payload.project_id
+    )
+    request.app.state.last_recovery_summary = {
+        "reclaimed": reclaimed,
+        "interrupted_jobs": interrupted_jobs,
+        "reconciled_side_effects": reconciled_side_effects,
+        "dispatched": dispatched,
+        "reconcile_required": reconcile_required,
+        "project_id": str(payload.project_id) if payload.project_id is not None else None,
+    }
+    project = None
+    if payload.project_id is not None:
+        status_data = service.reconcile_project(payload.project_id)
+        project = ProjectConsistencyData.model_validate(status_data)
+    return ApiEnvelope(
+        data=RecoveryReconcileData(
+            reclaimed=reclaimed,
+            interrupted_jobs=interrupted_jobs,
+            reconciled_side_effects=reconciled_side_effects,
+            dispatched=dispatched,
+            reconcile_required=reconcile_required,
+            project=project,
+        ),
+        request_id=_request_id(request),
+    )
+
+
+@router.get(
+    "/projects/{project_id}/consistency",
+    response_model=ApiEnvelope[ProjectConsistencyData],
+    tags=["projects", "reliability"],
+)
+def project_consistency(
+    project_id: UUID, request: Request, session: SessionDependency
+) -> ApiEnvelope[ProjectConsistencyData]:
+    _service(session).get(project_id)
+    data = ProjectConsistencyData.model_validate(
+        _recovery_service(request).reconcile_project(project_id)
+    )
+    return ApiEnvelope(data=data, request_id=_request_id(request))
 
 
 @router.post(
@@ -1742,6 +1907,28 @@ def generate_schematic(
     _ensure_latest_hardware(session, project_id, selected.circuit.hardware_ir_id)
     bundle = SchematicService().generate(selected.circuit)
     saved = SqlAlchemySchematicRepository(session).add(bundle, commit=False)
+    event_payload = {
+        "project_id": str(project_id),
+        "artifact_id": str(saved.artifact.id),
+        "logical_name": saved.artifact.logical_name,
+        "artifact_type": saved.artifact.artifact_type,
+        "version_label": saved.artifact.version_label,
+        "content_hash": saved.artifact.content_hash,
+        "input_hash": saved.artifact.input_hash,
+    }
+    EventOutboxService(SqlAlchemyOutboxRepository(session)).enqueue(
+        event_type="artifact.created",
+        aggregate_type="Artifact",
+        aggregate_id=str(saved.artifact.id),
+        aggregate_revision=saved.artifact.revision,
+        event_key=stable_event_key(
+            "artifact.created", "Artifact", saved.artifact.id, saved.artifact.revision
+        ),
+        payload=event_payload,
+        payload_hash=payload_sha256(event_payload),
+        project_id=project_id,
+        commit=False,
+    )
     dependency_service = _dependency_service(session)
     for upstream_type, upstream_id, reason in (
         ("CircuitIR", saved.schematic.circuit_id, "SchematicIR circuit_id"),
@@ -1778,6 +1965,7 @@ def generate_schematic(
         commit=False,
     )
     session.commit()
+    request.app.state.outbox_dispatcher.wake()
     return ApiEnvelope(data=_schematic_bundle_data(saved), request_id=_request_id(request))
 
 
@@ -2474,6 +2662,25 @@ def build_firmware(
         component_cache_root=request.app.state.settings.data_dir / "component-cache",
     )
     saved = SqlAlchemyBuildRunRepository(session).add(snapshot, build, commit=False)
+    event_payload = {
+        "project_id": str(project_id),
+        "build_run_id": str(saved.id),
+        "firmware_id": str(saved.firmware_id),
+        "source_revision_id": str(saved.source_revision_id),
+        "status": saved.status.value,
+        "build_input_hash": saved.build_input_hash,
+    }
+    EventOutboxService(SqlAlchemyOutboxRepository(session)).enqueue(
+        event_type="build.completed",
+        aggregate_type="BuildRun",
+        aggregate_id=str(saved.id),
+        aggregate_revision=saved.revision,
+        event_key=stable_event_key("build.completed", "BuildRun", saved.id, saved.revision),
+        payload=event_payload,
+        payload_hash=payload_sha256(event_payload),
+        project_id=project_id,
+        commit=False,
+    )
     dependency_service = _dependency_service(session)
     for upstream_type, upstream_id, dependency_kind, reason in (
         (
@@ -2502,6 +2709,7 @@ def build_firmware(
             commit=False,
         )
     session.commit()
+    request.app.state.outbox_dispatcher.wake()
     return ApiEnvelope(data=_build_run_data(saved), request_id=_request_id(request))
 
 
@@ -2888,7 +3096,27 @@ def create_project(
     response: Response,
     session: SessionDependency,
 ) -> ApiEnvelope[ProjectData]:
-    project = _service(session).create(**payload.model_dump())
+    project = _service(session).create(**payload.model_dump(), commit=False)
+    event_payload = {
+        "project_id": str(project.id),
+        "name": project.name,
+        "revision": project.revision,
+    }
+    EventOutboxService(SqlAlchemyOutboxRepository(session)).enqueue(
+        event_type="project.created",
+        aggregate_type="Project",
+        aggregate_id=str(project.id),
+        aggregate_revision=project.revision,
+        event_key=stable_event_key("project.created", "Project", project.id, project.revision),
+        payload=event_payload,
+        payload_hash=payload_sha256(event_payload),
+        project_id=project.id,
+        commit=False,
+    )
+    request.app.state.crash_injector.maybe_crash(CrashPoint.AFTER_OUTBOX_INSERT_BEFORE_COMMIT)
+    session.commit()
+    request.app.state.crash_injector.maybe_crash(CrashPoint.AFTER_BUSINESS_COMMIT_BEFORE_DISPATCH)
+    request.app.state.outbox_dispatcher.wake()
     _set_etag(response, project.revision)
     return ApiEnvelope(data=_project_data(project), request_id=_request_id(request))
 

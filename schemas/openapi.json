@@ -877,6 +877,29 @@
         "title": "ApiEnvelope[MCUConfigValidationData]",
         "type": "object"
       },
+      "ApiEnvelope_OutboxStatusData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OutboxStatusData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[OutboxStatusData]",
+        "type": "object"
+      },
       "ApiEnvelope_PinAssignmentMutationData_": {
         "properties": {
           "data": {
@@ -944,6 +967,29 @@
           "request_id"
         ],
         "title": "ApiEnvelope[PinPlanValidationData]",
+        "type": "object"
+      },
+      "ApiEnvelope_ProjectConsistencyData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectConsistencyData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[ProjectConsistencyData]",
         "type": "object"
       },
       "ApiEnvelope_ProjectData_": {
@@ -1059,6 +1105,52 @@
           "request_id"
         ],
         "title": "ApiEnvelope[ProtocolValidationResult]",
+        "type": "object"
+      },
+      "ApiEnvelope_RecoveryReconcileData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RecoveryReconcileData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[RecoveryReconcileData]",
+        "type": "object"
+      },
+      "ApiEnvelope_RecoveryStatusData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RecoveryStatusData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[RecoveryStatusData]",
         "type": "object"
       },
       "ApiEnvelope_RequirementAnalysisData_": {
@@ -5351,6 +5443,24 @@
         "title": "EngineeringErrorCode",
         "type": "string"
       },
+      "EngineeringFreshnessData": {
+        "properties": {
+          "invalid": {
+            "title": "Invalid",
+            "type": "integer"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stale",
+          "invalid"
+        ],
+        "title": "EngineeringFreshnessData",
+        "type": "object"
+      },
       "EngineeringValue": {
         "additionalProperties": false,
         "description": "A display value plus its immutable canonical-unit representation.",
@@ -8279,6 +8389,71 @@
         "title": "MemoryLayout",
         "type": "object"
       },
+      "OutboxStatusData": {
+        "properties": {
+          "dead_letter": {
+            "title": "Dead Letter",
+            "type": "integer"
+          },
+          "expired_processing_count": {
+            "title": "Expired Processing Count",
+            "type": "integer"
+          },
+          "oldest_pending_age_seconds": {
+            "title": "Oldest Pending Age Seconds",
+            "type": "number"
+          },
+          "oldest_pending_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest Pending At"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "processed": {
+            "title": "Processed",
+            "type": "integer"
+          },
+          "processing": {
+            "title": "Processing",
+            "type": "integer"
+          },
+          "retry": {
+            "title": "Retry",
+            "type": "integer"
+          },
+          "side_effect_reconcile_required_count": {
+            "title": "Side Effect Reconcile Required Count",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "processing",
+          "retry",
+          "processed",
+          "dead_letter",
+          "total",
+          "expired_processing_count",
+          "oldest_pending_age_seconds",
+          "side_effect_reconcile_required_count"
+        ],
+        "title": "OutboxStatusData",
+        "type": "object"
+      },
       "PWMConfig": {
         "additionalProperties": false,
         "properties": {
@@ -9175,6 +9350,32 @@
         "title": "PowerNet",
         "type": "object"
       },
+      "ProjectConsistencyData": {
+        "properties": {
+          "engineering_freshness": {
+            "$ref": "#/components/schemas/EngineeringFreshnessData"
+          },
+          "status": {
+            "enum": [
+              "CONSISTENT",
+              "DEGRADED",
+              "RECOVERY_REQUIRED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "transactional_recovery": {
+            "$ref": "#/components/schemas/TransactionalRecoveryData"
+          }
+        },
+        "required": [
+          "status",
+          "transactional_recovery",
+          "engineering_freshness"
+        ],
+        "title": "ProjectConsistencyData",
+        "type": "object"
+      },
       "ProjectCreate": {
         "additionalProperties": false,
         "properties": {
@@ -9890,6 +10091,127 @@
           "input_hash"
         ],
         "title": "ProtocolValidationResult",
+        "type": "object"
+      },
+      "RecoveryReconcileData": {
+        "properties": {
+          "dispatched": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Dispatched",
+            "type": "object"
+          },
+          "interrupted_jobs": {
+            "title": "Interrupted Jobs",
+            "type": "integer"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectConsistencyData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reclaimed": {
+            "title": "Reclaimed",
+            "type": "integer"
+          },
+          "reconcile_required": {
+            "title": "Reconcile Required",
+            "type": "integer"
+          },
+          "reconciled_side_effects": {
+            "title": "Reconciled Side Effects",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reclaimed",
+          "interrupted_jobs",
+          "reconciled_side_effects",
+          "dispatched",
+          "reconcile_required"
+        ],
+        "title": "RecoveryReconcileData",
+        "type": "object"
+      },
+      "RecoveryReconcileRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 100,
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          }
+        },
+        "title": "RecoveryReconcileRequest",
+        "type": "object"
+      },
+      "RecoveryStatusData": {
+        "properties": {
+          "dead_letter_count": {
+            "title": "Dead Letter Count",
+            "type": "integer"
+          },
+          "expired_lease_count": {
+            "title": "Expired Lease Count",
+            "type": "integer"
+          },
+          "healthy": {
+            "title": "Healthy",
+            "type": "boolean"
+          },
+          "interrupted_job_count": {
+            "title": "Interrupted Job Count",
+            "type": "integer"
+          },
+          "last_recovery_summary": {
+            "additionalProperties": true,
+            "title": "Last Recovery Summary",
+            "type": "object"
+          },
+          "pending_recovery_count": {
+            "title": "Pending Recovery Count",
+            "type": "integer"
+          },
+          "reconcile_required_effect_count": {
+            "title": "Reconcile Required Effect Count",
+            "type": "integer"
+          },
+          "startup_recovery_completed": {
+            "title": "Startup Recovery Completed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "healthy",
+          "pending_recovery_count",
+          "expired_lease_count",
+          "dead_letter_count",
+          "reconcile_required_effect_count",
+          "interrupted_job_count",
+          "startup_recovery_completed",
+          "last_recovery_summary"
+        ],
+        "title": "RecoveryStatusData",
         "type": "object"
       },
       "RequirementAnalysisData": {
@@ -12476,6 +12798,44 @@
         "title": "TraceabilityRelation",
         "type": "string"
       },
+      "TransactionalRecoveryData": {
+        "properties": {
+          "dead_letter": {
+            "title": "Dead Letter",
+            "type": "integer"
+          },
+          "interrupted_jobs": {
+            "title": "Interrupted Jobs",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "processing": {
+            "title": "Processing",
+            "type": "integer"
+          },
+          "reconcile_required": {
+            "title": "Reconcile Required",
+            "type": "integer"
+          },
+          "retry": {
+            "title": "Retry",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "processing",
+          "retry",
+          "dead_letter",
+          "reconcile_required",
+          "interrupted_jobs"
+        ],
+        "title": "TransactionalRecoveryData",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -14487,6 +14847,55 @@
         "summary": "Validate Circuit",
         "tags": [
           "circuit"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/consistency": {
+      "get": {
+        "operationId": "project_consistency_api_v1_projects__project_id__consistency_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_ProjectConsistencyData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Project Consistency",
+        "tags": [
+          "projects",
+          "reliability"
         ]
       }
     },
@@ -17513,6 +17922,107 @@
         "summary": "Schema",
         "tags": [
           "schemas"
+        ]
+      }
+    },
+    "/api/v1/system/outbox/status": {
+      "get": {
+        "operationId": "outbox_status_api_v1_system_outbox_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_OutboxStatusData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Outbox Status",
+        "tags": [
+          "system",
+          "reliability"
+        ]
+      }
+    },
+    "/api/v1/system/recovery/reconcile": {
+      "post": {
+        "operationId": "reconcile_recovery_api_v1_system_recovery_reconcile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryReconcileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_RecoveryReconcileData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reconcile Recovery",
+        "tags": [
+          "system",
+          "reliability"
+        ]
+      }
+    },
+    "/api/v1/system/recovery/status": {
+      "get": {
+        "operationId": "recovery_status_api_v1_system_recovery_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_RecoveryStatusData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Recovery Status",
+        "tags": [
+          "system",
+          "reliability"
         ]
       }
     },

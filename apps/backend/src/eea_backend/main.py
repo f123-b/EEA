@@ -11,6 +11,7 @@ from eea_adapters.secrets import KeyringSecretService
 from eea_adapters.static_analysis import CppcheckAdapter
 from eea_application.claims import ClaimPredicateRegistry
 from eea_application.domains import DomainExtensionRegistry
+from eea_application.reliability import NoopCrashInjector, new_recovery_worker_id
 from eea_application.requirements import (
     build_claim_predicate_definitions,
     build_foc_benchmark_profile,
@@ -32,6 +33,7 @@ from eea_backend.database import check_database, create_database_engine
 from eea_backend.dependency_bootstrap import reconcile_project_dependencies
 from eea_backend.errors import engineering_error_handler, validation_error_handler
 from eea_backend.models import ProjectRecord
+from eea_backend.recovery import OutboxDispatcher, RecoveryService
 from eea_backend.repositories import SqlAlchemyPromptRepository
 from eea_backend.requirement_repositories import SqlAlchemyRequirementProfileRepository
 from eea_backend.schemas import ApiEnvelope, HealthResponse, VersionData
@@ -123,25 +125,37 @@ def create_app(
     resolved_ai_provider = (
         ai_provider if ai_provider is not None else _configured_ai_provider(resolved_settings)
     )
+    recovery_worker_id = new_recovery_worker_id()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        with engine.connect() as connection:
-            inspector = inspect(connection)
-            if all(
-                inspector.has_table(table)
-                for table in (
-                    "requirement_profiles",
-                    "prompt_definitions",
-                    "claim_predicate_definitions",
-                )
-            ):
-                with Session(engine) as session:
-                    seed_builtin_requirement_contracts(session)
-                    for project_id in session.scalars(select(ProjectRecord.id)):
-                        reconcile_project_dependencies(session, UUID(project_id))
-        yield
-        engine.dispose()
+        try:
+            with engine.connect() as connection:
+                inspector = inspect(connection)
+                if all(
+                    inspector.has_table(table)
+                    for table in (
+                        "requirement_profiles",
+                        "prompt_definitions",
+                        "claim_predicate_definitions",
+                    )
+                ):
+                    with Session(engine) as session:
+                        seed_builtin_requirement_contracts(session)
+                        for project_id in session.scalars(select(ProjectRecord.id)):
+                            reconcile_project_dependencies(session, UUID(project_id))
+            with engine.connect() as connection:
+                if inspect(connection).has_table("outbox_events"):
+                    summary = application.state.recovery_service.startup_recover(batch_limit=100)
+                    application.state.startup_recovery_completed = True
+                    application.state.last_recovery_summary = summary
+                    application.state.outbox_dispatcher.start()
+            yield
+        finally:
+            try:
+                await application.state.outbox_dispatcher.stop()
+            finally:
+                engine.dispose()
 
     application = FastAPI(
         title="Embedded Engineering Agent API",
@@ -159,6 +173,20 @@ def create_app(
     )
     application.state.static_analysis_provider = CppcheckAdapter()
     application.state.test_executor_registry = TestExecutorRegistry()
+    application.state.crash_injector = NoopCrashInjector()
+    application.state.recovery_worker_id = recovery_worker_id
+    application.state.recovery_service = RecoveryService(
+        lambda: Session(engine),
+        worker_id=recovery_worker_id,
+        crash_injector=application.state.crash_injector,
+    )
+    application.state.outbox_dispatcher = OutboxDispatcher(
+        application.state.recovery_service,
+        batch_limit=100,
+        poll_interval_seconds=1.0,
+    )
+    application.state.startup_recovery_completed = False
+    application.state.last_recovery_summary = {}
     component_source = resolved_settings.stm32cube_g4_source
     if component_source is None:
         candidate = Path(".eea-component-cache/source/STM32CubeG4-v1.6.3")

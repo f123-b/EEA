@@ -129,6 +129,66 @@ class HealthResponse(BaseModel):
     database: Literal["ok"]
 
 
+class OutboxStatusData(BaseModel):
+    pending: int
+    processing: int
+    retry: int
+    processed: int
+    dead_letter: int
+    total: int
+    expired_processing_count: int
+    oldest_pending_at: datetime | None = None
+    oldest_pending_age_seconds: float
+    side_effect_reconcile_required_count: int
+
+
+class RecoveryStatusData(BaseModel):
+    healthy: bool
+    pending_recovery_count: int
+    expired_lease_count: int
+    dead_letter_count: int
+    reconcile_required_effect_count: int
+    interrupted_job_count: int
+    startup_recovery_completed: bool
+    last_recovery_summary: dict[str, object]
+
+
+class TransactionalRecoveryData(BaseModel):
+    pending: int
+    processing: int
+    retry: int
+    dead_letter: int
+    reconcile_required: int
+    interrupted_jobs: int
+
+
+class EngineeringFreshnessData(BaseModel):
+    stale: int
+    invalid: int
+
+
+class ProjectConsistencyData(BaseModel):
+    status: Literal["CONSISTENT", "DEGRADED", "RECOVERY_REQUIRED"]
+    transactional_recovery: TransactionalRecoveryData
+    engineering_freshness: EngineeringFreshnessData
+
+
+class RecoveryReconcileRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID | None = None
+    limit: int = Field(default=100, ge=1, le=1000)
+
+
+class RecoveryReconcileData(BaseModel):
+    reclaimed: int
+    interrupted_jobs: int
+    reconciled_side_effects: int
+    dispatched: dict[str, int]
+    reconcile_required: int
+    project: ProjectConsistencyData | None = None
+
+
 class ErrorData(BaseModel):
     code: EngineeringErrorCode
     message: str
