@@ -56,7 +56,8 @@ and restart-safe current revision recovery.
 - Desktop lint: PASS
 - Desktop typecheck: PASS
 - Desktop build: PASS
-- GitHub CI: pending Draft PR push
+- GitHub CI push run `31871424363`: backend PASS, desktop PASS
+- GitHub CI pull request run `31871451429`: backend PASS, desktop PASS
 
 ## State
 
