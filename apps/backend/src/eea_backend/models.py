@@ -844,6 +844,106 @@ class SourceRevisionRecord(CoreRecordMixin, Base):
     created_by: Mapped[str] = mapped_column(String(200), nullable=False)
 
 
+class SourceWorkspaceRecord(CoreRecordMixin, Base):
+    """Project-scoped workspace metadata; source bytes remain on disk."""
+
+    __tablename__ = "source_workspaces"
+    __table_args__ = (
+        CheckConstraint("workspace_revision >= 0", name="workspace_revision_non_negative"),
+        UniqueConstraint("project_id", name="uq_source_workspaces_project"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    repository_id: Mapped[str] = mapped_column(String(300), nullable=False)
+    root_path: Mapped[str] = mapped_column(String(2000), nullable=False)
+    current_source_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=True, index=True
+    )
+    workspace_revision: Mapped[int] = mapped_column(nullable=False, default=0)
+    base_commit: Mapped[str | None] = mapped_column(String(100))
+    last_reconciled_manifest_hash: Mapped[str | None] = mapped_column(String(64))
+
+
+class PatchProposalRecord(CoreRecordMixin, Base):
+    """Review metadata for a proposed source mutation."""
+
+    __tablename__ = "patch_proposals"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('DRAFT', 'READY', 'APPLIED', 'STALE', 'REJECTED', 'FAILED')",
+            name="status",
+        ),
+        CheckConstraint(
+            "base_workspace_revision >= 0", name="base_workspace_revision_non_negative"
+        ),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    base_source_revision_id: Mapped[str] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=False, index=True
+    )
+    base_workspace_revision: Mapped[int] = mapped_column(nullable=False)
+    affected_files: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    expected_file_hashes: Mapped[dict[str, str | None]] = mapped_column(JSON, nullable=False)
+    patch: Mapped[str | None] = mapped_column(Text)
+    structured_edits: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    expected_impact: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    required_builds: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    required_tests: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    failure_reason: Mapped[str | None] = mapped_column(String(4000))
+
+
+class GeneratedSourceOwnershipRecord(CoreRecordMixin, Base):
+    """Hash and generator metadata for generated-owned workspace paths."""
+
+    __tablename__ = "generated_source_ownership"
+    __table_args__ = (
+        CheckConstraint("status IN ('ACTIVE', 'DIVERGED')", name="status"),
+        UniqueConstraint("project_id", "path", name="uq_generated_source_ownership_path"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    path: Mapped[str] = mapped_column(String(1000), nullable=False)
+    generator_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    generator_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+
+
+class SourceMutationJournalRecord(CoreRecordMixin, Base):
+    """Durable marker spanning a filesystem replace and SQL finalization."""
+
+    __tablename__ = "source_mutation_journal"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PREPARED', 'COMPLETED', 'ROLLED_BACK', 'RECOVERED')",
+            name="status",
+        ),
+        CheckConstraint(
+            "expected_workspace_revision >= 0", name="expected_workspace_revision_non_negative"
+        ),
+        UniqueConstraint("operation_id", name="uq_source_mutation_journal_operation"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    operation_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    proposal_id: Mapped[str] = mapped_column(
+        ForeignKey("patch_proposals.id"), nullable=False, index=True
+    )
+    previous_source_revision_id: Mapped[str] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=False, index=True
+    )
+    expected_workspace_revision: Mapped[int] = mapped_column(nullable=False)
+    affected_files: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    last_error: Mapped[str | None] = mapped_column(String(4000))
+
+
 class FirmwareRecord(CoreRecordMixin, Base):
     __tablename__ = "firmware_irs"
     __table_args__ = (

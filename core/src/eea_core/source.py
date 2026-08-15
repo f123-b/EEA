@@ -1,8 +1,14 @@
-"""Core-neutral source and build-input snapshots for reproducible builds."""
+"""Core-neutral source authority and build-input snapshots.
 
+Editable source bytes live in the project workspace. These models contain only
+immutable snapshots, proposal metadata, and generator ownership metadata; they
+do not persist a second editable source tree.
+"""
+
+from enum import StrEnum
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from eea_core.entities import EntityBase, Sha256
 from eea_core.enums import BuildProfile
@@ -23,6 +29,87 @@ class SourceRevision(EntityBase):
     source_manifest_hash: Sha256
     file_manifest: dict[str, Sha256] = Field(default_factory=dict)
     created_by: str = Field(min_length=1, max_length=200)
+
+
+class PatchProposalStatus(StrEnum):
+    DRAFT = "DRAFT"
+    READY = "READY"
+    APPLIED = "APPLIED"
+    STALE = "STALE"
+    REJECTED = "REJECTED"
+    FAILED = "FAILED"
+
+
+class GeneratedOwnershipStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    DIVERGED = "DIVERGED"
+
+
+class PatchProposal(EntityBase):
+    """A reviewable source change; it is not itself a source snapshot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID
+    base_source_revision_id: UUID
+    base_workspace_revision: int = Field(ge=0)
+    affected_files: list[str] = Field(min_length=1)
+    expected_file_hashes: dict[str, str | None] = Field(default_factory=dict)
+    patch: str | None = None
+    structured_edits: dict[str, str] = Field(default_factory=dict)
+    rationale: str = Field(min_length=1, max_length=20_000)
+    evidence_ids: list[UUID] = Field(default_factory=list)
+    expected_impact: dict[str, object] = Field(default_factory=dict)
+    required_builds: list[str] = Field(default_factory=list)
+    required_tests: list[str] = Field(default_factory=list)
+    created_by: str = Field(min_length=1, max_length=200)
+    status: PatchProposalStatus = PatchProposalStatus.DRAFT
+    failure_reason: str | None = Field(default=None, max_length=4000)
+
+
+class GeneratedSourceCandidate(BaseModel):
+    """Generator output awaiting an explicit apply decision."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    project_id: UUID
+    generator_id: str = Field(min_length=1, max_length=200)
+    generator_version: str = Field(min_length=1, max_length=100)
+    input_hash: Sha256
+    files: dict[str, str] = Field(default_factory=dict)
+    generated_owned_files: list[str] = Field(default_factory=list)
+
+
+class SourceWorkspaceStatus(BaseModel):
+    """Current workspace metadata returned by the source authority service."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: UUID
+    repository_id: str
+    workspace_revision: int = Field(ge=0)
+    source_revision_id: UUID
+    dirty: bool
+    commit_sha: str | None = None
+    base_commit: str | None = None
+    tree_hash: Sha256
+    source_manifest_hash: Sha256
+    file_count: int = Field(ge=0)
+    generated_owned_paths: list[str] = Field(default_factory=list)
+
+
+class SourceFileContent(BaseModel):
+    """A byte-exact UTF-8 source read with stable optimistic-concurrency data."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    path: str
+    content: str
+    content_hash: Sha256
+    source_revision_id: UUID
+    workspace_revision: int = Field(ge=0)
+    etag: str
 
 
 class BuildInputSnapshot(EntityBase):
@@ -48,4 +135,13 @@ class BuildInputSnapshot(EntityBase):
     build_input_hash: Sha256
 
 
-__all__ = ["BuildInputSnapshot", "SourceRevision"]
+__all__ = [
+    "BuildInputSnapshot",
+    "GeneratedOwnershipStatus",
+    "GeneratedSourceCandidate",
+    "PatchProposal",
+    "PatchProposalStatus",
+    "SourceFileContent",
+    "SourceRevision",
+    "SourceWorkspaceStatus",
+]

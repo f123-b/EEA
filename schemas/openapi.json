@@ -900,6 +900,52 @@
         "title": "ApiEnvelope[OutboxStatusData]",
         "type": "object"
       },
+      "ApiEnvelope_PatchProposalData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PatchProposalData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[PatchProposalData]",
+        "type": "object"
+      },
+      "ApiEnvelope_PatchProposalDiffData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PatchProposalDiffData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[PatchProposalDiffData]",
+        "type": "object"
+      },
       "ApiEnvelope_PinAssignmentMutationData_": {
         "properties": {
           "data": {
@@ -1335,6 +1381,75 @@
           "request_id"
         ],
         "title": "ApiEnvelope[SchematicBundleData]",
+        "type": "object"
+      },
+      "ApiEnvelope_SourceFileContentData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SourceFileContentData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[SourceFileContentData]",
+        "type": "object"
+      },
+      "ApiEnvelope_SourceRevisionData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SourceRevisionData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[SourceRevisionData]",
+        "type": "object"
+      },
+      "ApiEnvelope_SourceWorkspaceStatusData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SourceWorkspaceStatusData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[SourceWorkspaceStatusData]",
         "type": "object"
       },
       "ApiEnvelope_StaticAnalysisListData_": {
@@ -5595,6 +5710,9 @@
           "EVENT_DELIVERY_FAILED",
           "INDEX_REBUILD_REQUIRED",
           "BUILD_INPUT_UNDECLARED",
+          "SOURCE_FILE_NOT_FOUND",
+          "PATCH_PROPOSAL_NOT_FOUND",
+          "GENERATED_SOURCE_DIVERGED",
           "SANDBOX_VIOLATION",
           "ARCHIVE_UNSAFE",
           "COMMAND_NOT_ALLOWED",
@@ -8756,6 +8874,330 @@
         ],
         "title": "PWMConfig",
         "type": "object"
+      },
+      "PatchProposalApplyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_source_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Source Revision Id"
+          },
+          "expected_workspace_revision": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Workspace Revision"
+          }
+        },
+        "title": "PatchProposalApplyRequest",
+        "type": "object"
+      },
+      "PatchProposalCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "affected_files": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Affected Files",
+            "type": "array"
+          },
+          "base_source_revision_id": {
+            "format": "uuid",
+            "title": "Base Source Revision Id",
+            "type": "string"
+          },
+          "base_workspace_revision": {
+            "minimum": 0.0,
+            "title": "Base Workspace Revision",
+            "type": "integer"
+          },
+          "created_by": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Created By",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "expected_file_hashes": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Expected File Hashes",
+            "type": "object"
+          },
+          "expected_impact": {
+            "additionalProperties": true,
+            "title": "Expected Impact",
+            "type": "object"
+          },
+          "patch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patch"
+          },
+          "rationale": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "required_builds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Builds",
+            "type": "array"
+          },
+          "required_tests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Tests",
+            "type": "array"
+          },
+          "structured_edits": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Structured Edits",
+            "type": "object"
+          }
+        },
+        "required": [
+          "base_source_revision_id",
+          "base_workspace_revision",
+          "affected_files",
+          "rationale",
+          "created_by"
+        ],
+        "title": "PatchProposalCreateRequest",
+        "type": "object"
+      },
+      "PatchProposalData": {
+        "properties": {
+          "affected_files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Affected Files",
+            "type": "array"
+          },
+          "base_source_revision_id": {
+            "format": "uuid",
+            "title": "Base Source Revision Id",
+            "type": "string"
+          },
+          "base_workspace_revision": {
+            "title": "Base Workspace Revision",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "expected_file_hashes": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Expected File Hashes",
+            "type": "object"
+          },
+          "expected_impact": {
+            "additionalProperties": true,
+            "title": "Expected Impact",
+            "type": "object"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "patch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patch"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "required_builds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Builds",
+            "type": "array"
+          },
+          "required_tests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Tests",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PatchProposalStatus"
+          },
+          "structured_edits": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Structured Edits",
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "schema_version",
+          "revision",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "project_id",
+          "base_source_revision_id",
+          "base_workspace_revision",
+          "affected_files",
+          "expected_file_hashes",
+          "patch",
+          "structured_edits",
+          "rationale",
+          "evidence_ids",
+          "expected_impact",
+          "required_builds",
+          "required_tests",
+          "created_by",
+          "status",
+          "failure_reason"
+        ],
+        "title": "PatchProposalData",
+        "type": "object"
+      },
+      "PatchProposalDiffData": {
+        "properties": {
+          "diff": {
+            "title": "Diff",
+            "type": "string"
+          },
+          "proposal_id": {
+            "format": "uuid",
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "diff"
+        ],
+        "title": "PatchProposalDiffData",
+        "type": "object"
+      },
+      "PatchProposalStatus": {
+        "enum": [
+          "DRAFT",
+          "READY",
+          "APPLIED",
+          "STALE",
+          "REJECTED",
+          "FAILED"
+        ],
+        "title": "PatchProposalStatus",
+        "type": "string"
       },
       "PeripheralConfigIR": {
         "additionalProperties": false,
@@ -11925,6 +12367,74 @@
         "title": "SoftwareComponentData",
         "type": "object"
       },
+      "SourceCommitRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "commit_message": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Commit Message",
+            "type": "string"
+          },
+          "expected_source_revision_id": {
+            "format": "uuid",
+            "title": "Expected Source Revision Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_source_revision_id",
+          "commit_message",
+          "actor"
+        ],
+        "title": "SourceCommitRequest",
+        "type": "object"
+      },
+      "SourceFileContentData": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "etag": {
+            "title": "Etag",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "source_revision_id": {
+            "format": "uuid",
+            "title": "Source Revision Id",
+            "type": "string"
+          },
+          "workspace_revision": {
+            "title": "Workspace Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "content",
+          "content_hash",
+          "source_revision_id",
+          "workspace_revision",
+          "etag"
+        ],
+        "title": "SourceFileContentData",
+        "type": "object"
+      },
       "SourceRevisionData": {
         "properties": {
           "base_commit": {
@@ -12033,6 +12543,88 @@
           "created_by"
         ],
         "title": "SourceRevisionData",
+        "type": "object"
+      },
+      "SourceWorkspaceStatusData": {
+        "properties": {
+          "base_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Commit"
+          },
+          "commit_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Sha"
+          },
+          "dirty": {
+            "title": "Dirty",
+            "type": "boolean"
+          },
+          "file_count": {
+            "title": "File Count",
+            "type": "integer"
+          },
+          "generated_owned_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Generated Owned Paths",
+            "type": "array"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "repository_id": {
+            "title": "Repository Id",
+            "type": "string"
+          },
+          "source_manifest_hash": {
+            "title": "Source Manifest Hash",
+            "type": "string"
+          },
+          "source_revision_id": {
+            "format": "uuid",
+            "title": "Source Revision Id",
+            "type": "string"
+          },
+          "tree_hash": {
+            "title": "Tree Hash",
+            "type": "string"
+          },
+          "workspace_revision": {
+            "title": "Workspace Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id",
+          "repository_id",
+          "workspace_revision",
+          "source_revision_id",
+          "dirty",
+          "commit_sha",
+          "base_commit",
+          "tree_hash",
+          "source_manifest_hash",
+          "file_count",
+          "generated_owned_paths"
+        ],
+        "title": "SourceWorkspaceStatusData",
         "type": "object"
       },
       "StartupConfig": {
@@ -14061,6 +14653,160 @@
         "summary": "Version",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/api/v1/patch-proposals/{proposal_id}": {
+      "get": {
+        "operationId": "get_source_patch_proposal_api_v1_patch_proposals__proposal_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_PatchProposalData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Source Patch Proposal",
+        "tags": [
+          "source"
+        ]
+      }
+    },
+    "/api/v1/patch-proposals/{proposal_id}/apply": {
+      "post": {
+        "operationId": "apply_source_patch_proposal_api_v1_patch_proposals__proposal_id__apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchProposalApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Apply Source Patch Proposal",
+        "tags": [
+          "source"
+        ]
+      }
+    },
+    "/api/v1/patch-proposals/{proposal_id}/diff": {
+      "get": {
+        "operationId": "get_source_patch_proposal_diff_api_v1_patch_proposals__proposal_id__diff_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_PatchProposalDiffData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Source Patch Proposal Diff",
+        "tags": [
+          "source"
         ]
       }
     },
@@ -17543,6 +18289,291 @@
         "summary": "Validate Schematic",
         "tags": [
           "schematic"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/source/commit": {
+      "post": {
+        "operationId": "commit_source_workspace_api_v1_projects__project_id__source_commit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceCommitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_SourceRevisionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Commit Source Workspace",
+        "tags": [
+          "source"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/source/files/content": {
+      "get": {
+        "operationId": "source_file_content_api_v1_projects__project_id__source_files_content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_SourceFileContentData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Source File Content",
+        "tags": [
+          "source"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/source/patch-proposals": {
+      "post": {
+        "operationId": "create_source_patch_proposal_api_v1_projects__project_id__source_patch_proposals_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchProposalCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_PatchProposalData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Source Patch Proposal",
+        "tags": [
+          "source"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/source/revision": {
+      "get": {
+        "operationId": "source_revision_api_v1_projects__project_id__source_revision_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_SourceRevisionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Source Revision",
+        "tags": [
+          "source"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/source/status": {
+      "get": {
+        "operationId": "source_status_api_v1_projects__project_id__source_status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_SourceWorkspaceStatusData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Source Status",
+        "tags": [
+          "source"
         ]
       }
     },
