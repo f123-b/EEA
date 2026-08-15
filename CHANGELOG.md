@@ -7,6 +7,23 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18D Hardware Commissioning & Safety implemented at implementation commit
+  `0fb0df1d17674d0635d0e6994c69e4dfe92a4236` on dedicated branch
+  `codex/m18d-hardware-commissioning-safety`, based on merged main HEAD
+  `43e37011b5154736a2df48a3c90e39c5a801c4a4`. Added Core-neutral commissioning states,
+  SAFE_COMMISSIONING limits, bounded hardware adapter operations, identity/probe/resource-lock
+  verification, SourceRevision/BuildInputSnapshot/artifact binding, fail-closed flash and
+  sensor/limited-step gates, emergency-stop/watchdog/cancellation handling, durable evidence
+  and M18A Outbox/Recovery integration, CAS-protected commissioning APIs, migration
+  `0028_m18d_hardware_commissioning_safety`, deterministic Fake Adapter injection, and additive
+  MotorControl commissioning rules. Focused M18D/regression verification: **174 passed, 1
+  skipped**; local full pytest: **386 passed, 4 skipped**, with **2 pre-existing Windows M5
+  sandbox environment failures**; coverage **84.46%**. Ruff check/format, mypy, clean Alembic
+  upgrade/check, OpenAPI, TypeScript contracts, desktop lint, desktop typecheck, and desktop
+  build pass. `M18C = ACCEPTED_AND_MERGED`, `M18D = IMPLEMENTED`,
+  `READY_FOR_M18D_FINAL_REVIEW = YES`, and `M18E = NOT_STARTED`; M18D final human review and
+  GitHub CI remain pending.
+
 - M18C Final Acceptance at reviewed final HEAD
   `6cc9b7057c5c210396ae4b2fcfdf5c5e6cd4baac`: the Source Authority / Workspace / Git
   Contract established by implementation commit `c9f2644` is accepted. It establishes
