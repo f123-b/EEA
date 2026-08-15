@@ -45,6 +45,7 @@ from eea_core.components import (
 from eea_core.domain_extensions import (
     DomainActivation,
     DomainCompositionPlan,
+    DomainCompositionState,
     DomainContextContribution,
     DomainDescriptor,
     DomainGeneratorContribution,
@@ -204,6 +205,7 @@ def create_core_schema_registry() -> SchemaRegistry:
         DevicePin,
         DomainActivation,
         DomainCompositionPlan,
+        DomainCompositionState,
         DomainContextContribution,
         DomainDescriptor,
         DomainGeneratorContribution,

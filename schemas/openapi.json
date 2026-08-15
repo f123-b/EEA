@@ -4634,6 +4634,68 @@
         "title": "DomainAvailableListData",
         "type": "object"
       },
+      "DomainCompositionApplyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "applied_by": {
+            "default": "system",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Applied By",
+            "type": "string"
+          },
+          "configurations": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Configurations",
+            "type": "object"
+          },
+          "domain_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Domain Ids",
+            "type": "array"
+          },
+          "expected_composition_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Composition Revision"
+          },
+          "expected_plan_hash": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Plan Hash"
+          },
+          "selected_capabilities": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Selected Capabilities",
+            "type": "object"
+          }
+        },
+        "title": "DomainCompositionApplyRequest",
+        "type": "object"
+      },
       "DomainCompositionData": {
         "properties": {
           "active_domain_ids": {
@@ -4643,12 +4705,33 @@
             "title": "Active Domain Ids",
             "type": "array"
           },
+          "blocked_reasons": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Blocked Reasons",
+            "type": "array"
+          },
           "capability_routes": {
             "additionalProperties": {
               "type": "string"
             },
             "title": "Capability Routes",
             "type": "object"
+          },
+          "compatibility_results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Compatibility Results",
+            "type": "array"
+          },
+          "composition_revision": {
+            "default": 0,
+            "title": "Composition Revision",
+            "type": "integer"
           },
           "context_contributions": {
             "items": {
@@ -4667,6 +4750,21 @@
             "title": "Dependency Edges",
             "type": "array"
           },
+          "domain_snapshots": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Domain Snapshots",
+            "type": "array"
+          },
+          "generator_order": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Generator Order",
+            "type": "array"
+          },
           "generators": {
             "items": {
               "$ref": "#/components/schemas/DomainGeneratorContribution"
@@ -4681,6 +4779,30 @@
             "title": "Ordered Domain Ids",
             "type": "array"
           },
+          "plan_hash": {
+            "default": "",
+            "title": "Plan Hash",
+            "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "rule_order": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rule Order",
+            "type": "array"
+          },
           "rules": {
             "items": {
               "$ref": "#/components/schemas/DomainRuleContribution"
@@ -4688,12 +4810,53 @@
             "title": "Rules",
             "type": "array"
           },
+          "schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Version"
+          },
+          "selected_capabilities": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Selected Capabilities",
+            "type": "object"
+          },
           "ui_contributions": {
             "items": {
               "$ref": "#/components/schemas/DomainUIContribution"
             },
             "title": "Ui Contributions",
             "type": "array"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By"
           },
           "validation_results": {
             "items": {
@@ -5173,6 +5336,14 @@
       "DomainValidationRequest": {
         "additionalProperties": false,
         "properties": {
+          "configurations": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Configurations",
+            "type": "object"
+          },
           "domain_ids": {
             "items": {
               "type": "string"
@@ -15285,6 +15456,64 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/domains/apply-composition": {
+      "post": {
+        "operationId": "apply_domain_composition_api_v1_projects__project_id__domains_apply_composition_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainCompositionApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainCompositionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Apply Domain Composition",
+        "tags": [
+          "domains"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/domains/available": {
       "get": {
         "operationId": "list_available_domains_api_v1_projects__project_id__domains_available_get",
@@ -15328,6 +15557,54 @@
           }
         ],
         "summary": "List Available Domains",
+        "tags": [
+          "domains"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/domains/composition": {
+      "get": {
+        "operationId": "get_domain_composition_api_v1_projects__project_id__domains_composition_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_DomainCompositionData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Domain Composition",
         "tags": [
           "domains"
         ]

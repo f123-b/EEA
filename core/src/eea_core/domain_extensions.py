@@ -180,6 +180,37 @@ class DomainCompositionPlan(BaseModel):
     context_contributions: list[DomainContextContribution] = Field(default_factory=list)
     ui_contributions: list[DomainUIContribution] = Field(default_factory=list)
     validation_results: list["DomainValidationResult"] = Field(default_factory=list)
+    # M18B canonical composition metadata.  The registry fills the structural fields;
+    # the project-scoped application service adds revision, compatibility, and hash data.
+    composition_revision: int = Field(default=0, ge=0)
+    selected_capabilities: dict[str, str] = Field(default_factory=dict)
+    domain_snapshots: list[dict[str, object]] = Field(default_factory=list)
+    rule_order: list[str] = Field(default_factory=list)
+    generator_order: list[str] = Field(default_factory=list)
+    plan_hash: str = Field(default="", max_length=64)
+    compatibility_results: list[dict[str, object]] = Field(default_factory=list)
+    blocked_reasons: list[dict[str, object]] = Field(default_factory=list)
+
+
+class DomainCompositionState(EntityBase):
+    """Authoritative, project-scoped composition snapshot.
+
+    Activation rows retain their domain-owned lifecycle and configuration data.  This
+    entity is the single source of truth for the selected composition and its exact
+    deterministic runtime plan.
+    """
+
+    project_id: UUID
+    active_domain_ids: list[str] = Field(default_factory=list)
+    ordered_domain_ids: list[str] = Field(default_factory=list)
+    selected_capabilities: dict[str, str] = Field(default_factory=dict)
+    capability_routes: dict[str, str] = Field(default_factory=dict)
+    dependency_edges: list[list[str]] = Field(default_factory=list)
+    domain_snapshots: list[dict[str, object]] = Field(default_factory=list)
+    rule_order: list[str] = Field(default_factory=list)
+    generator_order: list[str] = Field(default_factory=list)
+    plan_hash: str = Field(default="", max_length=64)
+    updated_by: str = Field(default="system", min_length=1, max_length=200)
 
 
 class DomainValidationDiagnostic(BaseModel):
@@ -205,6 +236,7 @@ class DomainValidationResult(BaseModel):
 __all__ = [
     "DomainActivation",
     "DomainCompositionPlan",
+    "DomainCompositionState",
     "DomainContextContribution",
     "DomainDescriptor",
     "DomainGeneratorContribution",
