@@ -60,7 +60,8 @@ and the CAS-protected API surface.
 - Desktop lint: PASS
 - Desktop typecheck: PASS
 - Desktop build: PASS
-- GitHub CI: pending Draft PR push
+- GitHub CI push run `31875246207`: backend PASS, desktop PASS
+- GitHub CI pull request run `31875257498`: backend PASS, desktop PASS
 
 ## M18D contract summary
 

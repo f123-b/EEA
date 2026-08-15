@@ -20,9 +20,10 @@ the frozen documentation changelogs under `docs/`.
   skipped**; local full pytest: **386 passed, 4 skipped**, with **2 pre-existing Windows M5
   sandbox environment failures**; coverage **84.46%**. Ruff check/format, mypy, clean Alembic
   upgrade/check, OpenAPI, TypeScript contracts, desktop lint, desktop typecheck, and desktop
-  build pass. `M18C = ACCEPTED_AND_MERGED`, `M18D = IMPLEMENTED`,
-  `READY_FOR_M18D_FINAL_REVIEW = YES`, and `M18E = NOT_STARTED`; M18D final human review and
-  GitHub CI remain pending.
+  build pass. GitHub CI push run `31875246207` and pull request run `31875257498` both have
+  backend PASS and desktop PASS. `M18C = ACCEPTED_AND_MERGED`, `M18D = IMPLEMENTED`,
+  `READY_FOR_M18D_FINAL_REVIEW = YES`, and `M18E = NOT_STARTED`; M18D final human review
+  remains pending.
 
 - M18C Final Acceptance at reviewed final HEAD
   `6cc9b7057c5c210396ae4b2fcfdf5c5e6cd4baac`: the Source Authority / Workspace / Git
