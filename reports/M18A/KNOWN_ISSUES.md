@@ -2,28 +2,22 @@
 
 ## Status
 
-`M18A = IMPLEMENTED`
+`M18A = ACCEPTED`
 
-`M18AR = IMPLEMENTED`
+`M18AR = ACCEPTED`
 
-`M18AR.1 = IMPLEMENTED`
+`M18AR.1 = ACCEPTED`
 
-`READY_FOR_M18A_FINAL_ACCEPTANCE = YES`
-
-`READY_FOR_M18A_FINAL_REVIEW = YES`
+`READY_FOR_M18B = YES`
 
 `M18B = NOT_STARTED`
 
-`READY_FOR_M18B = NO`
+## PRE-EXISTING / ENVIRONMENT-SPECIFIC / NON-BLOCKING
 
-## Non-blocking environment note
-
-- On this Windows checkout, the existing M5 sandbox subprocess tests can fail
-  with code `101` or miss the expected timeout boundary because the local
-  interpreter redirector does not provide the runtime behavior expected by
-  those pre-existing tests. The same full suite excluding that
-  environment-specific test passes with 333 tests and 82.38% coverage. This
-  is not an M18A or M18AR failure and no M5 code was changed.
+- Local full pytest reports **345 passed, 3 skipped**, with **2 existing
+  Windows M5 sandbox environment failures**. The failures are caused by the
+  local interpreter redirector/runtime behavior and are not an M18A, M18AR,
+  or M18AR.1 failure. No M5 code was changed.
 
 ## Deliberate M18A boundaries
 
@@ -42,5 +36,5 @@
   diagnostic APIs, and safe reconciliation required to complete M18A.
 
 These are planned scope boundaries or environment notes, not M18A acceptance
-blockers. M18A remains pending human final acceptance; M18B remains
-NOT_STARTED.
+blockers. M18A, M18AR, and M18AR.1 are accepted. M18B remains
+`NOT_STARTED`.

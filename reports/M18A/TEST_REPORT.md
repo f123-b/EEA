@@ -1,12 +1,18 @@
 # M18A / M18AR Transactional Outbox & Recovery Test Report
 
-Date: 2026-08-14
+Date: 2026-08-15
 
 Repository: `f123-b/EEA`
 
 Branch: `codex/m18a-transactional-outbox-recovery`
 
 Base: `main` at `0d127e2e40dc3e73a9ef41b1aa276391357d7cf4`
+
+Reviewed implementation HEAD:
+`68401b60b88935e7c19bc0309c1845eab3328555`
+
+Implementation commit:
+`fix(m18a): close dispatcher shutdown lifecycle`
 
 Migration: `0025_m18a_transactional_outbox_recovery`
 
@@ -20,9 +26,9 @@ contracts. It does not implement M18B or any later milestone.
 M18AR.1 closes transaction replay and recovery CAS semantics without
 expanding the M18A contract. Commit-busy retries replay the complete unit of
 work; reclaim, interrupted-job recovery, renew, finalize, and claim paths are
-conditional mutations; synchronous dispatcher work runs in a bounded worker
-thread; diagnostics count each outstanding event once; and lease-loss
-finalize conflicts are excluded from retry/dead-letter summaries.
+conditional mutations; synchronous dispatcher work runs in a bounded,
+joinable worker lifecycle; diagnostics count each outstanding event once; and
+lease-loss finalize conflicts are excluded from retry/dead-letter summaries.
 
 The persistence contract contains:
 
@@ -57,7 +63,7 @@ requested and separate transactional recovery from engineering freshness.
 
 Focused M18A/M18AR/M18AR.1 tests: **39 passed**.
 
-Focused M18/M18R/M18A/M18AR/M18AR.1 regression set: **63 passed**.
+Focused M18/M18R/M18A/M18AR/M18AR.1 regression set: **69 passed**.
 
 The focused M18A assertions cover:
 
@@ -92,12 +98,9 @@ The focused M18A assertions cover:
 
 Repository verification on the local Windows Python 3.12.4 environment:
 
-- `pytest --ignore=tests/test_m5_sandbox.py --no-cov -q`: **333 passed**.
-- `pytest --cov --ignore=tests/test_m5_sandbox.py`: **333 passed**; total
-  coverage **82.38%**.
-- `pytest tests/test_m5_sandbox.py --no-cov -q`: **6 passed, 3 skipped, 2
-  pre-existing Windows sandbox subprocess failures**. This is retained as
-  an environment-specific M5 note and is not an M18A failure.
+- Local full pytest: **345 passed, 3 skipped**, with **2 existing Windows M5
+  sandbox environment failures**.
+- Total coverage: **84.37%**.
 - M18AR.1 implementation-file coverage: backend recovery **85%**, backend
   reliability repositories **80%**, and core/application reliability remain
   covered by the full-suite gate.
@@ -111,28 +114,23 @@ Repository verification on the local Windows Python 3.12.4 environment:
 - `pnpm lint`: **PASS**.
 - `pnpm typecheck`: **PASS**.
 - `pnpm build`: **PASS**.
-- GitHub Linux CI is the final cross-platform acceptance gate for the
-  acceptance commit after it is pushed.
+- GitHub CI run `31859806569`: backend **PASS**; desktop **PASS**.
 
-The existing Windows M5 sandbox subprocess environment note is retained as an
-environment-specific issue and is not an M18A failure.
+The existing Windows M5 sandbox subprocess environment note is retained as
+`PRE-EXISTING / ENVIRONMENT-SPECIFIC / NON-BLOCKING` and is not an M18A
+failure.
 
 ## Status
 
-`M18A = IMPLEMENTED`
+`M18A = ACCEPTED`
 
-`M18AR = IMPLEMENTED`
+`M18AR = ACCEPTED`
 
-`M18AR.1 = IMPLEMENTED`
+`M18AR.1 = ACCEPTED`
 
-`READY_FOR_M18A_FINAL_ACCEPTANCE = YES`
-
-`READY_FOR_M18A_FINAL_REVIEW = YES`
-
-`READY_FOR_M18B = NO`
+`READY_FOR_M18B = YES`
 
 `M18B = NOT_STARTED`
 
-This report records M18AR.1 implementation verification only. M18A remains
-implemented but not accepted and is still awaiting human final acceptance.
-M18B implementation has not started.
+M18A, M18AR, and M18AR.1 are accepted at the reviewed implementation HEAD.
+M18B has not been implemented and remains `NOT_STARTED`.

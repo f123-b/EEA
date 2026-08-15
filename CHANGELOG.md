@@ -7,6 +7,16 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18A Final Acceptance: reviewed implementation HEAD
+  `68401b60b88935e7c19bc0309c1845eab3328555`; implementation commit
+  `fix(m18a): close dispatcher shutdown lifecycle`. Final verification:
+  focused M18/M18R/M18A/M18AR/M18AR.1 **69 passed**; local full pytest
+  **345 passed, 3 skipped**, with **2 existing Windows M5 sandbox environment
+  failures**; coverage **84.37%**; Ruff check/format, mypy, clean Alembic
+  upgrade, `alembic check`, OpenAPI, TypeScript contracts, desktop lint,
+  desktop typecheck, and desktop build all pass. GitHub CI run `31859806569`
+  has backend PASS and desktop PASS. `M18A = ACCEPTED`, `M18AR = ACCEPTED`,
+  `M18AR.1 = ACCEPTED`, `READY_FOR_M18B = YES`, and `M18B = NOT_STARTED`.
 - M18R Semantic Freshness, Runtime Binding & Recovery Closure: added canonical
   semantic freshness rules, explicit provider-backed dependency binding,
   historical artifact hash revalidation, CAS merge/recovery semantics, complete
@@ -38,8 +48,8 @@ the frozen documentation changelogs under `docs/`.
   Artifact projection, derived-artifact replay closure, project-scoped reconciliation,
   bounded SQLite busy retry, lease renewal/takeover protection, safe side-effect
   reconciliation, recovery diagnostics, and ProjectConsistencyData. `M18AR = IMPLEMENTED`;
-  `READY_FOR_M18A_FINAL_REVIEW = YES`; `M18A = IMPLEMENTED` but not accepted;
-  `READY_FOR_M18B = NO`; `M18B = NOT_STARTED`.
+  its implementation state was pending final acceptance at that point;
+  `M18B = NOT_STARTED`.
 - M18AR.1 Transaction Replay & Recovery CAS Closure: replaced unsafe
   rollback-then-commit retry with complete unit-of-work replay, closed claim/
   renew/finalize/reclaim and interrupted-job recovery CAS conditions, moved
@@ -48,11 +58,8 @@ the frozen documentation changelogs under `docs/`.
   dead-letter summaries. Added fault-injected write/commit busy regressions,
   CAS race protection, exact diagnostics, lease-loss accounting, and
   non-blocking dispatcher coverage. Focused M18/M18R/M18A/M18AR/M18AR.1:
-  **63 passed**; full suite excluding the existing Windows M5 environment
-  test: **333 passed**, coverage **82.38%**; Ruff, mypy, Alembic,
-  OpenAPI/TypeScript, and desktop gates pass. `M18AR.1 = IMPLEMENTED` and
-  `READY_FOR_M18A_FINAL_ACCEPTANCE = YES`; `M18A` remains unaccepted and
-  `M18B = NOT_STARTED`.
+  **63 passed** at the implementation stage; the final acceptance verification
+  and status are recorded in the M18A Final Acceptance entry above.
 - M17 Test/Traceability/Review: added Core-neutral declarative TestIR and immutable TestRun
   contracts, deterministic requirement-based test generation, project-scoped controlled
   fail-closed executors, revision/source freshness checks, design/verification coverage,
