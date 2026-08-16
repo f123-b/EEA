@@ -10595,7 +10595,14 @@
           },
           "function": {
             "additionalProperties": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "title": "Function",
             "type": "object"
@@ -12349,6 +12356,67 @@
         "title": "RequirementData",
         "type": "object"
       },
+      "RequirementDraft": {
+        "additionalProperties": false,
+        "description": "Provider-owned requirement content without server-owned identity fields.",
+        "properties": {
+          "acceptance_criteria": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Acceptance Criteria",
+            "type": "array"
+          },
+          "code": {
+            "maxLength": 120,
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Z0-9_.-]*$",
+            "title": "Code",
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/RequirementPriority",
+            "default": "UNKNOWN"
+          },
+          "rationale": {
+            "default": "",
+            "maxLength": 8000,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "requirement_type": {
+            "$ref": "#/components/schemas/RequirementType",
+            "default": "UNKNOWN"
+          },
+          "source_evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Evidence Refs",
+            "type": "array"
+          },
+          "statement": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Statement",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title",
+          "statement"
+        ],
+        "title": "RequirementDraft",
+        "type": "object"
+      },
       "RequirementFieldStatus": {
         "enum": [
           "PRESENT",
@@ -12532,6 +12600,14 @@
             "format": "uuid",
             "title": "Project Id",
             "type": "string"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/RequirementDraft"
+            },
+            "maxItems": 100,
+            "title": "Requirements",
+            "type": "array"
           },
           "values": {
             "additionalProperties": true,

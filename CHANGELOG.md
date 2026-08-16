@@ -7,6 +7,17 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M19A FOC Minimal E2E implemented on `codex/m19-foc-minimal-e2e`, based on green main
+  `b572fc6b820925ea623a46c6104982efc33a705c`, with implementation commit `82e0943`. The new
+  API-only benchmark drives the frozen STM32G431/DRV8323/AS5047 FOC chain through Requirement,
+  Claim/Device, PinMap, Hardware/Circuit, Schematic/ERC, MCUConfigIR, MotorControl plugin,
+  Firmware/SourceRevision, Build, Static Analysis, Protocol, Test, Traceability, Review, and
+  Dependency Impact. It adds fail-closed coverage for incomplete requirements, pin conflict,
+  invalid AF, electrical violation, unavailable tools, and stale downstream propagation. The
+  focused M19 suite reports **4 passed**; no real motor run, actuator enable, fabricated ELF, or
+  hardware commissioning is claimed. Local Build/ARM/KiCad/hardware gates remain UNKNOWN or
+  BLOCKED as documented in `reports/M19/`.
+
 - M18ER.1 — Runtime Auth & Atomic Restore Closure accepted at implementation HEAD
   `21cde4d6398edc85fcb2ea57a5e1bdc44f989e20` on `codex/m18e-renderer-nfr-hardening`. The closure
   adds a real Tauri child-process RuntimeBoundary with loopback-only random port/token,
