@@ -64,13 +64,11 @@ export function validateExternalLink(value: string, policy = rendererSecurityPol
   return url.toString();
 }
 
-/** Open through a separate browser target; the main WebView never navigates to the URL. */
-export function openExternalLink(value: string): void {
+/** Open through the OS browser; the main WebView never navigates to the URL. */
+export async function openExternalLink(value: string): Promise<void> {
   const safeUrl = validateExternalLink(value);
-  const opened = window.open(safeUrl, "_blank", "noopener,noreferrer");
-  if (!opened) {
-    throw new Error("external link could not be isolated from the renderer");
-  }
+  const { openUrl } = await import("@tauri-apps/plugin-opener");
+  await openUrl(safeUrl);
 }
 
 export function safeExternalLinkProps(value: string): { href: string; target: "_blank"; rel: "noreferrer noopener" } {

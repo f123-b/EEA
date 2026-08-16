@@ -1,5 +1,6 @@
 """Shared pytest fixtures."""
 
+import os
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -10,10 +11,12 @@ from eea_backend.main import create_app
 from eea_backend.settings import Settings
 from fastapi.testclient import TestClient
 
+os.environ.setdefault("EEA_INSECURE_LOCAL_DEV", "true")
+
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    return Settings(data_dir=tmp_path)
+    return Settings(data_dir=tmp_path, insecure_local_dev=True)
 
 
 @pytest.fixture

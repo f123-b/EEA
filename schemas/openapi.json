@@ -12845,6 +12845,10 @@
             ],
             "title": "Staging Path"
           },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
           "valid": {
             "title": "Valid",
             "type": "boolean"
@@ -12852,6 +12856,7 @@
         },
         "required": [
           "valid",
+          "state",
           "manifest_hash",
           "project_id",
           "object_count"

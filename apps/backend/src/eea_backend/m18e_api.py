@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, cast
 from uuid import UUID
@@ -13,14 +14,15 @@ from eea_application.backup import (
     BackupRecord,
     ProjectBackupService,
     RestoreConflictError,
+    RestoreState,
 )
 from eea_core.backup import (
+    BackupSecretPolicy,
     BackupValidationError,
     ProjectBackupManifest,
-    manifest_from_json,
-    validate_archive_member,
+    canonical_json,
 )
-from eea_core.capacity import CAPACITY_PROFILES
+from eea_core.capacity import CAPACITY_PROFILES, get_capacity_profile
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from eea_core.renderer_security import default_renderer_csp
@@ -78,7 +80,18 @@ def _record_payload(record: Any) -> bytes:
     for column in table.columns:
         attribute = "entity_metadata" if column.name == "metadata" else column.name
         payload[column.name] = getattr(record, attribute)
-    return json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode()
+    BackupSecretPolicy.assert_safe(payload)
+    return canonical_json(json.loads(json.dumps(payload, default=str)))
+
+
+def _backup_service(request: Request) -> ProjectBackupService:
+    try:
+        profile = get_capacity_profile(request.app.state.settings.capacity_profile)
+    except (KeyError, ValueError) as exc:
+        raise EngineeringError(
+            EngineeringErrorCode.BACKUP_INVALID, "configured backup capacity profile is invalid"
+        ) from exc
+    return ProjectBackupService(profile=profile)
 
 
 def _project_records(session: Session, project_id: UUID) -> tuple[BackupRecord, ...]:
@@ -195,7 +208,7 @@ def export_project(
     IdentityRepository(session).ensure_project_owner(project_id, identity)
     source_revision_id, source_revision_hash = _source_binding(session, project_id)
     try:
-        manifest = ProjectBackupService().export_project(
+        manifest = _backup_service(request).export_project(
             project_id,
             target,
             records,
@@ -218,16 +231,67 @@ def export_project(
     )
 
 
-def _read_manifest(path: Path) -> ProjectBackupManifest:
-    import zipfile
-
+def _read_manifest(path: Path, service: ProjectBackupService) -> ProjectBackupManifest:
     try:
-        with zipfile.ZipFile(path, "r") as archive:
-            for info in archive.infolist():
-                validate_archive_member(info.filename)
-            return manifest_from_json(archive.read("manifest.json"))
-    except (OSError, KeyError, ValueError, BackupValidationError, zipfile.BadZipFile) as exc:
+        return service.validate_archive(path)
+    except (OSError, ValueError, BackupValidationError, BackupOperationError) as exc:
         raise EngineeringError(EngineeringErrorCode.BACKUP_INVALID, "backup is invalid") from exc
+
+
+def _model_from_payload(model: type[Any], payload: dict[str, object]) -> Any:
+    columns = {column.name for column in model.__table__.columns}
+    values: dict[str, object] = {}
+    for column in model.__table__.columns:
+        key = "metadata" if column.name == "metadata" else column.name
+        if key not in payload:
+            continue
+        value = payload[key]
+        if column.name in {"created_at", "updated_at", "deleted_at"} and isinstance(value, str):
+            value = datetime.fromisoformat(value)
+        values["entity_metadata" if column.name == "metadata" else column.name] = value
+    if "id" not in columns or "id" not in values:
+        raise BackupValidationError("project backup record has no stable id")
+    return model(**values)
+
+
+def _restore_database_records(
+    session: Session,
+    staging: Path,
+    destination: Path,
+    manifest: ProjectBackupManifest,
+) -> None:
+    """Restore the portable project-authoritative record set in one SQL transaction."""
+
+    record_paths = {item.path for item in manifest.objects}
+    project_path = "records/projects.json"
+    if project_path not in record_paths:
+        raise BackupValidationError("portable project backup has no project record")
+    project_payload = json.loads((staging / project_path).read_text(encoding="utf-8"))
+    if project_payload.get("id") != str(manifest.project_id):
+        raise RestoreConflictError("project record identity does not match manifest")
+    session.rollback()
+    with session.begin():
+        if session.get(ProjectRecord, str(manifest.project_id)) is not None:
+            raise RestoreConflictError("project already exists and overwrite is forbidden")
+        session.add(_model_from_payload(ProjectRecord, project_payload))
+        session.flush()
+        ordered = (
+            (SourceRevisionRecord, "records/source-revisions/"),
+            (SourceWorkspaceRecord, "records/source-workspaces/"),
+            (ArtifactRecord, "records/artifacts/"),
+        )
+        for model, prefix in ordered:
+            for item in manifest.objects:
+                if not item.path.startswith(prefix):
+                    continue
+                payload = json.loads((staging / item.path).read_text(encoding="utf-8"))
+                if payload.get("project_id") != str(manifest.project_id):
+                    raise RestoreConflictError("record project scope does not match manifest")
+                if model is SourceWorkspaceRecord:
+                    payload["root_path"] = str(destination / "source")
+                    (staging / "source").mkdir(parents=True, exist_ok=True)
+                session.add(_model_from_payload(model, payload))
+        session.flush()
 
 
 @router.post("/projects/restore/validate", response_model=ApiEnvelope[RestoreData], tags=["m18e"])
@@ -241,12 +305,13 @@ def validate_restore(
     if not actor:
         raise EngineeringError(EngineeringErrorCode.AUTH_REQUIRED, "restore actor is missing")
     path = _safe_data_path(request, payload.archive_path, "restore.eea.zip")
-    manifest = _read_manifest(path)
+    manifest = _read_manifest(path, _backup_service(request))
     if manifest.project_id != payload.project_id:
         raise EngineeringError(EngineeringErrorCode.RESTORE_CONFLICT, "backup project mismatch")
     return ApiEnvelope(
         data=RestoreData(
             valid=True,
+            state=RestoreState.VALIDATED.value,
             manifest_hash=manifest.manifest_hash or "",
             project_id=manifest.project_id,
             object_count=len(manifest.objects),
@@ -266,8 +331,6 @@ def restore_project(
     destination = (
         Path(request.app.state.settings.data_dir).resolve() / "restored" / str(payload.project_id)
     )
-    if session.get(ProjectRecord, str(payload.project_id)) is None:
-        raise EngineeringError(EngineeringErrorCode.PROJECT_NOT_FOUND, "project was not found")
     identity = IdentityRepository(session).ensure_local_user()
     if actor not in {
         identity.stable_actor_id,
@@ -277,15 +340,17 @@ def restore_project(
         raise EngineeringError(
             EngineeringErrorCode.PERMISSION_REQUIRED, "restore actor is not authorized"
         )
-    IdentityRepository(session).ensure_project_owner(payload.project_id, identity)
     try:
-        manifest = ProjectBackupService().restore_project(
+        restore = _backup_service(request).restore_project(
             path,
             destination,
             authorized_project_id=payload.project_id,
             actor_id=actor,
             authorize=lambda project, actor_value: (
                 project == payload.project_id and actor_value == actor
+            ),
+            before_activate=lambda staging, manifest: _restore_database_records(
+                session, staging, destination, manifest
             ),
         )
     except FileNotFoundError as exc:
@@ -306,12 +371,14 @@ def restore_project(
         raise EngineeringError(
             EngineeringErrorCode.BACKUP_INVALID, "restore failed closed"
         ) from exc
+    IdentityRepository(session).ensure_project_owner(payload.project_id, identity)
     return ApiEnvelope(
         data=RestoreData(
             valid=True,
-            manifest_hash=manifest.manifest_hash or "",
-            project_id=manifest.project_id,
-            object_count=len(manifest.objects),
+            state=restore.state.value,
+            manifest_hash=restore.manifest_hash or "",
+            project_id=restore.manifest.project_id,
+            object_count=len(restore.manifest.objects),
             staging_path=str(destination),
         ),
         request_id=_request_id(request),

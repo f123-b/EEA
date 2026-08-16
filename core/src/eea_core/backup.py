@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import posixpath
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -13,6 +14,39 @@ from uuid import UUID
 
 class BackupValidationError(ValueError):
     """A backup cannot be accepted without risking data loss or authority bypass."""
+
+
+class BackupSecretPolicy:
+    """Fail-closed structured inspection for secrets excluded from project backups."""
+
+    _secret_key = re.compile(
+        r"(?:authorization|bearer|api[_-]?key|apikey|secret|client[_-]?secret|password|passwd|"
+        r"token|access[_-]?token|refresh[_-]?token|cookie|private[_-]?key|credential|credentials|"
+        r"environment|env)",
+        re.IGNORECASE,
+    )
+    _secret_value = re.compile(
+        r"(?:\bbearer\s+[A-Za-z0-9._~+/=-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|"
+        r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----)",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def contains_secret(cls, value: object, *, key: str | None = None) -> bool:
+        if key and cls._secret_key.search(key):
+            return True
+        if isinstance(value, dict):
+            return any(cls.contains_secret(item, key=str(name)) for name, item in value.items())
+        if isinstance(value, (list, tuple)):
+            return any(cls.contains_secret(item) for item in value)
+        if isinstance(value, str):
+            return bool(cls._secret_value.search(value))
+        return False
+
+    @classmethod
+    def assert_safe(cls, value: object) -> None:
+        if cls.contains_secret(value):
+            raise BackupValidationError("backup contains prohibited secret material")
 
 
 def canonical_json(value: object) -> bytes:
@@ -143,6 +177,7 @@ def manifest_from_json(raw: bytes) -> ProjectBackupManifest:
 
 __all__ = [
     "BackupObjectRef",
+    "BackupSecretPolicy",
     "BackupValidationError",
     "ProjectBackupManifest",
     "canonical_json",

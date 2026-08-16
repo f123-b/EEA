@@ -34,6 +34,13 @@ class CapacityProfile:
     maximum_log_retention_days: int
     maximum_object_quota_bytes: int
     maximum_single_tool_runtime_seconds: int
+    maximum_backup_archive_bytes: int = 1_000_000_000
+    maximum_backup_manifest_bytes: int = 8_000_000
+    maximum_backup_member_count: int = 50_000
+    maximum_backup_member_bytes: int = 250_000_000
+    maximum_backup_uncompressed_bytes: int = 1_000_000_000
+    maximum_backup_compression_ratio: float = 1_000.0
+    maximum_backup_path_length: int = 2_000
 
     def check(self, resource: str, actual: int) -> None:
         limits = {
@@ -52,6 +59,21 @@ class CapacityProfile:
         if actual > limits[resource]:
             raise CapacityExceededError(resource, limits[resource], actual)
 
+    def check_backup(self, resource: str, actual: int | float) -> None:
+        limits: dict[str, int | float] = {
+            "backup_archive_bytes": self.maximum_backup_archive_bytes,
+            "backup_manifest_bytes": self.maximum_backup_manifest_bytes,
+            "backup_member_count": self.maximum_backup_member_count,
+            "backup_member_bytes": self.maximum_backup_member_bytes,
+            "backup_uncompressed_bytes": self.maximum_backup_uncompressed_bytes,
+            "backup_compression_ratio": self.maximum_backup_compression_ratio,
+            "backup_path_length": self.maximum_backup_path_length,
+        }
+        if resource not in limits:
+            raise ValueError(f"unknown backup capacity resource: {resource}")
+        if actual > limits[resource]:
+            raise CapacityExceededError(resource, int(limits[resource]), int(actual))
+
 
 CAPACITY_PROFILES: dict[CapacityProfileName, CapacityProfile] = {
     CapacityProfileName.MINIMAL: CapacityProfile(
@@ -66,6 +88,13 @@ CAPACITY_PROFILES: dict[CapacityProfileName, CapacityProfile] = {
         7,
         500_000_000,
         300,
+        600_000_000,
+        4_000_000,
+        10_000,
+        100_000_000,
+        500_000_000,
+        1_000.0,
+        2_000,
     ),
     CapacityProfileName.DEV: CapacityProfile(
         CapacityProfileName.DEV,
@@ -79,6 +108,13 @@ CAPACITY_PROFILES: dict[CapacityProfileName, CapacityProfile] = {
         30,
         5_000_000_000,
         1_800,
+        2_000_000_000,
+        8_000_000,
+        100_000,
+        250_000_000,
+        2_000_000_000,
+        1_000.0,
+        2_000,
     ),
     CapacityProfileName.FULL: CapacityProfile(
         CapacityProfileName.FULL,
@@ -92,6 +128,13 @@ CAPACITY_PROFILES: dict[CapacityProfileName, CapacityProfile] = {
         90,
         50_000_000_000,
         7_200,
+        10_000_000_000,
+        32_000_000,
+        500_000,
+        1_000_000_000,
+        10_000_000_000,
+        1_000.0,
+        2_000,
     ),
     CapacityProfileName.CI: CapacityProfile(
         CapacityProfileName.CI,
@@ -105,6 +148,13 @@ CAPACITY_PROFILES: dict[CapacityProfileName, CapacityProfile] = {
         14,
         2_000_000_000,
         900,
+        1_000_000_000,
+        8_000_000,
+        50_000,
+        250_000_000,
+        1_000_000_000,
+        1_000.0,
+        2_000,
     ),
 }
 

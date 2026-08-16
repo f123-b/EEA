@@ -1732,6 +1732,7 @@ class RestoreValidateRequest(BaseModel):
 
 class RestoreData(BaseModel):
     valid: bool
+    state: str
     manifest_hash: str
     project_id: UUID
     object_count: int

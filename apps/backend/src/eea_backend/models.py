@@ -1786,6 +1786,7 @@ class IdentityUserRecord(CoreRecordMixin, Base):
     __tablename__ = "identity_users"
     __table_args__ = (
         CheckConstraint(f"mode IN ({_enum_values(IdentityMode)})", name="mode"),
+        Index("uq_identity_users_id_m18er", "id", unique=True),
         UniqueConstraint("stable_actor_id", name="uq_identity_users_stable_actor_id"),
     )
 
@@ -1796,6 +1797,8 @@ class IdentityUserRecord(CoreRecordMixin, Base):
 
 class OrganizationRecord(CoreRecordMixin, Base):
     __tablename__ = "organizations"
+
+    __table_args__ = (Index("uq_organizations_id_m18er", "id", unique=True),)
 
     stable_key: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)

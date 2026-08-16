@@ -226,6 +226,7 @@ __all__ = [
 
 from eea_core.backup import (
     BackupObjectRef,
+    BackupSecretPolicy,
     BackupValidationError,
     ProjectBackupManifest,
     manifest_from_json,
@@ -270,6 +271,7 @@ from eea_core.renderer_security import (
 __all__ += [
     "CAPACITY_PROFILES",
     "BackupObjectRef",
+    "BackupSecretPolicy",
     "BackupValidationError",
     "CapacityExceededError",
     "CapacityProfile",

@@ -18,11 +18,14 @@ def require_session_token(
     """Require a bearer token when ``EEA_SESSION_TOKEN`` is configured."""
 
     configured = request.app.state.settings.session_token
-    if configured is None and (
-        request.app.state.settings.local_auth_required
-        or request.app.state.settings.env.lower() == "production"
-    ):
-        configured = request.app.state.local_session_token
+    if configured is None:
+        production = request.app.state.settings.env.lower() == "production"
+        if (
+            production
+            or request.app.state.settings.local_auth_required
+            or not request.app.state.settings.insecure_local_dev
+        ):
+            configured = request.app.state.local_session_token
     if configured is None:
         request.state.actor_id = "local-authenticated-session"
         return

@@ -4,7 +4,7 @@ export type BackendClient = Readonly<{
   request: (path: string, init?: RequestInit) => Promise<Response>;
 }>;
 
-function validateLoopbackBaseUrl(value: string): string {
+export function validateLoopbackBaseUrl(value: string): string {
   const url = new URL(value);
   if (url.protocol !== "http:" || !["127.0.0.1", "[::1]", "localhost"].includes(url.hostname)) {
     throw new Error("backend must use an HTTP loopback URL");
@@ -12,7 +12,7 @@ function validateLoopbackBaseUrl(value: string): string {
   return url.toString().replace(/\/$/u, "");
 }
 
-/** No localStorage, DOM attribute, query parameter, log, or telemetry receives the token. */
+/** No persistent client-side storage, DOM attribute, query parameter, log, or telemetry receives the token. */
 export function createBackendClient(baseUrl: string, launchToken: string): BackendClient {
   const safeBaseUrl = validateLoopbackBaseUrl(baseUrl);
   if (!launchToken || /[\r\n]/u.test(launchToken)) {

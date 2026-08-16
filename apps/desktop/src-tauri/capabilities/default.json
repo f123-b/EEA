@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "M18E deny-by-default capability set; no filesystem, shell, process, HTTP, clipboard, or environment permissions.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "opener:default"]
 }
