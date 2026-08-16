@@ -20,7 +20,8 @@ the frozen documentation changelogs under `docs/`.
   with the two pre-existing Windows M5 sandbox environment failures; coverage is **83.76%**.
   Ruff check/format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop
   lint, desktop typecheck, and desktop build pass. Rust `cargo check/test` could not run because
-  `cargo` is unavailable in this environment. M18E is implemented and ready for final human
+  `cargo` is unavailable in this environment. GitHub push CI run `31941880496` and PR CI run
+  `31941895651` both passed backend and desktop. M18E is implemented and ready for final human
   review; M19 has not started.
 
 - M18D/M18DR Final Acceptance completed at reviewed implementation HEAD

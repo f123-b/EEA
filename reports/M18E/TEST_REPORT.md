@@ -108,7 +108,10 @@ Quality gates:
 - Rust `cargo check` / `cargo test`: NOT RUN — `cargo` is not installed in this local
   environment; no PASS is claimed.
 
-GitHub CI is pending the first M18E Draft PR push.
+GitHub CI:
+
+- Push run `31941880496`: backend PASS, desktop PASS.
+- Draft PR run `31941895651`: backend PASS, desktop PASS.
 
 ## State
 
