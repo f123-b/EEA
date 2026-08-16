@@ -223,3 +223,84 @@ __all__ = [
     "payload_sha256",
     "stable_event_key",
 ]
+
+from eea_core.backup import (
+    BackupObjectRef,
+    BackupValidationError,
+    ProjectBackupManifest,
+    manifest_from_json,
+    sha256_bytes,
+    validate_archive_member,
+)
+from eea_core.capacity import (
+    CAPACITY_PROFILES,
+    CapacityExceededError,
+    CapacityProfile,
+    CapacityProfileName,
+    get_capacity_profile,
+)
+from eea_core.failure_injection import (
+    FailureInjectionHarness,
+    FailureInjectionPoint,
+    FailureOutcome,
+    FailurePlan,
+    FailureScenario,
+    InjectedFailure,
+    baseline_failure_plans,
+)
+from eea_core.identity import (
+    IdentityMode,
+    Membership,
+    Organization,
+    ProjectRole,
+    ProjectRoleAssignment,
+    UserIdentity,
+    local_single_user,
+)
+from eea_core.observability import ObservabilityContext, redact_sensitive
+from eea_core.performance import PerformanceBaseline, PerformanceMetric, PerformanceRegressionResult
+from eea_core.renderer_security import (
+    RendererContentRejected,
+    RendererSecurityPolicy,
+    SanitizedRenderContent,
+    default_renderer_csp,
+    sanitize_untrusted_content,
+)
+
+__all__ += [
+    "CAPACITY_PROFILES",
+    "BackupObjectRef",
+    "BackupValidationError",
+    "CapacityExceededError",
+    "CapacityProfile",
+    "CapacityProfileName",
+    "FailureInjectionHarness",
+    "FailureInjectionPoint",
+    "FailureOutcome",
+    "FailurePlan",
+    "FailureScenario",
+    "IdentityMode",
+    "InjectedFailure",
+    "Membership",
+    "ObservabilityContext",
+    "Organization",
+    "PerformanceBaseline",
+    "PerformanceMetric",
+    "PerformanceRegressionResult",
+    "ProjectBackupManifest",
+    "ProjectRole",
+    "ProjectRoleAssignment",
+    "RendererContentRejected",
+    "RendererSecurityPolicy",
+    "SanitizedRenderContent",
+    "UserIdentity",
+    "baseline_failure_plans",
+    "default_renderer_csp",
+    "get_capacity_profile",
+    "local_single_user",
+    "manifest_from_json",
+    "redact_sensitive",
+    "sanitize_untrusted_content",
+    "sha256_bytes",
+    "validate_archive_member",
+]

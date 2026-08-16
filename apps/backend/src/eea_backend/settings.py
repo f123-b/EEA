@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     data_dir: Path = Path(".eea")
     db_url: str | None = None
     session_token: SecretStr | None = None
+    local_auth_required: bool = False
     ai_provider_enabled: bool = False
     requirements_model: str | None = None
     ai_api_key_reference: str | None = None

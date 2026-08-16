@@ -48,6 +48,7 @@ from eea_core.hardware import (
     ResourceLockStatus,
     ResourceType,
 )
+from eea_core.identity import IdentityMode, ProjectRole
 from eea_core.reliability import OutboxEventStatus, SideEffectStatus
 from eea_core.security import PermissionTokenStatus
 from sqlalchemy import (
@@ -1777,3 +1778,67 @@ class SideEffectJournalRecord(Base):
     prepared_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class IdentityUserRecord(CoreRecordMixin, Base):
+    """Stable user identity; local mode uses a deterministic actor, never free text."""
+
+    __tablename__ = "identity_users"
+    __table_args__ = (
+        CheckConstraint(f"mode IN ({_enum_values(IdentityMode)})", name="mode"),
+        UniqueConstraint("stable_actor_id", name="uq_identity_users_stable_actor_id"),
+    )
+
+    stable_actor_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    mode: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class OrganizationRecord(CoreRecordMixin, Base):
+    __tablename__ = "organizations"
+
+    stable_key: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class MembershipRecord(CoreRecordMixin, Base):
+    __tablename__ = "organization_memberships"
+    __table_args__ = (
+        CheckConstraint(f"role IN ({_enum_values(ProjectRole)})", name="role"),
+        UniqueConstraint("organization_id", "user_id", name="uq_membership_organization_user"),
+    )
+
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(ForeignKey("identity_users.id"), nullable=False)
+    role: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class ProjectRoleAssignmentRecord(CoreRecordMixin, Base):
+    __tablename__ = "project_role_assignments"
+    __table_args__ = (
+        CheckConstraint(f"role IN ({_enum_values(ProjectRole)})", name="role"),
+        UniqueConstraint("project_id", "user_id", name="uq_project_role_project_user"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("identity_users.id"), nullable=False, index=True
+    )
+    role: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class BackupManifestRecord(Base):
+    __tablename__ = "backup_manifests"
+    __table_args__ = (
+        CheckConstraint("length(manifest_hash) = 64", name="manifest_hash_length"),
+        UniqueConstraint("manifest_hash", name="uq_backup_manifests_manifest_hash"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    manifest_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_hashes: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

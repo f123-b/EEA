@@ -7,6 +7,22 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18E Renderer / NFR Hardening implemented on branch
+  `codex/m18e-renderer-nfr-hardening`, based on verified main
+  `2fc9c9dbd7cdf9cf344899372f1357dbd6d07940`. Added the renderer security contract and
+  plain-text sanitizer, loopback backend bearer-auth boundary, Tauri CSP/capability audit,
+  bounded and hash-verified Project Backup/Restore, deterministic failure-injection baseline,
+  versioned capacity profiles, performance baseline artifact, observability/redaction helpers,
+  LOCAL_SINGLE_USER plus User/Organization/Membership/ProjectRole schema foundation, and the
+  canonical-unit cross-conversion gate. Added migration
+  `0031_m18e_renderer_nfr_hardening`, M18E API routes, and regression coverage. Focused M18E,
+  migration, and architecture tests pass; local full pytest reports **453 passed, 4 skipped**,
+  with the two pre-existing Windows M5 sandbox environment failures; coverage is **83.76%**.
+  Ruff check/format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop
+  lint, desktop typecheck, and desktop build pass. Rust `cargo check/test` could not run because
+  `cargo` is unavailable in this environment. M18E is implemented and ready for final human
+  review; M19 has not started.
+
 - M18D/M18DR Final Acceptance completed at reviewed implementation HEAD
   `7dd86a3080b253010cf18f64accee3e2ca665a28`, with implementation final closure commit
   `6afeec383f767634ea45b8453fb7490d45f66ebe` and acceptance docs commit
