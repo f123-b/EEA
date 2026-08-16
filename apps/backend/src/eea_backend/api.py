@@ -3228,6 +3228,7 @@ def analyze_structured_requirements(
         profile_version=payload.profile_version,
         values=payload.values,
         evidence_refs=payload.evidence_refs,
+        requirements=payload.requirements,
     )
     saved = persist_requirement_analysis_bundle(session, analysis)
     return ApiEnvelope(

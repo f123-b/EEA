@@ -950,6 +950,7 @@ class FirmwareBuildService:
                 )
             except EngineeringError as error:
                 if error.code not in {
+                    EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
                     EngineeringErrorCode.TOOL_UNAVAILABLE,
                     EngineeringErrorCode.COMMAND_NOT_ALLOWED,
                 }:
