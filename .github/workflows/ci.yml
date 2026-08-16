@@ -69,6 +69,7 @@ jobs:
             librsvg2-dev \
             patchelf
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @eea/desktop exec tauri icon src-tauri/icons/icon.svg
       - run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
       - run: pnpm --filter @eea/desktop exec tauri build --ci
