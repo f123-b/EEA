@@ -112,6 +112,8 @@ GitHub CI:
 
 - Push run `31941880496`: backend PASS, desktop PASS.
 - Draft PR run `31941895651`: backend PASS, desktop PASS.
+- Final acceptance-docs push run `31942245070`: backend PASS, desktop PASS.
+- Final acceptance-docs PR run `31942247586`: backend PASS, desktop PASS.
 
 ## State
 

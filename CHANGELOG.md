@@ -21,8 +21,9 @@ the frozen documentation changelogs under `docs/`.
   Ruff check/format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop
   lint, desktop typecheck, and desktop build pass. Rust `cargo check/test` could not run because
   `cargo` is unavailable in this environment. GitHub push CI run `31941880496` and PR CI run
-  `31941895651` both passed backend and desktop. M18E is implemented and ready for final human
-  review; M19 has not started.
+  `31941895651` both passed backend and desktop. The final acceptance-docs push CI run
+  `31942245070` and PR CI run `31942247586` also passed backend and desktop. M18E is implemented
+  and ready for final human review; M19 has not started.
 
 - M18D/M18DR Final Acceptance completed at reviewed implementation HEAD
   `7dd86a3080b253010cf18f64accee3e2ca665a28`, with implementation final closure commit
