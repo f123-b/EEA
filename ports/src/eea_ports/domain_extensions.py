@@ -56,6 +56,8 @@ class DomainPlugin(Protocol):
 
     def executable_validator(self) -> DomainExecutableValidator | None: ...
 
+    def commissioning_contributions(self) -> Sequence[object]: ...
+
 
 __all__ = [
     "DomainExecutableValidator",

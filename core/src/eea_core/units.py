@@ -115,7 +115,13 @@ _register(
         "rad/s2": _linear(1),
         "deg/s²": _linear(pi / 180),
         "deg/s2": _linear(pi / 180),
+        "rpm/s": _linear(2 * pi / 60),
     },
+)
+_register(
+    EngineeringDimension.CURRENT_RATE,
+    "A/s",
+    {"mA/s": _linear(1e-3), "A/s": _linear(1)},
 )
 _register(
     EngineeringDimension.LENGTH,

@@ -166,6 +166,7 @@ def test_all_frozen_dimensions_have_a_canonical_unit() -> None:
         "ANGLE",
         "ANGULAR_VELOCITY",
         "ANGULAR_ACCELERATION",
+        "CURRENT_RATE",
         "LENGTH",
         "POWER",
         "ENERGY",

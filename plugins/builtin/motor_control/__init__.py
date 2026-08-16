@@ -1,5 +1,9 @@
 """The bundled MotorControl Domain Plugin."""
 
+from plugins.builtin.motor_control.commissioning import (
+    MOTOR_CONTROL_COMMISSIONING_RULES,
+    MotorControlCommissioningRule,
+)
 from plugins.builtin.motor_control.plugin import (
     MotorControlPlugin,
     Plugin,
@@ -16,6 +20,8 @@ from plugins.builtin.motor_control.schemas.ir import (
 )
 
 __all__ = [
+    "MOTOR_CONTROL_COMMISSIONING_RULES",
+    "MotorControlCommissioningRule",
     "MotorControlConfiguration",
     "MotorControlDiagnostic",
     "MotorControlIR",

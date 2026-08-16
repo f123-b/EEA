@@ -67,6 +67,18 @@ class DomainRuleContribution(BaseModel):
     safety_mode: Literal["ADDITIVE"] = "ADDITIVE"
 
 
+class CommissioningRuleContribution(BaseModel):
+    """Core-neutral, deterministic safety contribution selected by M18B composition."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    rule_id: str = Field(min_length=1, max_length=200)
+    version: str = Field(min_length=1, max_length=50)
+    required_before_state: str = Field(default="CLOSED_LOOP_LIMITED", max_length=100)
+    measurement_key: str = Field(min_length=1, max_length=200)
+    safety_critical: bool = True
+
+
 class DomainGeneratorContribution(BaseModel):
     """A deterministic generator declaration used to construct a composition DAG."""
 
@@ -179,6 +191,7 @@ class DomainCompositionPlan(BaseModel):
     generators: list[DomainGeneratorContribution] = Field(default_factory=list)
     context_contributions: list[DomainContextContribution] = Field(default_factory=list)
     ui_contributions: list[DomainUIContribution] = Field(default_factory=list)
+    commissioning_contributions: list[CommissioningRuleContribution] = Field(default_factory=list)
     validation_results: list["DomainValidationResult"] = Field(default_factory=list)
     # M18B canonical composition metadata.  The registry fills the structural fields;
     # the project-scoped application service adds revision, compatibility, and hash data.
@@ -234,6 +247,7 @@ class DomainValidationResult(BaseModel):
 
 
 __all__ = [
+    "CommissioningRuleContribution",
     "DomainActivation",
     "DomainCompositionPlan",
     "DomainCompositionState",

@@ -7,6 +7,71 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18D/M18DR Final Acceptance completed at reviewed implementation HEAD
+  `7dd86a3080b253010cf18f64accee3e2ca665a28`, with implementation final closure commit
+  `6afeec383f767634ea45b8453fb7490d45f66ebe` and acceptance docs commit
+  `7dd86a3080b253010cf18f64accee3e2ca665a28`. Focused M18/M18R/M18A/M18AR/M18AR.1/M18B/
+  M18BR/M18C/M18CR/M18D verification reported **159 passed, 1 skipped**; local full pytest
+  reported **435 passed, 4 skipped**, with the two pre-existing Windows M5 sandbox
+  environment failures; coverage was **84.19%**. Ruff check/format, mypy, clean Alembic
+  upgrade/check, OpenAPI, TypeScript contracts, desktop lint, desktop typecheck, and desktop
+  build passed. Final PR CI run `31925059142` and push CI run `31925057389` both passed for
+  backend and desktop. Human acceptance is recorded as `M18D = ACCEPTED`, `M18DR = ACCEPTED`,
+  `READY_FOR_M18E = YES`, and `M18E = NOT_STARTED`; M18E implementation has not started.
+
+- M18DR Final Closure repair at implementation commit
+  `6afeec383f767634ea45b8453fb7490d45f66ebe` (based on the reviewed M18DR docs HEAD
+  `2757832435253a0f81b51d0b4902f3e731c35385`). Closed the four residual blockers without adding
+  a migration: `PermissionAuthority` is fail-closed with explicit test-only fake authority
+  injection; stale `RECONCILE_REQUIRED` hardware actions can be atomically preempted only by
+  durable EmergencyStop/SafeState claims; unverified SafeState now forces `ROLLBACK_REQUIRED`
+  with `emergency_stop_state = UNKNOWN`; and PWM-enable duration, current-ramp rate, speed-ramp
+  rate, watchdog duration, runtime, and existing safety measurements are enforced independently
+  with canonical dimensions/units. API payload permissions remain ignored and deprecated.
+  Added crash/retry, permission, SafeState, PWM/ramp, normalization, and independent-limit
+  regressions. Focused M18/M18R/M18A/M18AR/M18AR.1/M18B/M18BR/M18C/M18CR/M18D: **159 passed,
+  1 skipped**; M18D/M18DR module: **57 passed**; local full pytest: **435 passed, 4 skipped**,
+  with **2 pre-existing Windows M5 sandbox environment failures**; coverage **84.19%**. Ruff
+  check/format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop lint,
+  desktop typecheck, and desktop build pass. Implementation push CI run `31924719464` and PR
+  CI run `31924721927` both have backend PASS and desktop PASS. `M18D = IMPLEMENTED`,
+  `M18DR = IMPLEMENTED`, `READY_FOR_M18D_FINAL_REVIEW = YES`, and `M18E = NOT_STARTED`.
+
+- M18DR Hardware Safety Authority & Side-Effect Closure at implementation commit
+  `c5308ec95b6e38c9e757b5aa59ef78523a834c67`, repairing reviewed M18D HEAD
+  `2fc232825d07294ef474a8d308c004927765c363`. Closed client permission spoofing with
+  server-issued, resource-scoped PermissionToken verification; made ResourceLock acquisition
+  atomic and owner-bound; added pre-side-effect session CAS claims and M18A SideEffectJournal
+  durable hardware intents; added conservative startup reconciliation that never blindly retries
+  unknown hardware actions; made E-stop reachable from NORMAL_OPERATION and recoverable unsafe
+  states; enforced SafeState on adapter failures/timeouts; consumed Core-neutral MotorControl
+  commissioning contributions; and enforced canonical unit/dimension/runtime SafetyLimit gates.
+  Added M18DR regression coverage for permission separation/scope, lock exclusivity/ownership,
+  concurrent action claims, prepared-action recovery, failure/timeout SafeState, E-stop,
+  MotorControl gates, approval binding, and applicable limits. Focused
+  M18/M18R/M18A/M18AR/M18AR.1/M18B/M18BR/M18C/M18CR/M18D: **143 passed, 1 skipped**; local
+  full pytest **422 passed, 4 skipped**, with **2 pre-existing Windows M5 sandbox environment
+  failures**; coverage **84.26%**. Ruff, format, mypy, clean Alembic upgrade/check, OpenAPI,
+  TypeScript contracts, desktop lint, desktop typecheck, and desktop build pass. GitHub CI push
+  run `31894735902` and pull request run `31894738013` both have backend PASS and desktop PASS.
+  `M18C = ACCEPTED_AND_MERGED`, `M18CR = ACCEPTED_AND_MERGED`, `M18D = IMPLEMENTED`,
+  `M18DR = IMPLEMENTED`, `READY_FOR_M18D_FINAL_REVIEW = YES`, and `M18E = NOT_STARTED`.
+
+- M18D Hardware Commissioning & Safety at implementation commit
+  `fca5962be81309e50290bf1767f03457067fc40a`, built from verified main
+  `97d62e47c7bf287627d051197e6ef756abf89523`. Added the fail-closed commissioning state
+  machine, structured SafetyLimit/SafeState contracts, deny-by-default permission gates,
+  hardware identity and ResourceLock heartbeat/quarantine checks, E-stop/watchdog recovery,
+  immutable SourceRevision/BuildInputSnapshot binding, the Fake hardware adapter with fault
+  injection, MotorControl commissioning rules, migration `0030_m18d_hardware_commissioning_safety`,
+  and M18D regression coverage. Focused M18/M18R/M18A/M18AR/M18AR.1/M18B/M18BR/M18C/M18CR/M18D:
+  **179 passed, 1 skipped**; local full pytest **393 passed, 4 skipped**, with the two
+  pre-existing Windows M5 sandbox environment failures; coverage **84.11%**. Ruff check,
+  Ruff format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop lint,
+  desktop typecheck, and desktop build pass. `M18C = ACCEPTED_AND_MERGED`,
+  `M18CR = ACCEPTED_AND_MERGED`, `M18D = IMPLEMENTED`,
+  `READY_FOR_M18D_FINAL_REVIEW = YES`, and `M18E = NOT_STARTED`.
+
 - M18CR Source Mutation Atomicity & Cross-Session CAS Closure at implementation commit
   `25ba1a23da6a5057fa7722f41be2f40ede90f747`, reviewed against M18C review HEAD
   `6cc9b7057c5c210396ae4b2fcfdf5c5e6cd4baac`. Closed the two M18C P1 blockers: source

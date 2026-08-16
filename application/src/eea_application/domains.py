@@ -14,6 +14,7 @@ from typing import Any, NoReturn, cast
 from uuid import UUID, uuid4
 
 from eea_core.domain_extensions import (
+    CommissioningRuleContribution,
     DomainActivation,
     DomainCompositionPlan,
     DomainCompositionState,
@@ -111,6 +112,9 @@ def _canonical_plan_payload(
             item.model_dump(mode="json") for item in plan.context_contributions
         ],
         "ui_contributions": [item.model_dump(mode="json") for item in plan.ui_contributions],
+        "commissioning_contributions": [
+            item.model_dump(mode="json") for item in plan.commissioning_contributions
+        ],
         "configurations": {key: configuration_map[key] for key in sorted(configuration_map)},
     }
 
@@ -430,6 +434,7 @@ class DomainExtensionRegistry:
         self._generators: dict[str, tuple[DomainGeneratorContribution, ...]] = {}
         self._contexts: dict[str, tuple[DomainContextContribution, ...]] = {}
         self._ui_extensions: dict[str, tuple[DomainUIContribution, ...]] = {}
+        self._commissioning: dict[str, tuple[CommissioningRuleContribution, ...]] = {}
         self._migration_providers = dict(migration_providers or {})
         for plugin in plugins:
             self.register(plugin)
@@ -506,7 +511,28 @@ class DomainExtensionRegistry:
         self._generators[descriptor.domain_id] = generators
         self._contexts[descriptor.domain_id] = contexts
         self._ui_extensions[descriptor.domain_id] = ui_extensions
+        contributions = tuple(
+            _parse_model(item, CommissioningRuleContribution, domain_id=descriptor.domain_id)
+            for item in cast(
+                Sequence[object], _plugin_value(plugin, "commissioning_contributions", ())
+            )
+        )
+        self._assert_unique(
+            (item.rule_id for item in contributions), "commissioning_rule_id", descriptor.domain_id
+        )
+        self._commissioning[descriptor.domain_id] = contributions
         return descriptor
+
+    def commissioning_contributions(
+        self, domain_ids: Iterable[str]
+    ) -> tuple[CommissioningRuleContribution, ...]:
+        """Return only contributions from the explicitly selected composition."""
+
+        return tuple(
+            item
+            for domain_id in sorted(set(domain_ids))
+            for item in self._commissioning.get(domain_id, ())
+        )
 
     @staticmethod
     def _assert_unique(values: Iterable[str], kind: str, domain_id: str) -> None:
@@ -728,6 +754,7 @@ class DomainExtensionRegistry:
             generators=generators,
             context_contributions=contexts,
             ui_contributions=ui_extensions,
+            commissioning_contributions=list(self.commissioning_contributions(ordered_domains)),
             domain_snapshots=[
                 {
                     "domain_id": domain_id,

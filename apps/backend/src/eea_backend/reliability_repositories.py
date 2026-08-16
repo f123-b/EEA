@@ -553,6 +553,18 @@ class SqlAlchemySideEffectJournalRepository:
         )
         self.session.flush()
 
+    def mark_failed(self, item: SideEffectJournal, *, error: str, now: datetime) -> None:
+        self.session.execute(
+            update(SideEffectJournalRecord)
+            .where(SideEffectJournalRecord.id == str(item.id))
+            .values(
+                status=SideEffectStatus.FAILED.value,
+                last_error=error,
+                updated_at=now,
+            )
+        )
+        self.session.flush()
+
 
 __all__ = [
     "BusyRetryPolicy",
