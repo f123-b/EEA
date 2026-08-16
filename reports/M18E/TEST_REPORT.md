@@ -10,55 +10,53 @@
 - M18E migration: `0031_m18e_renderer_nfr_hardening`
 - Migration parent: `0030_m18d_hardware_commissioning_safety`
 
-## M18ER Final Reliability Closure
+## M18ER.1 Runtime Auth & Atomic Restore Closure
 
-- Reviewed implementation baseline: `1ccd549aa209af70688ff161af3c8ab8565c8c06`
-- Final implementation HEAD: `fc1ef80998530a8ba3f21ed6e71c171811796eae`
-- Implementation commits: `78c4b1c3f177d66fd07e145f56c7af2a9dd3bc2b`,
-  `3148b7e65560df2d10709055f513cc55ebe51e91`,
-  `fc1ef80998530a8ba3f21ed6e71c171811796eae`
-- New migration: `0032_m18er_reliability_closure` (parent `0031_m18e_renderer_nfr_hardening`)
+- Previous M18ER implementation HEAD: `fc1ef80998530a8ba3f21ed6e71c171811796eae`
+- Implementation HEAD: `21cde4d6398edc85fcb2ea57a5e1bdc44f989e20`
+- Implementation commit: `21cde4d` — `fix(m18er1): close runtime auth and atomic project restore`
+- New migration: `0033_m18er1_atomic_restore_runtime` (parent `0032_m18er_reliability_closure`)
 - PR: `#12`, still `OPEN` and `Draft`, base `main`
 
 ### Closure design
 
-1. Production and default non-dev backend sessions require a random per-app bearer token;
-   anonymous access is available only with explicit `insecure_local_dev=true`. The Desktop
-   client validates HTTP loopback URLs, keeps the launch token in closure state, rejects token
-   query/fragment paths, and never writes the token to browser storage, DOM, logs, or telemetry.
-   External links use the official Tauri opener plugin and the WebView remains isolated.
-2. Backup preflight bounds archive/member/manifest/total/path/count/compression limits and
-   rejects traversal, absolute/drive paths, duplicates, special members, missing/duplicate
-   manifests, and undeclared members. Export and restore use bounded chunks, incremental
-   SHA-256, staging, fsync, cleanup, and atomic activation; the API selects the configured
-   `foc-dev` CapacityProfile instead of using an unbounded default.
-3. `BackupSecretPolicy` recursively rejects secret-shaped nested keys and values before
-   canonical serialization, with deterministic errors that do not echo secret material.
-4. Project backup is explicitly project-authoritative (`ProjectRecord`, source revision/workspace,
-   artifacts and references), while runtime/session state and secrets are excluded. API restore
-   validates authority/schema/migration compatibility, restores the record set in one SQL
-   transaction, rejects collisions/overwrite, reconstructs source workspace binding, and reports
-   only after atomic `VALIDATE -> STAGE -> ACTIVATE` completion.
-5. CI now has separate `desktop-web` and `desktop-tauri` jobs. The latter installs Linux Tauri
-   dependencies, generates the checked-in icon set, runs `cargo check`, `cargo test`, and the
-   real `tauri build --ci` command.
+1. Tauri creates an ephemeral 32-byte token and free loopback port, starts the configured
+   `EEA_BACKEND_EXECUTABLE` child with host/port/token in child-scoped environment variables,
+   waits for an authenticated `/api/v1/meta/version` handshake, and stores the session in managed
+   state. The renderer obtains it only through `get_runtime_session`, passes it to the closure-based
+   `createBackendClient`, and performs a real authenticated version request. Token values are not
+   placed in argv, URLs, browser storage, DOM, console/log output, or telemetry.
+2. `validate_archive()` now streams every declared object with bounded chunks and compares exact
+   size plus incremental SHA-256 before returning `VALIDATED`; staging and activated-tree
+   verification reuse the same bounded hash pipeline. Same-size tamper, truncated, and invalid
+   archives fail closed as `BACKUP_INVALID`.
+3. Restore uses a durable `restore_operations` journal and state machine:
+   `STAGED -> PREPARED -> FS_ACTIVATED -> ACTIVATED`, with `ROLLBACK_REQUIRED`/`FAILED` for
+   deterministic failure. The journal persists project/manifest identity, staging/destination,
+   actor, source revision hash, metadata, error code, timestamps, and revision. Startup
+   `RecoveryService` verifies the manifest/tree, completes activation/finalization, and is
+   idempotent; project owner creation is inside final SQL finalization.
+4. Source export includes real `source/<relative-path>` bytes, bounded by the existing capacity
+   and `SafePath` rules. Restore recomputes `file_manifest` and `source_manifest_hash` before
+   binding `SourceWorkspace.current_source_revision_id`; credential filenames/private-key files
+   are excluded while ordinary source strings such as `token` remain valid. Portable artifacts
+   include bytes and verified rewritten URIs; rebuildable artifacts are rewritten to
+   `rebuild://...` and cannot remain `CURRENT`.
 
-### M18ER verification
+### M18ER.1 verification
 
-- Focused M18E/M18ER/migration suite: **35 passed**.
-- Cross-milestone M18/M18R/M18A/M18AR/M18AR.1/M18B/M18BR/M18C/M18CR/M18D/M18E suite:
-  **193 passed, 1 skipped**.
-- Local full pytest: **469 passed, 4 skipped**; the two existing M5 Windows sandbox failures
+- Focused M18E/M18ER.1/migration/runtime suite: **47 passed**.
+- Local full pytest: **481 passed, 4 skipped**; the two existing M5 Windows sandbox failures
   remain environment-specific and non-blocking.
-- Coverage: **84.28%** (threshold 80%).
+- Coverage: **84.00%** (threshold 80%).
 - Ruff check: PASS; Ruff format: PASS; mypy: PASS.
-- Clean Alembic upgrade through `0032_m18er_reliability_closure`: PASS; `alembic check`: PASS.
+- Clean Alembic upgrade through `0033_m18er1_atomic_restore_runtime`: PASS; `alembic check`: PASS.
 - OpenAPI export/check: PASS; TypeScript contract export/check: PASS.
 - Desktop lint/typecheck/build: PASS.
 - Local Rust commands were unavailable because cargo is not installed on Windows; no local Rust
   PASS is claimed. GitHub executed the authoritative Rust/Tauri gates successfully.
-- Push CI `31946613210`: backend PASS, desktop-web PASS, desktop-tauri PASS.
-- Draft PR CI `31946616696`: backend PASS, desktop-web PASS, desktop-tauri PASS.
+- Push CI `31951639346`: backend PASS, desktop-web PASS, desktop-tauri PASS.
+- Draft PR CI `31951640929`: backend PASS, desktop-web PASS, desktop-tauri PASS.
 
 ## Implemented contracts
 
@@ -122,10 +120,10 @@ ms/s, C/K, and wrong-dimension rejection.
 Focused command:
 
 ```text
-.venv/Scripts/python.exe -m pytest --no-cov -q tests/test_migrations.py tests/test_m18e_nfr.py tests/test_architecture.py
+.venv/Scripts/python.exe -m pytest -q --no-cov tests/test_m18e_nfr.py tests/test_migrations.py tests/test_m18er1_restore_recovery.py tests/test_m18er1_runtime_auth.py
 ```
 
-Result: **25 passed**.
+Result: **47 passed** for the M18E/M18ER.1/migration/runtime focused command.
 
 Cross-milestone focused regression command covering M18/M18R/M18A/M18B/M18BR/M18C/M18CR/M18D/
 M18E:
@@ -134,13 +132,14 @@ M18E:
 .venv/Scripts/python.exe -m pytest --no-cov -q tests/test_m18_api.py tests/test_m18_dependency_graph.py tests/test_m18a_reliability.py tests/test_m18b_domain_composition.py tests/test_m18br_composition_authority.py tests/test_m18c_source_authority.py tests/test_m18cr_source_mutation_cas.py tests/test_m18d_hardware_commissioning.py tests/test_m18e_nfr.py tests/test_m18r_real_benchmarks.py
 ```
 
-Result: **177 passed, 1 skipped**.
+The cross-milestone suites are included in the full run below; no new cross-milestone failures
+were observed.
 
 Local full verification:
 
-- `.venv/Scripts/python.exe -m pytest -q`: **453 passed, 4 skipped**; two existing M5 sandbox
+- `.venv/Scripts/python.exe -m pytest -q`: **481 passed, 4 skipped**; two existing M5 sandbox
   tests fail only in the Windows sandbox environment.
-- Coverage: **83.76%** (required threshold: 80%).
+- Coverage: **84.00%** (required threshold: 80%).
 - The two M5 failures are classified `PRE-EXISTING / ENVIRONMENT-SPECIFIC / NON-BLOCKING`.
 
 Quality gates:
@@ -148,22 +147,20 @@ Quality gates:
 - Ruff check: PASS
 - Ruff format --check: PASS
 - mypy: PASS
-- Clean Alembic upgrade through `0031_m18e_renderer_nfr_hardening`: PASS
+- Clean Alembic upgrade through `0033_m18er1_atomic_restore_runtime`: PASS
 - Alembic check against the clean upgraded database: PASS
 - OpenAPI export/check: PASS
 - TypeScript contract export/check: PASS
 - Desktop lint: PASS
 - Desktop typecheck: PASS
 - Desktop build: PASS
-- Rust `cargo check` / `cargo test`: NOT RUN — `cargo` is not installed in this local
-  environment; no PASS is claimed.
+- Rust `cargo check` / `cargo test`: NOT RUN locally — `cargo` is not installed on Windows;
+  GitHub authoritative CI PASS.
 
 GitHub CI:
 
-- Push run `31941880496`: backend PASS, desktop PASS.
-- Draft PR run `31941895651`: backend PASS, desktop PASS.
-- Final acceptance-docs push run `31942245070`: backend PASS, desktop PASS.
-- Final acceptance-docs PR run `31942247586`: backend PASS, desktop PASS.
+- Push run `31951639346`: backend PASS, desktop-web PASS, desktop-tauri PASS.
+- Draft PR run `31951640929`: backend PASS, desktop-web PASS, desktop-tauri PASS.
 
 ## State
 
@@ -171,6 +168,8 @@ GitHub CI:
 M18D = ACCEPTED_AND_MERGED
 M18DR = ACCEPTED_AND_MERGED
 M18E = IMPLEMENTED
+M18ER = IMPLEMENTED
+M18ER.1 = IMPLEMENTED
 READY_FOR_M18E_FINAL_REVIEW = YES
 M19 = NOT_STARTED
 ```
