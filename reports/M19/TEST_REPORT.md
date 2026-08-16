@@ -6,6 +6,8 @@
 - Branch: `codex/m19-foc-minimal-e2e`
 - Base green main: `b572fc6b820925ea623a46c6104982efc33a705c`
 - Implementation commit: `82e0943` — `feat(m19): add foc minimal e2e vertical slice`
+- Status/docs commit before CI evidence update: `a3da006` — `docs(m19): record foc e2e release status`
+- Draft PR: `#13`, base `main`, currently OPEN/DRAFT/UNMERGED
 - M19 scope: M19A software E2E; M19B hardware commissioning remains hardware-gated
 
 ## Release-gate posture
@@ -63,6 +65,10 @@ while inverter, encoder, and current-sense facts remain in HardwareIR/CircuitIR.
 - Cargo/Tauri local gates: NOT RUN because `cargo` is not installed on this workstation. The
   authoritative M18E main CI already executed cargo check, cargo test, and tauri build; M19 PR
   CI is required to execute the same gates in GitHub.
+- GitHub push CI `31957259756`: backend PASS, desktop-web PASS, desktop-tauri PASS.
+- GitHub Draft PR CI `31957274885`: backend PASS, desktop-web PASS, desktop-tauri PASS. The
+  desktop-tauri job executed `cargo check`, `cargo test`, and `tauri build --ci`; backend executed
+  pytest, the generated M16 C codec, OpenAPI export/check, and TypeScript contract check.
 
 ## Gate-by-gate result
 

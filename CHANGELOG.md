@@ -16,7 +16,8 @@ the frozen documentation changelogs under `docs/`.
   invalid AF, electrical violation, unavailable tools, and stale downstream propagation. The
   focused M19 suite reports **4 passed**; no real motor run, actuator enable, fabricated ELF, or
   hardware commissioning is claimed. Local Build/ARM/KiCad/hardware gates remain UNKNOWN or
-  BLOCKED as documented in `reports/M19/`.
+  BLOCKED as documented in `reports/M19/`. Draft PR #13 remains OPEN/DRAFT/UNMERGED; push CI
+  `31957259756` and Draft PR CI `31957274885` both pass backend, desktop-web, and desktop-tauri.
 
 - M18ER.1 — Runtime Auth & Atomic Restore Closure accepted at implementation HEAD
   `21cde4d6398edc85fcb2ea57a5e1bdc44f989e20` on `codex/m18e-renderer-nfr-hardening`. The closure
