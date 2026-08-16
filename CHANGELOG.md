@@ -7,6 +7,40 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18ER.1 — Runtime Auth & Atomic Restore Closure accepted at implementation HEAD
+  `21cde4d6398edc85fcb2ea57a5e1bdc44f989e20` on `codex/m18e-renderer-nfr-hardening`. The closure
+  adds a real Tauri child-process RuntimeBoundary with loopback-only random port/token,
+  authenticated renderer bootstrap, full streaming object hash validation for validate/restore,
+  durable `PREPARED -> FS_ACTIVATED -> ACTIVATED` restore recovery, portable source bytes and
+  artifact policy, and migration `0033_m18er1_atomic_restore_runtime`. Focused M18E/M18ER.1 and
+  migration/runtime tests report **47 passed**; local full pytest reports **481 passed, 4 skipped**
+  with the two pre-existing Windows M5 sandbox environment failures; coverage is **84.00%**.
+  Ruff check/format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, and
+  desktop lint/typecheck/build pass. Push CI run `31951639346` and Draft PR CI run
+  `31951640929` both pass `backend`, `desktop-web`, and `desktop-tauri`, including cargo check,
+  cargo test, and `tauri build --ci`. Final human acceptance records `M18E = ACCEPTED`,
+  `M18ER = ACCEPTED`, `M18ER.1 = ACCEPTED`, `P0 = 0`, `P1 = 0`, and `APPROVED_TO_MERGE = YES`.
+  Pre-acceptance PR HEAD is `b3b4ec8743e111d51ff027640484a2e996730dff`; final pre-acceptance PR
+  CI is `31952220574`. M19 remains not started pending merge and green main CI.
+
+- M18E Renderer / NFR Hardening implemented on branch
+  `codex/m18e-renderer-nfr-hardening`, based on verified main
+  `2fc9c9dbd7cdf9cf344899372f1357dbd6d07940`. Added the renderer security contract and
+  plain-text sanitizer, loopback backend bearer-auth boundary, Tauri CSP/capability audit,
+  bounded and hash-verified Project Backup/Restore, deterministic failure-injection baseline,
+  versioned capacity profiles, performance baseline artifact, observability/redaction helpers,
+  LOCAL_SINGLE_USER plus User/Organization/Membership/ProjectRole schema foundation, and the
+  canonical-unit cross-conversion gate. Added migration
+  `0031_m18e_renderer_nfr_hardening`, M18E API routes, and regression coverage. Focused M18E,
+  migration, and architecture tests pass; local full pytest reports **453 passed, 4 skipped**,
+  with the two pre-existing Windows M5 sandbox environment failures; coverage is **83.76%**.
+  Ruff check/format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop
+  lint, desktop typecheck, and desktop build pass. Rust `cargo check/test` could not run because
+  `cargo` is unavailable in this environment. GitHub push CI run `31941880496` and PR CI run
+  `31941895651` both passed backend and desktop. The final acceptance-docs push CI run
+  `31942245070` and PR CI run `31942247586` also passed backend and desktop. M18E is implemented
+  and ready for final human review; M19 has not started.
+
 - M18D/M18DR Final Acceptance completed at reviewed implementation HEAD
   `7dd86a3080b253010cf18f64accee3e2ca665a28`, with implementation final closure commit
   `6afeec383f767634ea45b8453fb7490d45f66ebe` and acceptance docs commit

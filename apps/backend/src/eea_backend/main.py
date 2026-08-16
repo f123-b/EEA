@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from secrets import token_urlsafe
 from uuid import UUID, uuid4
 
 from eea_adapters.ai import LiteLLMProvider
@@ -28,11 +29,14 @@ from eea_application.source_workspace import SourceWorkspaceService
 from eea_application.testing import TestExecutorRegistry
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
+from eea_core.failure_injection import FailureInjectionHarness
 from eea_core.hardware import HardwareIdentity, ProbeIdentity
 from eea_ports.ai import AIProvider
 from eea_ports.secrets import SecretReference
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import SecretStr
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
@@ -42,11 +46,14 @@ from eea_backend.commissioning_repositories import SqlAlchemyCommissioningReposi
 from eea_backend.database import check_database, create_database_engine
 from eea_backend.dependency_bootstrap import reconcile_project_dependencies
 from eea_backend.errors import engineering_error_handler, validation_error_handler
+from eea_backend.identity_repositories import IdentityRepository
+from eea_backend.m18e_api import router as m18e_router
 from eea_backend.models import ProjectRecord, SourceWorkspaceRecord
 from eea_backend.recovery import OutboxDispatcher, RecoveryService
 from eea_backend.reliability_repositories import SqlAlchemyOutboxRepository
 from eea_backend.repositories import SqlAlchemyPromptRepository
 from eea_backend.requirement_repositories import SqlAlchemyRequirementProfileRepository
+from eea_backend.restore_service import RestoreCoordinator
 from eea_backend.schemas import ApiEnvelope, HealthResponse, VersionData
 from eea_backend.security import require_session_token
 from eea_backend.settings import Settings
@@ -181,6 +188,8 @@ def create_app(
                         seed_builtin_requirement_contracts(session)
                         if inspect(session.get_bind()).has_table("commissioning_profiles"):
                             seed_builtin_commissioning_profiles(session)
+                        if inspect(session.get_bind()).has_table("identity_users"):
+                            IdentityRepository(session).ensure_local_user()
                         for project_id in session.scalars(select(ProjectRecord.id)):
                             reconcile_project_dependencies(session, UUID(project_id))
                 if inspector.has_table("source_workspaces"):
@@ -206,6 +215,7 @@ def create_app(
         lifespan=lifespan,
     )
     application.state.settings = resolved_settings
+    application.state.local_session_token = SecretStr(token_urlsafe(32))
     application.state.engine = engine
     application.state.ai_provider = resolved_ai_provider
     application.state.domain_registry = (
@@ -216,11 +226,20 @@ def create_app(
     application.state.static_analysis_provider = CppcheckAdapter()
     application.state.test_executor_registry = TestExecutorRegistry()
     application.state.crash_injector = NoopCrashInjector()
+    application.state.restore_failure_injector = FailureInjectionHarness()
     application.state.recovery_worker_id = recovery_worker_id
+    application.state.restore_coordinator = RestoreCoordinator(
+        lambda: Session(engine),
+        resolved_settings,
+        failure_injector=application.state.restore_failure_injector,
+    )
     application.state.recovery_service = RecoveryService(
         lambda: Session(engine),
         worker_id=recovery_worker_id,
         crash_injector=application.state.crash_injector,
+        restore_recovery=lambda limit: application.state.restore_coordinator.recover_pending(
+            limit=limit
+        ),
     )
     application.state.outbox_dispatcher = OutboxDispatcher(
         application.state.recovery_service,
@@ -251,6 +270,20 @@ def create_app(
     async def attach_request_id(request: Request, call_next):  # type: ignore[no-untyped-def]
         request_id = request.headers.get("X-Request-ID", f"req_{uuid4().hex}")
         request.state.request_id = request_id
+        origin = request.headers.get("Origin")
+        allowed_origins = {"http://127.0.0.1", "http://localhost", "tauri://localhost"}
+        if origin is not None and origin not in allowed_origins:
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "success": False,
+                    "error": {
+                        "code": EngineeringErrorCode.AUTH_REQUIRED.value,
+                        "message": "remote Origin is not allowed",
+                    },
+                    "request_id": request_id,
+                },
+            )
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         return response
@@ -273,6 +306,7 @@ def create_app(
         return ApiEnvelope(data=data, request_id=request.state.request_id)
 
     api.include_router(core_router)
+    api.include_router(m18e_router)
     application.include_router(api)
     return application
 

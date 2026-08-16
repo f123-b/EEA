@@ -192,7 +192,13 @@ export const engineeringErrorCodeValues = [
   "DEPENDENCY_LOCK_STALE",
   "COMPONENT_MATERIALIZATION_FAILED",
   "TOOLCHAIN_INCOMPATIBLE",
-  "DEVICE_BUILD_UNAVAILABLE"
+  "DEVICE_BUILD_UNAVAILABLE",
+  "CAPACITY_EXCEEDED",
+  "BACKUP_INVALID",
+  "BACKUP_INCOMPATIBLE",
+  "RESTORE_CONFLICT",
+  "RENDER_CONTENT_REJECTED",
+  "NFR_LIMIT_EXCEEDED"
 ] as const;
 export type EngineeringErrorCode = (typeof engineeringErrorCodeValues)[number];
 

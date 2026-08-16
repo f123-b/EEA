@@ -233,6 +233,29 @@
         "title": "ApiEnvelope[ArtifactRevalidateData]",
         "type": "object"
       },
+      "ApiEnvelope_BackupExportData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BackupExportData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[BackupExportData]",
+        "type": "object"
+      },
       "ApiEnvelope_BuildListData_": {
         "properties": {
           "data": {
@@ -854,6 +877,29 @@
         "title": "ApiEnvelope[IssueListData]",
         "type": "object"
       },
+      "ApiEnvelope_LocalIdentityData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LocalIdentityData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[LocalIdentityData]",
+        "type": "object"
+      },
       "ApiEnvelope_MCUConfigBundleData_": {
         "properties": {
           "data": {
@@ -1291,6 +1337,29 @@
         "title": "ApiEnvelope[RequirementProfileData]",
         "type": "object"
       },
+      "ApiEnvelope_RestoreData_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RestoreData"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[RestoreData]",
+        "type": "object"
+      },
       "ApiEnvelope_ReviewListData_": {
         "properties": {
           "data": {
@@ -1682,6 +1751,33 @@
           "request_id"
         ],
         "title": "ApiEnvelope[dict[str, object]]",
+        "type": "object"
+      },
+      "ApiEnvelope_list_CapacityProfileData__": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CapacityProfileData"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[list[CapacityProfileData]]",
         "type": "object"
       },
       "ApiEnvelope_list_CommissioningProfileData__": {
@@ -2126,6 +2222,54 @@
         "title": "BSPConfig",
         "type": "object"
       },
+      "BackupExportData": {
+        "properties": {
+          "archive_path": {
+            "title": "Archive Path",
+            "type": "string"
+          },
+          "manifest_hash": {
+            "title": "Manifest Hash",
+            "type": "string"
+          },
+          "object_count": {
+            "title": "Object Count",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "archive_path",
+          "manifest_hash",
+          "object_count",
+          "project_id"
+        ],
+        "title": "BackupExportData",
+        "type": "object"
+      },
+      "BackupExportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "destination": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination"
+          }
+        },
+        "title": "BackupExportRequest",
+        "type": "object"
+      },
       "BuildDiagnosticData": {
         "properties": {
           "code": {
@@ -2470,6 +2614,32 @@
           }
         },
         "title": "CANTransportConfig",
+        "type": "object"
+      },
+      "CapacityProfileData": {
+        "properties": {
+          "limits": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Limits",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "limits"
+        ],
+        "title": "CapacityProfileData",
         "type": "object"
       },
       "ChangeObservation": {
@@ -6646,7 +6816,13 @@
           "DEPENDENCY_LOCK_STALE",
           "COMPONENT_MATERIALIZATION_FAILED",
           "TOOLCHAIN_INCOMPATIBLE",
-          "DEVICE_BUILD_UNAVAILABLE"
+          "DEVICE_BUILD_UNAVAILABLE",
+          "CAPACITY_EXCEEDED",
+          "BACKUP_INVALID",
+          "BACKUP_INCOMPATIBLE",
+          "RESTORE_CONFLICT",
+          "RENDER_CONTENT_REJECTED",
+          "NFR_LIMIT_EXCEEDED"
         ],
         "title": "EngineeringErrorCode",
         "type": "string"
@@ -9242,6 +9418,35 @@
         ],
         "title": "JobStatus",
         "type": "string"
+      },
+      "LocalIdentityData": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "stable_actor_id": {
+            "title": "Stable Actor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "stable_actor_id",
+          "display_name",
+          "mode"
+        ],
+        "title": "LocalIdentityData",
+        "type": "object"
       },
       "MCUConfigBundleData": {
         "properties": {
@@ -12614,6 +12819,85 @@
         "title": "ResolvedComponent",
         "type": "object"
       },
+      "RestoreData": {
+        "properties": {
+          "manifest_hash": {
+            "title": "Manifest Hash",
+            "type": "string"
+          },
+          "object_count": {
+            "title": "Object Count",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "staging_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staging Path"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valid",
+          "state",
+          "manifest_hash",
+          "project_id",
+          "object_count"
+        ],
+        "title": "RestoreData",
+        "type": "object"
+      },
+      "RestoreValidateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "archive_path": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Archive Path",
+            "type": "string"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Id"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "archive_path",
+          "project_id"
+        ],
+        "title": "RestoreValidateRequest",
+        "type": "object"
+      },
       "ReviewFinding": {
         "additionalProperties": false,
         "properties": {
@@ -15237,6 +15521,32 @@
         ]
       }
     },
+    "/api/v1/capacity/profiles": {
+      "get": {
+        "operationId": "capacity_profiles_api_v1_capacity_profiles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_list_CapacityProfileData__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Capacity Profiles",
+        "tags": [
+          "m18e"
+        ]
+      }
+    },
     "/api/v1/claims/{claim_id}/lifecycle": {
       "post": {
         "operationId": "mutate_claim_lifecycle_api_v1_claims__claim_id__lifecycle_post",
@@ -16357,6 +16667,32 @@
         ]
       }
     },
+    "/api/v1/identity/local": {
+      "get": {
+        "operationId": "local_identity_api_v1_identity_local_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_LocalIdentityData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Local Identity",
+        "tags": [
+          "m18e"
+        ]
+      }
+    },
     "/api/v1/issues/{issue_id}": {
       "get": {
         "operationId": "get_issue_api_v1_issues__issue_id__get",
@@ -16804,6 +17140,98 @@
         "summary": "Create Project",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/v1/projects/restore": {
+      "post": {
+        "operationId": "restore_project_api_v1_projects_restore_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_RestoreData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Restore Project",
+        "tags": [
+          "m18e"
+        ]
+      }
+    },
+    "/api/v1/projects/restore/validate": {
+      "post": {
+        "operationId": "validate_restore_api_v1_projects_restore_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_RestoreData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Validate Restore",
+        "tags": [
+          "m18e"
         ]
       }
     },
@@ -18928,6 +19356,64 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/exports": {
+      "post": {
+        "operationId": "export_project_api_v1_projects__project_id__exports_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackupExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_BackupExportData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Project",
+        "tags": [
+          "m18e"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/firmware": {
       "get": {
         "operationId": "get_firmware_api_v1_projects__project_id__firmware_get",
@@ -21045,6 +21531,32 @@
         "summary": "List Domain Ui Extensions",
         "tags": [
           "domains"
+        ]
+      }
+    },
+    "/api/v1/renderer/security-policy": {
+      "get": {
+        "operationId": "renderer_security_policy_api_v1_renderer_security_policy_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Renderer Security Policy",
+        "tags": [
+          "m18e"
         ]
       }
     },

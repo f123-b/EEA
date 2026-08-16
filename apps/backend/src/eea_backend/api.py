@@ -4,6 +4,7 @@ import re
 from base64 import b64decode
 from binascii import Error as Base64Error
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Annotated, Any, cast
 from uuid import UUID, uuid4
 
@@ -137,6 +138,7 @@ from eea_backend.models import (
     GeneratedProtocolOutputRecord,
     JobRecord,
     SideEffectJournalRecord,
+    SourceWorkspaceRecord,
 )
 from eea_backend.pin_planner_repositories import SqlAlchemyPinPlanRepository
 from eea_backend.protocol_repositories import SqlAlchemyProtocolRepository
@@ -356,7 +358,14 @@ def _dependency_service(session: Session) -> DependencyGraphService:
 
 
 def _source_service(request: Request, session: Session, project_id: UUID) -> SourceWorkspaceService:
-    root = request.app.state.settings.data_dir / "projects" / str(project_id) / "workspace"
+    record = session.scalar(
+        select(SourceWorkspaceRecord).where(SourceWorkspaceRecord.project_id == str(project_id))
+    )
+    root = (
+        Path(record.root_path)
+        if record is not None
+        else request.app.state.settings.data_dir / "projects" / str(project_id) / "workspace"
+    )
     workspace = FileSystemSourceWorkspaceAdapter(root)
     return SourceWorkspaceService(
         project_id,

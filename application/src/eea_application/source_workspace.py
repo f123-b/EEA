@@ -27,6 +27,8 @@ from eea_core.source import (
     SourceFileContent,
     SourceRevision,
     SourceWorkspaceStatus,
+    source_file_manifest,
+    source_manifest_hash,
 )
 from eea_ports.source import GitStatus, GitWorkspacePort, SourceWorkspacePort
 
@@ -188,17 +190,11 @@ def _hash_bytes(content: bytes) -> str:
 
 
 def _hash_manifest(manifest: Mapping[str, str]) -> str:
-    serialized = json.dumps(
-        {key: manifest[key] for key in sorted(manifest)},
-        ensure_ascii=True,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return _hash_bytes(serialized)
+    return source_manifest_hash(manifest)
 
 
 def _manifest(files: Mapping[str, bytes]) -> dict[str, str]:
-    return {path: _hash_bytes(files[path]) for path in sorted(files)}
+    return source_file_manifest(files)
 
 
 class SourceWorkspaceService:

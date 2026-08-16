@@ -1,0 +1,75 @@
+{
+  "baseline_version": "m18e.1",
+  "measurement_policy": "Reference values are profile baselines; regressions are evaluated by ratio, not a machine-specific absolute CI threshold.",
+  "default_tolerance_ratio": 1.25,
+  "profiles": {
+    "minimal": {
+      "tolerance_ratio": 1.25,
+      "metrics_ms": {
+        "cold_start": 1500,
+        "project_open": 250,
+        "search": 150,
+        "api_p50": 50,
+        "api_p95": 200,
+        "event_propagation": 250,
+        "pin_validation": 100,
+        "build_queue": 500,
+        "large_repo": 2000,
+        "large_document_pdf": 3000,
+        "context_retrieval": 300,
+        "ui_large_list": 100
+      }
+    },
+    "foc-dev": {
+      "tolerance_ratio": 1.25,
+      "metrics_ms": {
+        "cold_start": 1800,
+        "project_open": 400,
+        "search": 200,
+        "api_p50": 75,
+        "api_p95": 300,
+        "event_propagation": 300,
+        "pin_validation": 150,
+        "build_queue": 750,
+        "large_repo": 3000,
+        "large_document_pdf": 4500,
+        "context_retrieval": 400,
+        "ui_large_list": 150
+      }
+    },
+    "full": {
+      "tolerance_ratio": 1.25,
+      "metrics_ms": {
+        "cold_start": 2500,
+        "project_open": 600,
+        "search": 300,
+        "api_p50": 100,
+        "api_p95": 400,
+        "event_propagation": 400,
+        "pin_validation": 250,
+        "build_queue": 1000,
+        "large_repo": 5000,
+        "large_document_pdf": 7000,
+        "context_retrieval": 600,
+        "ui_large_list": 200
+      }
+    },
+    "ci": {
+      "tolerance_ratio": 1.5,
+      "metrics_ms": {
+        "cold_start": 3000,
+        "project_open": 750,
+        "search": 400,
+        "api_p50": 125,
+        "api_p95": 500,
+        "event_propagation": 500,
+        "pin_validation": 300,
+        "build_queue": 1500,
+        "large_repo": 7000,
+        "large_document_pdf": 10000,
+        "context_retrieval": 750,
+        "ui_large_list": 250
+      }
+    }
+  }
+}

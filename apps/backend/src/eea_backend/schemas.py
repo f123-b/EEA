@@ -1708,3 +1708,46 @@ class DeviceMergeConflictData(BaseModel):
     value_a: object
     value_b: object
     resolution: str
+
+
+class BackupExportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    destination: str | None = Field(default=None, max_length=500)
+
+
+class BackupExportData(BaseModel):
+    archive_path: str
+    manifest_hash: str
+    object_count: int
+    project_id: UUID
+
+
+class RestoreValidateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    archive_path: str = Field(min_length=1, max_length=2000)
+    project_id: UUID
+    operation_id: UUID | None = None
+
+
+class RestoreData(BaseModel):
+    valid: bool
+    state: str
+    manifest_hash: str
+    project_id: UUID
+    object_count: int
+    staging_path: str | None = None
+
+
+class LocalIdentityData(BaseModel):
+    id: UUID
+    stable_actor_id: str
+    display_name: str
+    mode: str
+
+
+class CapacityProfileData(BaseModel):
+    name: str
+    version: str
+    limits: dict[str, int]

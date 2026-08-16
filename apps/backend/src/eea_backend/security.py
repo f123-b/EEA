@@ -19,6 +19,14 @@ def require_session_token(
 
     configured = request.app.state.settings.session_token
     if configured is None:
+        production = request.app.state.settings.env.lower() == "production"
+        if (
+            production
+            or request.app.state.settings.local_auth_required
+            or not request.app.state.settings.insecure_local_dev
+        ):
+            configured = request.app.state.local_session_token
+    if configured is None:
         request.state.actor_id = "local-authenticated-session"
         return
     if credentials is None or credentials.scheme.lower() != "bearer":

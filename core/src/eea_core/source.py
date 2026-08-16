@@ -5,6 +5,9 @@ immutable snapshots, proposal metadata, and generator ownership metadata; they
 do not persist a second editable source tree.
 """
 
+import hashlib
+import json
+from collections.abc import Mapping
 from enum import StrEnum
 from uuid import UUID
 
@@ -29,6 +32,26 @@ class SourceRevision(EntityBase):
     source_manifest_hash: Sha256
     file_manifest: dict[str, Sha256] = Field(default_factory=dict)
     created_by: str = Field(min_length=1, max_length=200)
+
+
+def source_file_manifest(files: Mapping[str, bytes]) -> dict[str, str]:
+    """Return the canonical SHA-256 manifest for source bytes."""
+
+    return {
+        path.replace("\\", "/"): hashlib.sha256(files[path]).hexdigest() for path in sorted(files)
+    }
+
+
+def source_manifest_hash(file_manifest: Mapping[str, str]) -> str:
+    """Hash a source file manifest using the Source Authority canonical form."""
+
+    payload = json.dumps(
+        {key.replace("\\", "/"): file_manifest[key] for key in sorted(file_manifest)},
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 class PatchProposalStatus(StrEnum):
@@ -144,4 +167,6 @@ __all__ = [
     "SourceFileContent",
     "SourceRevision",
     "SourceWorkspaceStatus",
+    "source_file_manifest",
+    "source_manifest_hash",
 ]
