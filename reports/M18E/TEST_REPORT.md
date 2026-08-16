@@ -18,6 +18,19 @@
 - New migration: `0033_m18er1_atomic_restore_runtime` (parent `0032_m18er_reliability_closure`)
 - PR: `#12`, still `OPEN` and `Draft`, base `main`
 
+### Final acceptance metadata
+
+- M18E: `ACCEPTED`
+- M18ER: `ACCEPTED`
+- M18ER.1: `ACCEPTED`
+- P0: `0`
+- P1: `0`
+- APPROVED_TO_MERGE: `YES`
+- Implementation HEAD: `21cde4d6398edc85fcb2ea57a5e1bdc44f989e20`
+- Pre-acceptance PR HEAD: `b3b4ec8743e111d51ff027640484a2e996730dff`
+- Final PR CI before acceptance: `31952220574`
+- Merge SHA and main CI: not yet produced at acceptance time
+
 ### Closure design
 
 1. Tauri creates an ephemeral 32-byte token and free loopback port, starts the configured
@@ -167,9 +180,11 @@ GitHub CI:
 ```text
 M18D = ACCEPTED_AND_MERGED
 M18DR = ACCEPTED_AND_MERGED
-M18E = IMPLEMENTED
-M18ER = IMPLEMENTED
-M18ER.1 = IMPLEMENTED
-READY_FOR_M18E_FINAL_REVIEW = YES
+M18E = ACCEPTED
+M18ER = ACCEPTED
+M18ER.1 = ACCEPTED
+P0 = 0
+P1 = 0
+APPROVED_TO_MERGE = YES
 M19 = NOT_STARTED
 ```

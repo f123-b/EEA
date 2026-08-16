@@ -7,7 +7,7 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
-- M18ER.1 — Runtime Auth & Atomic Restore Closure completed at implementation HEAD
+- M18ER.1 — Runtime Auth & Atomic Restore Closure accepted at implementation HEAD
   `21cde4d6398edc85fcb2ea57a5e1bdc44f989e20` on `codex/m18e-renderer-nfr-hardening`. The closure
   adds a real Tauri child-process RuntimeBoundary with loopback-only random port/token,
   authenticated renderer bootstrap, full streaming object hash validation for validate/restore,
@@ -18,8 +18,10 @@ the frozen documentation changelogs under `docs/`.
   Ruff check/format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, and
   desktop lint/typecheck/build pass. Push CI run `31951639346` and Draft PR CI run
   `31951640929` both pass `backend`, `desktop-web`, and `desktop-tauri`, including cargo check,
-  cargo test, and `tauri build --ci`. M18E/M18ER/M18ER.1 remain implemented and ready for final
-  human review; M19 has not started.
+  cargo test, and `tauri build --ci`. Final human acceptance records `M18E = ACCEPTED`,
+  `M18ER = ACCEPTED`, `M18ER.1 = ACCEPTED`, `P0 = 0`, `P1 = 0`, and `APPROVED_TO_MERGE = YES`.
+  Pre-acceptance PR HEAD is `b3b4ec8743e111d51ff027640484a2e996730dff`; final pre-acceptance PR
+  CI is `31952220574`. M19 remains not started pending merge and green main CI.
 
 - M18E Renderer / NFR Hardening implemented on branch
   `codex/m18e-renderer-nfr-hardening`, based on verified main

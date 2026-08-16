@@ -22,7 +22,9 @@ test`, and `tauri build --ci` successfully.
 
 ## Scope boundary
 
-No M19 implementation was started. M18E remains unmerged and awaits final human acceptance.
+No M19 implementation was started. M18E/M18ER/M18ER.1 are accepted with P0=0 and P1=0;
+PR #12 is approved to merge. Merge SHA and main CI are intentionally not recorded until they
+are produced by the protected merge path.
 
 ## Final CI history
 
