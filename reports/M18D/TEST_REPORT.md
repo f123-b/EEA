@@ -9,6 +9,9 @@
 - M18DR implementation commit: `c5308ec95b6e38c9e757b5aa59ef78523a834c67`
 - Reviewed M18DR HEAD before Final Closure: `2757832435253a0f81b51d0b4902f3e731c35385`
 - M18DR Final Closure implementation commit: `6afeec383f767634ea45b8453fb7490d45f66ebe`
+- Reviewed final acceptance HEAD: `7dd86a3080b253010cf18f64accee3e2ca665a28`
+- Final PR CI run: `31925059142` (backend PASS, desktop PASS)
+- Final push CI run: `31925057389` (backend PASS, desktop PASS)
 - Migration: `0030_m18d_hardware_commissioning_safety`
 - Migration parent: `0029_m18cr_source_mutation_cas_recovery`
 - Superseded PR #9 was closed without merge; its pre-M18CR state is preserved on
@@ -111,19 +114,19 @@ Quality gates:
 
 GitHub CI:
 
-- PR run `31924721927`: backend PASS, desktop PASS.
-- Push run `31924719464`: backend PASS, desktop PASS.
+- PR run `31925059142`: backend PASS, desktop PASS.
+- Push run `31925057389`: backend PASS, desktop PASS.
 
 ## State
 
 ```text
 M18C = ACCEPTED_AND_MERGED
 M18CR = ACCEPTED_AND_MERGED
-M18D = IMPLEMENTED
-M18DR = IMPLEMENTED
-READY_FOR_M18D_FINAL_REVIEW = YES
+M18D = ACCEPTED
+M18DR = ACCEPTED
+READY_FOR_M18E = YES
 M18E = NOT_STARTED
 ```
 
-M18D/M18DR remain unmerged and await human final review. PR #11 remains OPEN and Draft. No M18E
-implementation was started.
+Human final acceptance is complete at the reviewed final HEAD above. PR #11 merge closure is the
+next repository operation; no M18E implementation was started.

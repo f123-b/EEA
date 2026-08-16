@@ -16,8 +16,9 @@ No M18D code or contract change was made to hide, weaken, or reclassify these fa
 - M18DR implementation commit: `c5308ec95b6e38c9e757b5aa59ef78523a834c67`
 - Reviewed M18DR HEAD before Final Closure: `2757832435253a0f81b51d0b4902f3e731c35385`
 - M18DR Final Closure implementation commit: `6afeec383f767634ea45b8453fb7490d45f66ebe`
-- GitHub PR CI `31924721927`: backend PASS, desktop PASS.
-- GitHub push CI `31924719464`: backend PASS, desktop PASS.
+- Reviewed final acceptance HEAD: `7dd86a3080b253010cf18f64accee3e2ca665a28`
+- GitHub PR CI `31925059142`: backend PASS, desktop PASS.
+- GitHub push CI `31925057389`: backend PASS, desktop PASS.
 
 ## Local database note
 
@@ -25,7 +26,13 @@ The repository's default local `.eea/eea.db` may still contain the superseded pr
 revision. M18D verification used a clean temporary database and passed upgrade/check through
 `0030_m18d_hardware_commissioning_safety`; the stale local database was not rewritten.
 
-## Acceptance boundary
+## Acceptance status
 
-M18D and M18DR are implemented and ready for human final review. PR #11 remains OPEN and Draft;
-it is not accepted or merged by this implementation task. M18E remains explicitly not started.
+M18D = ACCEPTED
+M18DR = ACCEPTED
+READY_FOR_M18E = YES
+M18E = NOT_STARTED
+
+Human final acceptance is complete at the reviewed final HEAD above. PR #11 merge closure remains
+the next repository operation; M18E remains explicitly not started until the merged main branch
+and its CI are verified.

@@ -7,6 +7,18 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18D/M18DR Final Acceptance completed at reviewed implementation HEAD
+  `7dd86a3080b253010cf18f64accee3e2ca665a28`, with implementation final closure commit
+  `6afeec383f767634ea45b8453fb7490d45f66ebe` and acceptance docs commit
+  `7dd86a3080b253010cf18f64accee3e2ca665a28`. Focused M18/M18R/M18A/M18AR/M18AR.1/M18B/
+  M18BR/M18C/M18CR/M18D verification reported **159 passed, 1 skipped**; local full pytest
+  reported **435 passed, 4 skipped**, with the two pre-existing Windows M5 sandbox
+  environment failures; coverage was **84.19%**. Ruff check/format, mypy, clean Alembic
+  upgrade/check, OpenAPI, TypeScript contracts, desktop lint, desktop typecheck, and desktop
+  build passed. Final PR CI run `31925059142` and push CI run `31925057389` both passed for
+  backend and desktop. Human acceptance is recorded as `M18D = ACCEPTED`, `M18DR = ACCEPTED`,
+  `READY_FOR_M18E = YES`, and `M18E = NOT_STARTED`; M18E implementation has not started.
+
 - M18DR Final Closure repair at implementation commit
   `6afeec383f767634ea45b8453fb7490d45f66ebe` (based on the reviewed M18DR docs HEAD
   `2757832435253a0f81b51d0b4902f3e731c35385`). Closed the four residual blockers without adding
