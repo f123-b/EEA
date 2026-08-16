@@ -7,6 +7,24 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18ER — M18E Final Reliability Closure completed at final implementation HEAD
+  `fc1ef80998530a8ba3f21ed6e71c171811796eae` on `codex/m18e-renderer-nfr-hardening`. Commits
+  `78c4b1c3f177d66fd07e145f56c7af2a9dd3bc2b`, `3148b7e65560df2d10709055f513cc55ebe51e91`,
+  and `fc1ef80998530a8ba3f21ed6e71c171811796eae` close production bearer fail-closed auth,
+  loopback-only Desktop client boundaries, structured recursive backup secret rejection,
+  bounded ZIP preflight/streaming restore, explicit CapacityProfile selection, portable
+  project-authoritative SQL restore with VALIDATE/STAGE/ACTIVATE states, and Tauri opener/CSP/
+  capability validation. Added migration `0032_m18er_reliability_closure` for the identity
+  parent-key uniqueness required by clean-database restore and a reproducible Tauri icon source/
+  set. Focused M18E/M18ER plus migration tests report **35 passed**; cross-milestone M18 through
+  M18E reports **193 passed, 1 skipped**; local full pytest reports **469 passed, 4 skipped**,
+  with the two pre-existing Windows M5 sandbox environment failures; coverage is **84.28%**.
+  Ruff check/format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop
+  lint/typecheck/build all pass. Final push CI run `31946613210` and Draft PR CI run
+  `31946616696` both pass `backend`, `desktop-web`, and `desktop-tauri`, including cargo check,
+  cargo test, and `tauri build --ci`. M18E remains implemented and ready for final human review;
+  M19 has not started.
+
 - M18E Renderer / NFR Hardening implemented on branch
   `codex/m18e-renderer-nfr-hardening`, based on verified main
   `2fc9c9dbd7cdf9cf344899372f1357dbd6d07940`. Added the renderer security contract and
