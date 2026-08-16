@@ -7,6 +7,24 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M18DR Final Closure repair at implementation commit
+  `6afeec383f767634ea45b8453fb7490d45f66ebe` (based on the reviewed M18DR docs HEAD
+  `2757832435253a0f81b51d0b4902f3e731c35385`). Closed the four residual blockers without adding
+  a migration: `PermissionAuthority` is fail-closed with explicit test-only fake authority
+  injection; stale `RECONCILE_REQUIRED` hardware actions can be atomically preempted only by
+  durable EmergencyStop/SafeState claims; unverified SafeState now forces `ROLLBACK_REQUIRED`
+  with `emergency_stop_state = UNKNOWN`; and PWM-enable duration, current-ramp rate, speed-ramp
+  rate, watchdog duration, runtime, and existing safety measurements are enforced independently
+  with canonical dimensions/units. API payload permissions remain ignored and deprecated.
+  Added crash/retry, permission, SafeState, PWM/ramp, normalization, and independent-limit
+  regressions. Focused M18/M18R/M18A/M18AR/M18AR.1/M18B/M18BR/M18C/M18CR/M18D: **159 passed,
+  1 skipped**; M18D/M18DR module: **57 passed**; local full pytest: **435 passed, 4 skipped**,
+  with **2 pre-existing Windows M5 sandbox environment failures**; coverage **84.19%**. Ruff
+  check/format, mypy, clean Alembic upgrade/check, OpenAPI, TypeScript contracts, desktop lint,
+  desktop typecheck, and desktop build pass. Implementation push CI run `31924719464` and PR
+  CI run `31924721927` both have backend PASS and desktop PASS. `M18D = IMPLEMENTED`,
+  `M18DR = IMPLEMENTED`, `READY_FOR_M18D_FINAL_REVIEW = YES`, and `M18E = NOT_STARTED`.
+
 - M18DR Hardware Safety Authority & Side-Effect Closure at implementation commit
   `c5308ec95b6e38c9e757b5aa59ef78523a834c67`, repairing reviewed M18D HEAD
   `2fc232825d07294ef474a8d308c004927765c363`. Closed client permission spoofing with

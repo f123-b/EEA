@@ -14,8 +14,10 @@ No M18D code or contract change was made to hide, weaken, or reclassify these fa
 
 - Reviewed M18D HEAD before repair: `2fc232825d07294ef474a8d308c004927765c363`
 - M18DR implementation commit: `c5308ec95b6e38c9e757b5aa59ef78523a834c67`
-- GitHub PR CI `31894738013`: backend PASS, desktop PASS.
-- GitHub push CI `31894735902`: backend PASS, desktop PASS.
+- Reviewed M18DR HEAD before Final Closure: `2757832435253a0f81b51d0b4902f3e731c35385`
+- M18DR Final Closure implementation commit: `6afeec383f767634ea45b8453fb7490d45f66ebe`
+- GitHub PR CI `31924721927`: backend PASS, desktop PASS.
+- GitHub push CI `31924719464`: backend PASS, desktop PASS.
 
 ## Local database note
 

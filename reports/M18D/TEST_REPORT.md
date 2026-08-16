@@ -7,6 +7,8 @@
 - Clean branch base and merge-base: `97d62e47c7bf287627d051197e6ef756abf89523`
 - Reviewed M18D HEAD before repair: `2fc232825d07294ef474a8d308c004927765c363`
 - M18DR implementation commit: `c5308ec95b6e38c9e757b5aa59ef78523a834c67`
+- Reviewed M18DR HEAD before Final Closure: `2757832435253a0f81b51d0b4902f3e731c35385`
+- M18DR Final Closure implementation commit: `6afeec383f767634ea45b8453fb7490d45f66ebe`
 - Migration: `0030_m18d_hardware_commissioning_safety`
 - Migration parent: `0029_m18cr_source_mutation_cas_recovery`
 - Superseded PR #9 was closed without merge; its pre-M18CR state is preserved on
@@ -43,10 +45,15 @@ server-issued `PermissionToken` records are verified against exact actor/project
 scope, dangerous actions claim the session revision before adapter access, and the existing M18A
 `OutboxEvent` + `SideEffectJournal` is used for durable hardware intents. Startup recovery marks
 unknown prepared hardware outcomes `RECONCILE_REQUIRED`, quarantines locks, and never retries a
-dangerous adapter action blindly. Core-neutral commissioning contributions now gate
-`CLOSED_LOOP_LIMITED`, and limited-operation measurements are canonicalized and checked for unit,
-dimension, runtime, current, dq-current, speed, voltage, temperature, duty, and applicable
-position limits.
+dangerous adapter action blindly. Final Closure additionally makes missing `PermissionAuthority`
+fail closed, gives EmergencyStop/SafeState an atomic safety-preemption path for stale
+`RECONCILE_REQUIRED` actions, permits safe-action retry after a crashed E-stop, and guarantees an
+unverified SafeState is `ROLLBACK_REQUIRED`/`UNKNOWN` rather than `EMERGENCY_STOP`. Core-neutral
+commissioning contributions now gate `CLOSED_LOOP_LIMITED`, and limited-operation measurements
+are canonicalized and checked for unit, dimension, runtime, PWM-enable duration, current-ramp
+rate, speed-ramp rate, current, dq-current, speed, voltage, temperature, duty, and applicable
+position limits. `CURRENT_RATE` uses canonical `A/s`; speed ramp uses
+`ANGULAR_ACCELERATION` with `rpm/s` normalization.
 
 ## M18CR and recovery integration
 
@@ -58,6 +65,18 @@ outbox and recovery/journal path; it does not create a second side-effect or rec
 MotorControl contributes commissioning rules and bounded steps additively through the plugin
 boundary; Core owns the safety state machine and final actuator-enable gate.
 
+## Final Closure regression coverage
+
+- Missing `PermissionAuthority` cannot authorize dangerous permissions, even when a request
+  supplies a raw permission set; application tests explicitly inject `FakePermissionAuthority`.
+- Recovered prepared `FLASH`, `LOW_POWER`, and `EMERGENCY_STOP` actions exercise atomic safety
+  preemption; dangerous actions are not replayed and safety actions can retry.
+- Limit violations verify `EMERGENCY_STOP/ACTIVE` only after SafeState is proven, and
+  `ROLLBACK_REQUIRED/UNKNOWN` when SafeState verification fails.
+- Missing or excessive PWM-enable duration, current-ramp rate, and speed-ramp rate fail closed;
+  `rpm/s` normalizes to angular acceleration; max test runtime and max PWM duration are tested as
+  independent limits.
+
 ## Verification
 
 Focused command covered M18/M18R/M18A/M18AR/M18AR.1/M18B/M18BR/M18C/M18CR/M18D, including the
@@ -66,14 +85,14 @@ separation and scope, identity binding, safety limits, SafeState, lock heartbeat
 E-stop/watchdog recovery, exact source/build binding, Fake adapter faults, MotorControl
 contributions, and existing CAS/outbox/recovery regressions.
 
-Result: **143 passed, 1 skipped**.
-The M18D/M18DR commissioning regression module itself reports **44 passed**.
+Result: **159 passed, 1 skipped**.
+The M18D/M18DR commissioning regression module itself reports **57 passed**.
 
 Local full verification:
 
-- `.venv/Scripts/python.exe -m pytest -q`: **422 passed, 4 skipped**; two existing M5 sandbox
+- `.venv/Scripts/python.exe -m pytest -q`: **435 passed, 4 skipped**; two existing M5 sandbox
   tests fail only in the Windows sandbox environment.
-- Coverage: **84.26%**.
+- Coverage: **84.19%**.
 - Two existing M5 sandbox tests fail only in the Windows sandbox environment and remain
   classified as `PRE-EXISTING / ENVIRONMENT-SPECIFIC / NON-BLOCKING`.
 
@@ -92,8 +111,8 @@ Quality gates:
 
 GitHub CI:
 
-- PR run `31894738013`: backend PASS, desktop PASS.
-- Push run `31894735902`: backend PASS, desktop PASS.
+- PR run `31924721927`: backend PASS, desktop PASS.
+- Push run `31924719464`: backend PASS, desktop PASS.
 
 ## State
 
