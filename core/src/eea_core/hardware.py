@@ -274,8 +274,8 @@ class SafetyLimit(BaseModel):
             max_temperature=_ev(60, "C", EngineeringDimension.TEMPERATURE),
             max_test_runtime=_ev(10, "s", EngineeringDimension.TIME),
             watchdog_timeout=_ev(0.5, "s", EngineeringDimension.TIME),
-            current_ramp_rate=_ev(1, "A", EngineeringDimension.CURRENT),
-            speed_ramp_rate=_ev(100, "rpm", EngineeringDimension.ANGULAR_VELOCITY),
+            current_ramp_rate=_ev(1, "A/s", EngineeringDimension.CURRENT_RATE),
+            speed_ramp_rate=_ev(100, "rpm/s", EngineeringDimension.ANGULAR_ACCELERATION),
         )
 
     def complete_for_actuator(self) -> bool:

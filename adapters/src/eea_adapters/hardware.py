@@ -154,6 +154,10 @@ class FakeHardwareCommissioningAdapter(HardwareCommissioningAdapter):
                 "duty_cycle": 0.05,
                 "bus_voltage": self._measurement(12, "V", EngineeringDimension.VOLTAGE),
                 "temperature": self._measurement(25, "C", EngineeringDimension.TEMPERATURE),
+                "pwm_enable_duration": self._measurement(0.1, "s", EngineeringDimension.TIME),
+                "current_ramp_rate": self._measurement(
+                    0.1, "A/s", EngineeringDimension.CURRENT_RATE
+                ),
             }
         elif step_id == "CLOSED_LOOP_LIMITED":
             default_measurements = {
@@ -164,6 +168,13 @@ class FakeHardwareCommissioningAdapter(HardwareCommissioningAdapter):
                 "duty_cycle": 0.05,
                 "bus_voltage": self._measurement(12, "V", EngineeringDimension.VOLTAGE),
                 "temperature": self._measurement(25, "C", EngineeringDimension.TEMPERATURE),
+                "pwm_enable_duration": self._measurement(0.1, "s", EngineeringDimension.TIME),
+                "current_ramp_rate": self._measurement(
+                    0.1, "A/s", EngineeringDimension.CURRENT_RATE
+                ),
+                "speed_ramp_rate": self._measurement(
+                    10, "rpm/s", EngineeringDimension.ANGULAR_ACCELERATION
+                ),
                 "encoder_direction": True,
                 "encoder_plausibility": True,
                 "electrical_angle_sign": True,

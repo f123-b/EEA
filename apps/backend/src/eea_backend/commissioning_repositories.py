@@ -45,6 +45,7 @@ from eea_backend.models import (
     PermissionTokenRecord,
     ResourceLockRecord,
     SafetyLimitRecord,
+    SideEffectJournalRecord,
     SourceRevisionRecord,
     TargetSafetyCapabilityRecord,
 )
@@ -710,6 +711,100 @@ class SqlAlchemyCommissioningRepository:
             aggregate_type="HardwareCommissioningSession",
             aggregate_id=str(session_id),
             event_key=f"commissioning.hardware-action:{session_id}:{expected_revision}:{action}",
+            aggregate_revision=expected_revision + 1,
+            project_id=payload.get("project_id"),
+            payload={
+                **payload,
+                "session_id": str(session_id),
+                "action_id": str(action_id),
+                "action": action,
+                "expected_revision": expected_revision,
+                "request_hash": request_hash,
+                "journal_id": str(journal_id),
+            },
+            commit=False,
+        )
+        journal = SqlAlchemySideEffectJournalRepository(self.session).prepare(
+            SideEffectJournal(
+                id=journal_id,
+                event_id=event.id,
+                consumer_id="hardware-commissioning",
+                effect_key=f"hardware-action:{action_id}",
+                effect_type="commissioning.hardware-action",
+                request_hash=request_hash,
+                status=SideEffectStatus.PREPARED,
+                prepared_at=now,
+                updated_at=now,
+            )
+        )
+        return HardwareActionIntent(
+            action_id=action_id,
+            session_id=session_id,
+            action=action,
+            expected_revision=expected_revision,
+            claimed_revision=expected_revision + 1,
+            request_hash=request_hash,
+            event_id=event.id,
+            journal_id=journal.id,
+            started_at=now,
+        )
+
+    def claim_safety_action(
+        self,
+        *,
+        session_id: UUID,
+        expected_revision: int,
+        expected_state: CommissioningState,
+        action: str,
+        request_hash: str,
+        payload: dict[str, object],
+        stale_action_id: UUID,
+        stale_journal_id: UUID,
+    ) -> HardwareActionIntent | None:
+        """Atomically preempt only an action already quarantined for reconciliation.
+
+        A stale dangerous action remains unreplayed and visible in its original journal.  The
+        safety action receives a new durable claim so EmergencyStop can be retried after a crash
+        without weakening the normal single-owner hardware-action CAS.
+        """
+
+        stale_journal = self.session.get(SideEffectJournalRecord, str(stale_journal_id))
+        if (
+            stale_journal is None
+            or stale_journal.status != SideEffectStatus.RECONCILE_REQUIRED.value
+        ):
+            return None
+        now = utc_now()
+        action_id = uuid4()
+        journal_id = uuid4()
+        result = self.session.execute(
+            update(CommissioningSessionRecord)
+            .where(
+                CommissioningSessionRecord.id == str(session_id),
+                CommissioningSessionRecord.revision == expected_revision,
+                CommissioningSessionRecord.state == expected_state.value,
+                CommissioningSessionRecord.active_action_id == str(stale_action_id),
+                CommissioningSessionRecord.active_action_journal_id == str(stale_journal_id),
+            )
+            .values(
+                revision=expected_revision + 1,
+                active_action_id=str(action_id),
+                active_action_kind=action,
+                active_action_started_at=now,
+                active_action_expected_revision=expected_revision,
+                active_action_request_hash=request_hash,
+                active_action_journal_id=str(journal_id),
+                updated_at=now,
+            )
+        )
+        if getattr(result, "rowcount", 0) != 1:
+            self.session.rollback()
+            return None
+        event = EventOutboxService(SqlAlchemyOutboxRepository(self.session)).enqueue(
+            event_type="commissioning.hardware_action.requested",
+            aggregate_type="HardwareCommissioningSession",
+            aggregate_id=str(session_id),
+            event_key=f"commissioning.safety-preempt:{session_id}:{expected_revision}:{action}",
             aggregate_revision=expected_revision + 1,
             project_id=payload.get("project_id"),
             payload={

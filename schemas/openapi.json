@@ -3107,6 +3107,8 @@
             "type": "integer"
           },
           "permissions": {
+            "deprecated": true,
+            "description": "Deprecated compatibility field; authorization uses server-side tokens.",
             "items": {
               "$ref": "#/components/schemas/Permission"
             },
@@ -3135,6 +3137,8 @@
             "type": "integer"
           },
           "permissions": {
+            "deprecated": true,
+            "description": "Deprecated compatibility field; authorization uses server-side tokens.",
             "items": {
               "$ref": "#/components/schemas/Permission"
             },
@@ -3165,6 +3169,8 @@
             "type": "integer"
           },
           "permissions": {
+            "deprecated": true,
+            "description": "Deprecated compatibility field; authorization uses server-side tokens.",
             "items": {
               "$ref": "#/components/schemas/Permission"
             },
@@ -3315,6 +3321,8 @@
             "type": "integer"
           },
           "permissions": {
+            "deprecated": true,
+            "description": "Deprecated compatibility field; authorization uses server-side tokens.",
             "items": {
               "$ref": "#/components/schemas/Permission"
             },
@@ -3737,6 +3745,8 @@
             "type": "string"
           },
           "permissions": {
+            "deprecated": true,
+            "description": "Deprecated compatibility field; authorization uses server-side tokens.",
             "items": {
               "$ref": "#/components/schemas/Permission"
             },
@@ -6565,6 +6575,7 @@
           "ANGLE",
           "ANGULAR_VELOCITY",
           "ANGULAR_ACCELERATION",
+          "CURRENT_RATE",
           "LENGTH",
           "POWER",
           "ENERGY",

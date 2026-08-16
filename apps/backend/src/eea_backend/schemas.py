@@ -300,7 +300,11 @@ class CommissioningRevisionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     expected_revision: int = Field(ge=1)
-    permissions: list[Permission] = Field(default_factory=list)
+    permissions: list[Permission] = Field(
+        default_factory=list,
+        deprecated=True,
+        description="Deprecated compatibility field; authorization uses server-side tokens.",
+    )
 
 
 class CommissioningStepExecuteRequest(CommissioningRevisionRequest):

@@ -75,6 +75,19 @@ class CommissioningRepository(Protocol):
         payload: dict[str, object],
     ) -> HardwareActionIntent | None: ...
 
+    def claim_safety_action(
+        self,
+        *,
+        session_id: UUID,
+        expected_revision: int,
+        expected_state: CommissioningState,
+        action: str,
+        request_hash: str,
+        payload: dict[str, object],
+        stale_action_id: UUID,
+        stale_journal_id: UUID,
+    ) -> HardwareActionIntent | None: ...
+
     def finalize_hardware_action(
         self,
         intent: HardwareActionIntent,
@@ -544,6 +557,8 @@ class CommissioningService:
                     step,
                     runtime_violation,
                     action=action,
+                    rollback=True,
+                    requires_emergency_stop=True,
                 )
             post_failures: list[dict[str, object]] = []
             self._check_identity(session, post_failures)
@@ -554,6 +569,23 @@ class CommissioningService:
                 watchdog_result = None
             if watchdog_result is None or not watchdog_result.ok:
                 post_failures.append({"check": "watchdog", "reason": "watchdog lost during action"})
+            elif "duration_seconds" in watchdog_result.measurements:
+                watchdog_duration = self._duration_seconds(
+                    watchdog_result.measurements["duration_seconds"],
+                    session.safety_limits_snapshot.watchdog_timeout,
+                )
+                watchdog_limit = session.safety_limits_snapshot.watchdog_timeout
+                if (
+                    watchdog_duration is None
+                    or watchdog_limit is None
+                    or watchdog_duration > watchdog_limit.require_normalized_nominal() + 1e-12
+                ):
+                    post_failures.append(
+                        {
+                            "check": "watchdog",
+                            "reason": "watchdog duration is unknown or exceeded its safety limit",
+                        }
+                    )
             if post_failures:
                 return self._fault(
                     session,
@@ -586,6 +618,7 @@ class CommissioningService:
                     rollback=True,
                     action=action,
                     state_override=CommissioningState.EMERGENCY_STOP,
+                    requires_emergency_stop=True,
                 )
                 raise _engineering_error(EngineeringErrorCode.SAFETY_LIMIT_VIOLATION, violation)
         next_state = {
@@ -749,6 +782,7 @@ class CommissioningService:
             expected_revision=expected_revision,
             action="EMERGENCY_STOP",
             expected_state=session.state,
+            safety_preemption=session.active_action_id is not None,
         )
         # E-stop is a safety action and must remain reachable even when a grant is unavailable.
         stop = self._safe_adapter_call("emergency_stop")
@@ -1088,27 +1122,12 @@ class CommissioningService:
         action: str,
     ) -> list[ValidatedPermissionGrant]:
         if self.permission_authority is None:
-            # Direct application tests from M18D predate the server authority.  The API never
-            # uses this compatibility path; production API services always inject an authority.
-            missing = sorted(item.value for item in required if item not in requested)
-            if missing:
-                raise _engineering_error(
-                    EngineeringErrorCode.PERMISSION_REQUIRED,
-                    "hardware permission is missing; permissions are not escalated by the agent",
-                    missing=missing,
-                )
-            return [
-                ValidatedPermissionGrant(
-                    token_id=uuid5(NAMESPACE_URL, f"legacy-test-grant:{session.id}:{item.value}"),
-                    actor_id=actor,
-                    project_id=session.project_id,
-                    permission=item,
-                    resource_type="HardwareTarget",
-                    resource_id=session.target_id,
-                    session_id=session.id,
-                )
-                for item in sorted(required, key=lambda value: value.value)
-            ]
+            raise _engineering_error(
+                EngineeringErrorCode.PERMISSION_REQUIRED,
+                "a PermissionAuthority is required; requested permissions are never trusted",
+                action=action,
+                required_permissions=sorted(item.value for item in required),
+            )
         grants: list[ValidatedPermissionGrant] = []
         for permission in sorted(required, key=lambda value: value.value):
             verified: ValidatedPermissionGrant | None = None
@@ -1247,14 +1266,29 @@ class CommissioningService:
         expected_revision: int,
         action: str,
         expected_state: CommissioningState,
+        safety_preemption: bool = False,
     ) -> tuple[HardwareActionIntent | None, int]:
-        if session.active_action_id is not None:
+        stale_action_id = session.active_action_id
+        stale_journal_id = session.active_action_journal_id
+        if stale_action_id is not None and not safety_preemption:
             raise _engineering_error(
                 EngineeringErrorCode.RECOVERY_REQUIRED,
                 "a previous hardware action has not been reconciled",
-                action_id=str(session.active_action_id),
+                action_id=str(stale_action_id),
+            )
+        if safety_preemption and (stale_action_id is None or stale_journal_id is None):
+            raise _engineering_error(
+                EngineeringErrorCode.RECOVERY_REQUIRED,
+                "safety preemption requires a durable stale action journal",
             )
         claimer = getattr(self.repository, "claim_hardware_action", None)
+        if safety_preemption:
+            claimer = getattr(self.repository, "claim_safety_action", None)
+            if claimer is None:
+                raise _engineering_error(
+                    EngineeringErrorCode.RECOVERY_REQUIRED,
+                    "repository does not support atomic safety preemption",
+                )
         if claimer is None:
             return None, expected_revision
         payload = {
@@ -1266,6 +1300,13 @@ class CommissioningService:
             "resource_lock_ids": [str(item) for item in session.resource_lock_ids],
             "permission_token_ids": [str(item) for item in session.permission_token_ids],
         }
+        if safety_preemption:
+            payload.update(
+                {
+                    "preempted_action_id": str(stale_action_id),
+                    "preempted_journal_id": str(stale_journal_id),
+                }
+            )
         request_hash = payload_sha256(
             {
                 "session_id": str(session.id),
@@ -1274,14 +1315,28 @@ class CommissioningService:
                 **payload,
             }
         )
-        intent = claimer(
-            session_id=session.id,
-            expected_revision=expected_revision,
-            expected_state=expected_state,
-            action=action,
-            request_hash=request_hash,
-            payload=payload,
-        )
+        if safety_preemption:
+            assert stale_action_id is not None
+            assert stale_journal_id is not None
+            intent = claimer(
+                session_id=session.id,
+                expected_revision=expected_revision,
+                expected_state=expected_state,
+                action=action,
+                request_hash=request_hash,
+                payload=payload,
+                stale_action_id=stale_action_id,
+                stale_journal_id=stale_journal_id,
+            )
+        else:
+            intent = claimer(
+                session_id=session.id,
+                expected_revision=expected_revision,
+                expected_state=expected_state,
+                action=action,
+                request_hash=request_hash,
+                payload=payload,
+            )
         if intent is None:
             raise _engineering_error(
                 EngineeringErrorCode.RESOURCE_BUSY,
@@ -1325,6 +1380,7 @@ class CommissioningService:
         action: HardwareActionIntent | None = None,
         details: dict[str, object] | None = None,
         state_override: CommissioningState | None = None,
+        requires_emergency_stop: bool = False,
     ) -> HardwareCommissioningSession:
         stop = self._safe_adapter_call("emergency_stop")
         safe = self._safe_adapter_call("enter_safe_state")
@@ -1337,11 +1393,16 @@ class CommissioningService:
             and safe.safe_state_verified is True
             and not quarantine_failures
         )
-        final_state = state_override or (
-            CommissioningState.ROLLBACK_REQUIRED
-            if rollback or not safe_proven
-            else CommissioningState.FAULTED
-        )
+        if not safe_proven:
+            final_state = CommissioningState.ROLLBACK_REQUIRED
+            session.emergency_stop_state = EmergencyStopState.UNKNOWN
+        elif requires_emergency_stop or state_override is CommissioningState.EMERGENCY_STOP:
+            final_state = CommissioningState.EMERGENCY_STOP
+            session.emergency_stop_state = EmergencyStopState.ACTIVE
+        else:
+            final_state = state_override or (
+                CommissioningState.ROLLBACK_REQUIRED if rollback else CommissioningState.FAULTED
+            )
         session.transition(final_state)
         measurements: dict[str, object] = {
             "reason": reason,
@@ -1452,20 +1513,20 @@ class CommissioningService:
             "speed": limits.max_speed,
             "bus_voltage": limits.max_bus_voltage,
             "temperature": limits.max_temperature,
+            "pwm_enable_duration": limits.max_pwm_enable_duration,
             "current_ramp_rate": limits.current_ramp_rate,
             "speed_ramp_rate": limits.speed_ramp_rate,
             "position_delta": limits.max_position_delta,
         }
-        normalized: dict[str, float] = {}
-        for name, ceiling in dimensions.items():
-            if ceiling is None or name not in measurements:
-                continue
-            value = CommissioningService._canonical_measurement(measurements[name], ceiling)
-            if value is None:
-                return f"{step} measurement {name} is missing, unknown, or dimension-mismatched"
-            normalized[name] = value
         required = {
-            "LOW_POWER": {"phase_current", "duty_cycle", "bus_voltage", "temperature"},
+            "LOW_POWER": {
+                "phase_current",
+                "duty_cycle",
+                "bus_voltage",
+                "temperature",
+                "pwm_enable_duration",
+                "current_ramp_rate",
+            },
             "CLOSED_LOOP_LIMITED": {
                 "phase_current",
                 "iq",
@@ -1474,12 +1535,25 @@ class CommissioningService:
                 "duty_cycle",
                 "bus_voltage",
                 "temperature",
+                "pwm_enable_duration",
+                "current_ramp_rate",
+                "speed_ramp_rate",
             },
         }[step]
         if measurements.get("position_control_active") is True:
             required.add("position_delta")
         if not required.issubset(measurements):
             return f"{step} did not produce all mandatory safety measurements"
+        normalized: dict[str, float] = {}
+        for name, ceiling in dimensions.items():
+            if name not in required:
+                continue
+            if ceiling is None:
+                return f"{step} safety limit {name} is not configured"
+            value = CommissioningService._canonical_measurement(measurements[name], ceiling)
+            if value is None:
+                return f"{step} measurement {name} is missing, unknown, or dimension-mismatched"
+            normalized[name] = value
         if "runtime_seconds" not in measurements:
             return f"{step} did not produce mandatory runtime measurement"
         runtime_raw = measurements["runtime_seconds"]
@@ -1537,6 +1611,14 @@ class CommissioningService:
         if value is None or value.dimension is not ceiling.dimension:
             return None
         return value.require_normalized_nominal()
+
+    @staticmethod
+    def _duration_seconds(raw: object, limit: EngineeringValue | None) -> float | None:
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            return float(raw)
+        if limit is None:
+            return None
+        return CommissioningService._canonical_measurement(raw, limit)
 
 
 __all__ = [

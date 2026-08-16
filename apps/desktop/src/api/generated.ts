@@ -124,6 +124,7 @@ export const engineeringDimensionValues = [
   "ANGLE",
   "ANGULAR_VELOCITY",
   "ANGULAR_ACCELERATION",
+  "CURRENT_RATE",
   "LENGTH",
   "POWER",
   "ENERGY",

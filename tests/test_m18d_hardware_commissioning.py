@@ -31,7 +31,7 @@ from eea_backend.repositories import SqlAlchemyArtifactRepository, SqlAlchemyPro
 from eea_backend.settings import Settings
 from eea_core.domain_extensions import CommissioningRuleContribution
 from eea_core.entities import Artifact, Project
-from eea_core.enums import ArtifactStatus, EngineeringErrorCode, Permission
+from eea_core.enums import ArtifactStatus, EngineeringDimension, EngineeringErrorCode, Permission
 from eea_core.errors import EngineeringError
 from eea_core.hardware import (
     CapabilityVerificationStatus,
@@ -51,12 +51,29 @@ from eea_core.security import (
     PermissionToken,
     PermissionTokenStatus,
     PermissionVerificationContext,
+    ValidatedPermissionGrant,
 )
+from eea_core.units import UnitNormalizationService
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 PERMISSIONS = {Permission.FLASH, Permission.DEBUG, Permission.HARDWARE_CONTROL}
 ACTUATOR_PERMISSIONS = PERMISSIONS | {Permission.ACTUATOR_ENABLE}
+
+
+class FakePermissionAuthority:
+    """Explicit test-only authority; production never trusts request permissions."""
+
+    def verify(self, context: PermissionVerificationContext) -> ValidatedPermissionGrant:
+        return ValidatedPermissionGrant(
+            token_id=context.token_id,
+            actor_id=context.actor_id,
+            project_id=context.project_id,
+            permission=context.permission,
+            resource_type=context.resource_type,
+            resource_id=context.resource_id,
+            session_id=context.session_id,
+        )
 
 
 def _migrate(settings: Settings) -> None:
@@ -150,6 +167,7 @@ def _fixture(tmp_path: Path, *, with_lock: bool = True, failures: set[str] | Non
             )
         session.commit()
     adapter = FakeHardwareCommissioningAdapter(identity, probe, failures=failures or set())
+    test_permission_token_ids = [str(uuid4()) for _ in ACTUATOR_PERMISSIONS]
     with Session(engine) as session:
         repo = SqlAlchemyCommissioningRepository(session)
         service = CommissioningService(
@@ -159,6 +177,7 @@ def _fixture(tmp_path: Path, *, with_lock: bool = True, failures: set[str] | Non
             artifact_hash=repo.artifact_hash,
             lock_lookup=repo.get_lock,
             capability_lookup=repo.get_capability,
+            permission_authority=FakePermissionAuthority(),
         )
         session_entity = service.create_session(
             project_id=project.id,
@@ -173,6 +192,7 @@ def _fixture(tmp_path: Path, *, with_lock: bool = True, failures: set[str] | Non
             source_revision_id=uuid4(),
             build_input_snapshot_id=uuid4(),
             resource_lock_ids=[lock.id] if with_lock else [],
+            permission_token_ids=test_permission_token_ids,
         )
         yield settings, engine, project, artifact, adapter, session_entity
 
@@ -190,6 +210,7 @@ def _service_for(engine, adapter):
             artifact_hash=repo.artifact_hash,
             lock_lookup=repo.get_lock,
             capability_lookup=repo.get_capability,
+            permission_authority=FakePermissionAuthority(),
         ),
     )
 
@@ -270,6 +291,13 @@ def _full_limited_measurements(*, iq: float = 0.1, id_value: float = 0.1) -> dic
         "duty_cycle": 0.05,
         "bus_voltage": {"value": 12, "unit": "V", "dimension": "VOLTAGE"},
         "temperature": {"value": 25, "unit": "C", "dimension": "TEMPERATURE"},
+        "pwm_enable_duration": {"value": 0.1, "unit": "s", "dimension": "TIME"},
+        "current_ramp_rate": {"value": 0.1, "unit": "A/s", "dimension": "CURRENT_RATE"},
+        "speed_ramp_rate": {
+            "value": 10,
+            "unit": "rpm/s",
+            "dimension": "ANGULAR_ACCELERATION",
+        },
         "encoder_direction": True,
         "encoder_plausibility": True,
         "electrical_angle_sign": True,
@@ -360,6 +388,7 @@ def test_source_authority_binding_is_exact_and_session_isolation_is_preserved(
         build_binding=build_binding,
         lock_lookup=repo.get_lock,
         capability_lookup=repo.get_capability,
+        permission_authority=FakePermissionAuthority(),
     )
     preflight = service.preflight(
         created.id, expected_revision=created.revision, permissions=PERMISSIONS
@@ -389,6 +418,7 @@ def test_source_authority_binding_is_exact_and_session_isolation_is_preserved(
         build_binding=lambda _: mismatch,
         lock_lookup=repo2.get_lock,
         capability_lookup=repo2.get_capability,
+        permission_authority=FakePermissionAuthority(),
     )
     with pytest.raises(EngineeringError):
         service2.preflight(
@@ -403,7 +433,8 @@ def test_lock_heartbeat_loss_fails_closed_and_emergency_stop_quarantines_lock(
 ) -> None:
     fixture = next(_fixture(tmp_path))
     _, engine, _, _, adapter, created = fixture
-    db_session, _, service = _service_for(engine, adapter)
+    _issue_tokens(engine, created, PERMISSIONS)
+    db_session, _, service = _authority_service(engine, adapter)
     assert created.resource_lock_ids
     lock_record = db_session.get(ResourceLockRecord, str(created.resource_lock_ids[0]))
     assert lock_record is not None
@@ -531,7 +562,8 @@ def _reach_low_power(tmp_path: Path, failures: set[str] | None = None):
 def test_low_power_and_closed_loop_require_actuator_permission(tmp_path: Path) -> None:
     fixture = next(_fixture(tmp_path))
     _, engine, _, _, adapter, created = fixture
-    db_session, _, service = _service_for(engine, adapter)
+    _issue_tokens(engine, created, PERMISSIONS)
+    db_session, _, service = _authority_service(engine, adapter)
     preflight = service.preflight(
         created.id, expected_revision=created.revision, permissions=PERMISSIONS
     )
@@ -1465,3 +1497,393 @@ def test_approval_binding_becomes_stale_when_snapshot_changes(tmp_path: Path) ->
     assert error.value.code is EngineeringErrorCode.COMMISSIONING_BLOCKED
     fixture[4].pwm_enabled = False
     db_session.close()
+
+
+def test_missing_permission_authority_fails_closed_even_with_requested_permissions(
+    tmp_path: Path,
+) -> None:
+    fixture = next(_fixture(tmp_path))
+    _, engine, _, _, adapter, created = fixture
+    session = Session(engine)
+    repository = SqlAlchemyCommissioningRepository(session)
+    service = CommissioningService(
+        repository,
+        adapter,
+        artifact_hash=repository.artifact_hash,
+        lock_lookup=repository.get_lock,
+        capability_lookup=repository.get_capability,
+        permission_authority=None,
+    )
+    with pytest.raises(EngineeringError) as error:
+        service.preflight(
+            created.id,
+            expected_revision=created.revision,
+            permissions=ACTUATOR_PERMISSIONS,
+        )
+    assert error.value.code is EngineeringErrorCode.COMMISSIONING_BLOCKED
+    assert adapter.pwm_enabled is False and adapter.actuator_enabled is False
+    session.close()
+
+
+def test_explicit_fake_permission_authority_is_the_application_test_dependency(
+    tmp_path: Path,
+) -> None:
+    fixture = next(_fixture(tmp_path))
+    _, engine, _, _, adapter, created = fixture
+    db_session, _, service = _service_for(engine, adapter)
+    passed = service.preflight(
+        created.id,
+        expected_revision=created.revision,
+        permissions=PERMISSIONS,
+    )
+    assert passed.state is CommissioningState.PREFLIGHT
+    db_session.close()
+
+
+def test_recovered_prepared_flash_is_preempted_by_estop_without_flash_retry(
+    tmp_path: Path,
+) -> None:
+    fixture = next(_fixture(tmp_path))
+    _, engine, _, _, original_adapter, created = fixture
+    adapter = _CountingAdapter(identity=original_adapter.identity, probe=original_adapter.probe)
+    db_session, repository, service = _service_for(engine, adapter)
+    preflight = service.preflight(
+        created.id,
+        expected_revision=created.revision,
+        permissions=PERMISSIONS,
+    )
+    intent = repository.claim_hardware_action(
+        session_id=created.id,
+        expected_revision=preflight.revision,
+        expected_state=CommissioningState.PREFLIGHT,
+        action="FLASH",
+        request_hash=payload_sha256({"action": "FLASH", "session_id": str(created.id)}),
+        payload={"project_id": str(created.project_id), "resource_lock_ids": []},
+    )
+    assert intent is not None
+    db_session.commit()
+    db_session.close()
+
+    summary = RecoveryService(lambda: Session(engine)).startup_recover(batch_limit=100)
+    assert summary["hardware_actions"] == 1
+    recovery_session, _, recovery_service = _service_for(engine, adapter)
+    recovered = recovery_service.get(created.id)
+    stopped = recovery_service.emergency_stop(
+        recovered.id,
+        expected_revision=recovered.revision,
+        permissions=set(),
+        source=EmergencyStopSource.USER,
+    )
+    assert stopped.state is CommissioningState.EMERGENCY_STOP
+    assert stopped.emergency_stop_state.value == "ACTIVE"
+    assert adapter.flash_calls == 0
+    assert adapter.emergency_stop_calls == 1
+    assert intent is not None
+    with Session(engine) as check:
+        old_journal = check.get(SideEffectJournalRecord, str(intent.journal_id))
+        assert old_journal is not None
+        assert old_journal.status == SideEffectStatus.RECONCILE_REQUIRED.value
+    recovery_session.close()
+
+
+def test_recovered_prepared_low_power_is_preempted_without_limited_step_retry(
+    tmp_path: Path,
+) -> None:
+    fixture = next(_fixture(tmp_path))
+    _, engine, _, _, original_adapter, created = fixture
+    adapter = _CountingAdapter(identity=original_adapter.identity, probe=original_adapter.probe)
+    db_session, repository, service = _service_for(engine, adapter)
+    preflight = service.preflight(
+        created.id,
+        expected_revision=created.revision,
+        permissions=PERMISSIONS,
+    )
+    flashed = service.flash(
+        preflight.id,
+        expected_revision=preflight.revision,
+        permissions=PERMISSIONS,
+    )
+    sensor = service.execute_step(
+        flashed.id,
+        "SENSOR_CHECK",
+        expected_revision=flashed.revision,
+        permissions=PERMISSIONS,
+        operator="operator",
+    )
+    intent = repository.claim_hardware_action(
+        session_id=created.id,
+        expected_revision=sensor.revision,
+        expected_state=CommissioningState.SENSOR_CHECK,
+        action="LOW_POWER",
+        request_hash=payload_sha256({"action": "LOW_POWER", "session_id": str(created.id)}),
+        payload={"project_id": str(created.project_id), "resource_lock_ids": []},
+    )
+    assert intent is not None
+    db_session.commit()
+    db_session.close()
+
+    summary = RecoveryService(lambda: Session(engine)).startup_recover(batch_limit=100)
+    assert summary["hardware_actions"] == 1
+    recovery_session, _, recovery_service = _service_for(engine, adapter)
+    recovered = recovery_service.get(created.id)
+    stopped = recovery_service.emergency_stop(
+        recovered.id,
+        expected_revision=recovered.revision,
+        permissions=set(),
+        source=EmergencyStopSource.USER,
+    )
+    assert stopped.state is CommissioningState.EMERGENCY_STOP
+    assert adapter.limited_step_calls == 0
+    assert adapter.emergency_stop_calls == 1
+    recovery_session.close()
+
+
+def test_recovered_prepared_emergency_stop_can_retry_safety_action(
+    tmp_path: Path,
+) -> None:
+    fixture = next(_fixture(tmp_path))
+    _, engine, _, _, original_adapter, created = fixture
+    adapter = _CountingAdapter(identity=original_adapter.identity, probe=original_adapter.probe)
+    db_session, repository, service = _service_for(engine, adapter)
+    preflight = service.preflight(
+        created.id,
+        expected_revision=created.revision,
+        permissions=PERMISSIONS,
+    )
+    intent = repository.claim_hardware_action(
+        session_id=created.id,
+        expected_revision=preflight.revision,
+        expected_state=CommissioningState.PREFLIGHT,
+        action="EMERGENCY_STOP",
+        request_hash=payload_sha256({"action": "EMERGENCY_STOP", "session_id": str(created.id)}),
+        payload={"project_id": str(created.project_id), "resource_lock_ids": []},
+    )
+    assert intent is not None
+    db_session.commit()
+    db_session.close()
+
+    RecoveryService(lambda: Session(engine)).startup_recover(batch_limit=100)
+    recovery_session, _, recovery_service = _service_for(engine, adapter)
+    recovered = recovery_service.get(created.id)
+    retried = recovery_service.emergency_stop(
+        recovered.id,
+        expected_revision=recovered.revision,
+        permissions=set(),
+        source=EmergencyStopSource.USER,
+    )
+    assert retried.state is CommissioningState.EMERGENCY_STOP
+    assert adapter.emergency_stop_calls == 1
+    recovery_session.close()
+
+
+def test_unverified_safe_state_on_limit_violation_is_rollback_unknown(
+    tmp_path: Path,
+) -> None:
+    fixture, db_session, service, sensor = _reach_low_power(tmp_path)
+    _, _, _, _, adapter, _ = fixture
+    adapter.failures.update({"overcurrent", "safe_state"})
+    with pytest.raises(EngineeringError) as error:
+        service.execute_step(
+            sensor.id,
+            "LOW_POWER",
+            expected_revision=sensor.revision,
+            permissions=ACTUATOR_PERMISSIONS,
+            operator="operator",
+        )
+    failed = service.get(sensor.id)
+    assert error.value.code is EngineeringErrorCode.SAFETY_LIMIT_VIOLATION
+    assert failed.state is CommissioningState.ROLLBACK_REQUIRED
+    assert failed.emergency_stop_state.value == "UNKNOWN"
+    db_session.close()
+
+
+def test_verified_safe_state_on_limit_violation_is_active_emergency_stop(
+    tmp_path: Path,
+) -> None:
+    fixture, db_session, service, sensor = _reach_low_power(tmp_path, {"overcurrent"})
+    _, _, _, _, adapter, _ = fixture
+    with pytest.raises(EngineeringError):
+        service.execute_step(
+            sensor.id,
+            "LOW_POWER",
+            expected_revision=sensor.revision,
+            permissions=ACTUATOR_PERMISSIONS,
+            operator="operator",
+        )
+    failed = service.get(sensor.id)
+    assert failed.state is CommissioningState.EMERGENCY_STOP
+    assert failed.emergency_stop_state.value == "ACTIVE"
+    assert adapter.pwm_enabled is False and adapter.actuator_enabled is False
+    db_session.close()
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["pwm_enable_duration", "current_ramp_rate"],
+)
+def test_missing_low_power_safety_measurement_fails_closed(tmp_path: Path, field: str) -> None:
+    fixture = next(_fixture(tmp_path))
+    _, engine, _, _, adapter, created = fixture
+    measurements = {
+        "phase_current": {"value": 0.1, "unit": "A", "dimension": "CURRENT"},
+        "duty_cycle": 0.05,
+        "bus_voltage": {"value": 12, "unit": "V", "dimension": "VOLTAGE"},
+        "temperature": {"value": 25, "unit": "C", "dimension": "TEMPERATURE"},
+        "pwm_enable_duration": {"value": 0.1, "unit": "s", "dimension": "TIME"},
+        "current_ramp_rate": {
+            "value": 0.1,
+            "unit": "A/s",
+            "dimension": "CURRENT_RATE",
+        },
+    }
+    measurements.pop(field)
+    adapter.measurements["LOW_POWER"] = measurements
+    db_session, _, service = _service_for(engine, adapter)
+    preflight = service.preflight(
+        created.id, expected_revision=created.revision, permissions=PERMISSIONS
+    )
+    flashed = service.flash(
+        preflight.id, expected_revision=preflight.revision, permissions=PERMISSIONS
+    )
+    sensor = service.execute_step(
+        flashed.id,
+        "SENSOR_CHECK",
+        expected_revision=flashed.revision,
+        permissions=PERMISSIONS,
+        operator="operator",
+    )
+    with pytest.raises(EngineeringError) as error:
+        service.execute_step(
+            sensor.id,
+            "LOW_POWER",
+            expected_revision=sensor.revision,
+            permissions=ACTUATOR_PERMISSIONS,
+            operator="operator",
+        )
+    assert error.value.code is EngineeringErrorCode.SAFETY_LIMIT_VIOLATION
+    assert service.get(sensor.id).state is CommissioningState.EMERGENCY_STOP
+    db_session.close()
+
+
+def test_pwm_enable_duration_and_current_ramp_limit_breaches_stop_safely(
+    tmp_path: Path,
+) -> None:
+    fixture, db_session, service, sensor = _reach_low_power(tmp_path)
+    _, _, _, _, adapter, _ = fixture
+    adapter.measurements["LOW_POWER"] = {
+        "phase_current": {"value": 0.1, "unit": "A", "dimension": "CURRENT"},
+        "duty_cycle": 0.05,
+        "bus_voltage": {"value": 12, "unit": "V", "dimension": "VOLTAGE"},
+        "temperature": {"value": 25, "unit": "C", "dimension": "TEMPERATURE"},
+        "pwm_enable_duration": {"value": 2, "unit": "s", "dimension": "TIME"},
+        "current_ramp_rate": {"value": 2, "unit": "A/s", "dimension": "CURRENT_RATE"},
+    }
+    with pytest.raises(EngineeringError) as error:
+        service.execute_step(
+            sensor.id,
+            "LOW_POWER",
+            expected_revision=sensor.revision,
+            permissions=ACTUATOR_PERMISSIONS,
+            operator="operator",
+        )
+    assert error.value.code is EngineeringErrorCode.SAFETY_LIMIT_VIOLATION
+    assert service.get(sensor.id).emergency_stop_state.value == "ACTIVE"
+    db_session.close()
+
+
+def test_missing_or_excessive_closed_loop_speed_ramp_fails_closed(
+    tmp_path: Path,
+) -> None:
+    fixture, db_session, service, sensor = _reach_low_power(tmp_path)
+    _, _, _, _, adapter, _ = fixture
+    low = service.execute_step(
+        sensor.id,
+        "LOW_POWER",
+        expected_revision=sensor.revision,
+        permissions=ACTUATOR_PERMISSIONS,
+        operator="operator",
+    )
+    measurements = _full_limited_measurements()
+    measurements.pop("speed_ramp_rate")
+    adapter.measurements["CLOSED_LOOP_LIMITED"] = measurements
+    with pytest.raises(EngineeringError) as missing_error:
+        service.execute_step(
+            low.id,
+            "CLOSED_LOOP_LIMITED",
+            expected_revision=low.revision,
+            permissions=ACTUATOR_PERMISSIONS,
+            operator="operator",
+        )
+    assert missing_error.value.code is EngineeringErrorCode.SAFETY_LIMIT_VIOLATION
+
+    fixture2, db_session2, service2, sensor2 = _reach_low_power(tmp_path / "excessive")
+    _, _, _, _, adapter2, _ = fixture2
+    low2 = service2.execute_step(
+        sensor2.id,
+        "LOW_POWER",
+        expected_revision=sensor2.revision,
+        permissions=ACTUATOR_PERMISSIONS,
+        operator="operator",
+    )
+    excessive = _full_limited_measurements()
+    excessive["speed_ramp_rate"] = {
+        "value": 1000,
+        "unit": "rpm/s",
+        "dimension": "ANGULAR_ACCELERATION",
+    }
+    adapter2.measurements["CLOSED_LOOP_LIMITED"] = excessive
+    with pytest.raises(EngineeringError) as excessive_error:
+        service2.execute_step(
+            low2.id,
+            "CLOSED_LOOP_LIMITED",
+            expected_revision=low2.revision,
+            permissions=ACTUATOR_PERMISSIONS,
+            operator="operator",
+        )
+    assert excessive_error.value.code is EngineeringErrorCode.SAFETY_LIMIT_VIOLATION
+    db_session.close()
+    db_session2.close()
+
+
+def test_test_runtime_and_pwm_enable_duration_are_independent_limits(tmp_path: Path) -> None:
+    fixture, db_session, service, sensor = _reach_low_power(tmp_path)
+    _, _, _, _, adapter, _ = fixture
+    low_measurements = {
+        **_full_limited_measurements(),
+        "runtime_seconds": 2.0,
+        "pwm_enable_duration": {"value": 0.5, "unit": "s", "dimension": "TIME"},
+    }
+    adapter.measurements["LOW_POWER"] = low_measurements
+    low = service.execute_step(
+        sensor.id,
+        "LOW_POWER",
+        expected_revision=sensor.revision,
+        permissions=ACTUATOR_PERMISSIONS,
+        operator="operator",
+    )
+    assert low.state is CommissioningState.LOW_POWER
+    closed_measurements = {
+        **_full_limited_measurements(),
+        "runtime_seconds": 2.0,
+        "pwm_enable_duration": {"value": 1.5, "unit": "s", "dimension": "TIME"},
+    }
+    adapter.measurements["CLOSED_LOOP_LIMITED"] = closed_measurements
+    with pytest.raises(EngineeringError) as error:
+        service.execute_step(
+            low.id,
+            "CLOSED_LOOP_LIMITED",
+            expected_revision=low.revision,
+            permissions=ACTUATOR_PERMISSIONS,
+            operator="operator",
+        )
+    assert error.value.code is EngineeringErrorCode.SAFETY_LIMIT_VIOLATION
+    assert service.get(low.id).state is CommissioningState.EMERGENCY_STOP
+    db_session.close()
+
+
+def test_rpm_per_second_normalizes_to_angular_acceleration() -> None:
+    assert UnitNormalizationService.normalize(
+        60,
+        "rpm/s",
+        EngineeringDimension.ANGULAR_ACCELERATION,
+    ) == pytest.approx(2 * 3.141592653589793)
