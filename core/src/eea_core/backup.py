@@ -8,12 +8,25 @@ import posixpath
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
 
 class BackupValidationError(ValueError):
     """A backup cannot be accepted without risking data loss or authority bypass."""
+
+
+class RestoreOperationState(StrEnum):
+    """Durable states for a restore crossing SQL and filesystem boundaries."""
+
+    VALIDATED = "VALIDATED"
+    STAGED = "STAGED"
+    PREPARED = "PREPARED"
+    FS_ACTIVATED = "FS_ACTIVATED"
+    ACTIVATED = "ACTIVATED"
+    ROLLBACK_REQUIRED = "ROLLBACK_REQUIRED"
+    FAILED = "FAILED"
 
 
 class BackupSecretPolicy:
@@ -180,6 +193,7 @@ __all__ = [
     "BackupSecretPolicy",
     "BackupValidationError",
     "ProjectBackupManifest",
+    "RestoreOperationState",
     "canonical_json",
     "manifest_from_json",
     "sha256_bytes",

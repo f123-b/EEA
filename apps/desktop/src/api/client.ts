@@ -6,7 +6,14 @@ export type BackendClient = Readonly<{
 
 export function validateLoopbackBaseUrl(value: string): string {
   const url = new URL(value);
-  if (url.protocol !== "http:" || !["127.0.0.1", "[::1]", "localhost"].includes(url.hostname)) {
+  if (
+    url.protocol !== "http:" ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    !["127.0.0.1", "[::1]", "localhost"].includes(url.hostname)
+  ) {
     throw new Error("backend must use an HTTP loopback URL");
   }
   return url.toString().replace(/\/$/u, "");

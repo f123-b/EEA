@@ -24,7 +24,7 @@ class IdentityRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def ensure_local_user(self) -> UserIdentity:
+    def ensure_local_user(self, *, commit: bool = True) -> UserIdentity:
         expected = local_single_user()
         record = self.session.scalar(
             select(IdentityUserRecord).where(
@@ -45,7 +45,8 @@ class IdentityRepository:
                 mode=expected.mode.value,
             )
             self.session.add(record)
-            self.session.commit()
+            if commit:
+                self.session.commit()
         return UserIdentity(
             id=UUID(record.id),
             stable_actor_id=record.stable_actor_id,
@@ -53,7 +54,9 @@ class IdentityRepository:
             mode=IdentityMode(record.mode),
         )
 
-    def ensure_project_owner(self, project_id: UUID, user: UserIdentity) -> ProjectRole:
+    def ensure_project_owner(
+        self, project_id: UUID, user: UserIdentity, *, commit: bool = True
+    ) -> ProjectRole:
         assignment = self.session.scalar(
             select(ProjectRoleAssignmentRecord).where(
                 ProjectRoleAssignmentRecord.project_id == str(project_id),
@@ -76,7 +79,8 @@ class IdentityRepository:
                 role=ProjectRole.OWNER.value,
             )
             self.session.add(assignment)
-            self.session.commit()
+            if commit:
+                self.session.commit()
         return ProjectRole(assignment.role)
 
 

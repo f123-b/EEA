@@ -5,6 +5,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
+from eea_core.backup import RestoreOperationState
 from eea_core.enums import (
     ArtifactStatus,
     BuildStatus,
@@ -1778,6 +1779,35 @@ class SideEffectJournalRecord(Base):
     prepared_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RestoreOperationRecord(Base):
+    """Durable bridge for a restore spanning SQL and filesystem activation."""
+
+    __tablename__ = "restore_operations"
+    __table_args__ = (
+        CheckConstraint(
+            f"state IN ({_enum_values(RestoreOperationState)})", name="restore_operation_state"
+        ),
+        CheckConstraint("length(manifest_hash) = 64", name="restore_manifest_hash_length"),
+        Index("ix_restore_operations_state_updated", "state", "updated_at"),
+        Index("ix_restore_operations_project", "project_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(30), nullable=False)
+    staging_path: Mapped[str] = mapped_column(String(2000), nullable=False)
+    destination_path: Mapped[str] = mapped_column(String(2000), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    source_revision_id: Mapped[str | None] = mapped_column(String(36))
+    source_revision_hash: Mapped[str | None] = mapped_column(String(64))
+    operation_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revision: Mapped[int] = mapped_column(nullable=False, default=1)
 
 
 class IdentityUserRecord(CoreRecordMixin, Base):

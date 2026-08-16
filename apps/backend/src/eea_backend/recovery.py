@@ -61,6 +61,7 @@ from eea_backend.reliability_repositories import (
 )
 
 SafeSideEffectReconciler = Callable[[Session, SideEffectJournal], str | None]
+RestoreRecovery = Callable[[int], dict[str, int]]
 
 
 class SafeSideEffectReconcilerRegistry:
@@ -95,6 +96,7 @@ class RecoveryService:
         handler_budget_seconds: int = 10,
         safe_reconcilers: SafeSideEffectReconcilerRegistry | None = None,
         busy_retry: BusyRetryPolicy | None = None,
+        restore_recovery: RestoreRecovery | None = None,
     ) -> None:
         if lease_seconds <= handler_budget_seconds:
             raise ValueError("lease_seconds must exceed handler_budget_seconds")
@@ -107,6 +109,7 @@ class RecoveryService:
         self.handler_budget_seconds = handler_budget_seconds
         self.safe_reconcilers = safe_reconcilers or SafeSideEffectReconcilerRegistry()
         self.busy_retry = busy_retry or BusyRetryPolicy()
+        self.restore_recovery = restore_recovery
 
     def recover_expired_outbox_leases(
         self, *, limit: int = 100, project_id: UUID | None = None
@@ -405,11 +408,13 @@ class RecoveryService:
         }
 
     def startup_recover(self, *, batch_limit: int = 100) -> dict[str, Any]:
+        restore = self.restore_recovery(batch_limit) if self.restore_recovery is not None else {}
         reclaimed = self.recover_expired_outbox_leases(limit=batch_limit)
         interrupted = self.reconcile_interrupted_jobs(limit=batch_limit)
         hardware_actions = self.reconcile_pending_hardware_actions(limit=batch_limit)
         dispatched = self.dispatch_ready_events(limit=batch_limit)
         return {
+            "restore": restore,
             "reclaimed": reclaimed,
             "interrupted_jobs": interrupted,
             "hardware_actions": hardware_actions,

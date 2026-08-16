@@ -29,6 +29,7 @@ from eea_application.source_workspace import SourceWorkspaceService
 from eea_application.testing import TestExecutorRegistry
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
+from eea_core.failure_injection import FailureInjectionHarness
 from eea_core.hardware import HardwareIdentity, ProbeIdentity
 from eea_ports.ai import AIProvider
 from eea_ports.secrets import SecretReference
@@ -52,6 +53,7 @@ from eea_backend.recovery import OutboxDispatcher, RecoveryService
 from eea_backend.reliability_repositories import SqlAlchemyOutboxRepository
 from eea_backend.repositories import SqlAlchemyPromptRepository
 from eea_backend.requirement_repositories import SqlAlchemyRequirementProfileRepository
+from eea_backend.restore_service import RestoreCoordinator
 from eea_backend.schemas import ApiEnvelope, HealthResponse, VersionData
 from eea_backend.security import require_session_token
 from eea_backend.settings import Settings
@@ -224,11 +226,20 @@ def create_app(
     application.state.static_analysis_provider = CppcheckAdapter()
     application.state.test_executor_registry = TestExecutorRegistry()
     application.state.crash_injector = NoopCrashInjector()
+    application.state.restore_failure_injector = FailureInjectionHarness()
     application.state.recovery_worker_id = recovery_worker_id
+    application.state.restore_coordinator = RestoreCoordinator(
+        lambda: Session(engine),
+        resolved_settings,
+        failure_injector=application.state.restore_failure_injector,
+    )
     application.state.recovery_service = RecoveryService(
         lambda: Session(engine),
         worker_id=recovery_worker_id,
         crash_injector=application.state.crash_injector,
+        restore_recovery=lambda limit: application.state.restore_coordinator.recover_pending(
+            limit=limit
+        ),
     )
     application.state.outbox_dispatcher = OutboxDispatcher(
         application.state.recovery_service,

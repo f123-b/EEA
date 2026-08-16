@@ -12873,6 +12873,18 @@
             "title": "Archive Path",
             "type": "string"
           },
+          "operation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Id"
+          },
           "project_id": {
             "format": "uuid",
             "title": "Project Id",

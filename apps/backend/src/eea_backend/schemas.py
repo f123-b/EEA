@@ -1728,6 +1728,7 @@ class RestoreValidateRequest(BaseModel):
 
     archive_path: str = Field(min_length=1, max_length=2000)
     project_id: UUID
+    operation_id: UUID | None = None
 
 
 class RestoreData(BaseModel):

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Iterator
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, cast
 from uuid import UUID
 
+from eea_adapters.source import FileSystemSourceWorkspaceAdapter
 from eea_application.backup import (
     BackupOperationError,
     BackupRecord,
@@ -26,6 +27,7 @@ from eea_core.capacity import CAPACITY_PROFILES, get_capacity_profile
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from eea_core.renderer_security import default_renderer_csp
+from eea_core.source import source_file_manifest, source_manifest_hash
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -37,6 +39,7 @@ from eea_backend.models import (
     SourceRevisionRecord,
     SourceWorkspaceRecord,
 )
+from eea_backend.restore_service import RestoreCoordinator
 from eea_backend.schemas import (
     ApiEnvelope,
     BackupExportData,
@@ -57,6 +60,29 @@ def _session(request: Request) -> Iterator[Session]:
 
 
 SessionDependency = Annotated[Session, Depends(_session)]
+
+_SOURCE_CREDENTIAL_FILENAMES = frozenset(
+    {
+        ".env",
+        ".env.local",
+        ".env.development",
+        ".env.production",
+        "credentials.json",
+        "credentials.yaml",
+        "credentials.yml",
+        "secrets.json",
+        "secrets.yaml",
+        "secrets.yml",
+        "id_rsa",
+        "id_ed25519",
+    }
+)
+_SOURCE_CREDENTIAL_SUFFIXES = frozenset({".key", ".pem", ".p12", ".pfx"})
+
+
+def _is_source_credential_file(relative: str) -> bool:
+    name = Path(relative.replace("\\", "/")).name.lower()
+    return name in _SOURCE_CREDENTIAL_FILENAMES or Path(name).suffix in _SOURCE_CREDENTIAL_SUFFIXES
 
 
 def _request_id(request: Request) -> str:
@@ -114,6 +140,48 @@ def _project_records(session: Session, project_id: UUID) -> tuple[BackupRecord, 
                     f"{directory}/{row_with_id.id}.json", _record_payload(row), object_type
                 )
             )
+            if model is ArtifactRecord:
+                storage_uri = Path(str(row_with_id.storage_uri))
+                if storage_uri.is_file() and not storage_uri.is_symlink():
+                    content = storage_uri.read_bytes()
+                    if hashlib.sha256(content).hexdigest() != row_with_id.content_hash:
+                        raise BackupValidationError(
+                            "portable artifact content hash does not match metadata"
+                        )
+                    records.append(
+                        BackupRecord(
+                            f"artifacts/{row_with_id.id}.bin",
+                            content,
+                            "artifact_bytes",
+                        )
+                    )
+    workspace = session.scalar(
+        select(SourceWorkspaceRecord).where(SourceWorkspaceRecord.project_id == str(project_id))
+    )
+    if workspace is not None:
+        files = dict(FileSystemSourceWorkspaceAdapter(Path(workspace.root_path)).list_files())
+        revision = (
+            session.get(SourceRevisionRecord, workspace.current_source_revision_id)
+            if workspace.current_source_revision_id
+            else None
+        )
+        if files and revision is None:
+            raise BackupValidationError(
+                "source bytes exist without an authoritative source revision"
+            )
+        if revision is not None:
+            actual_manifest = source_file_manifest(files)
+            if (
+                actual_manifest != revision.file_manifest
+                or source_manifest_hash(actual_manifest) != revision.source_manifest_hash
+            ):
+                raise BackupValidationError("source bytes do not match SourceRevision authority")
+            for relative, content in sorted(files.items()):
+                if _is_source_credential_file(relative):
+                    raise BackupValidationError(
+                        "source credential files are excluded from project backups"
+                    )
+                records.append(BackupRecord(f"source/{relative}", content, "source_file"))
     return tuple(records)
 
 
@@ -238,62 +306,6 @@ def _read_manifest(path: Path, service: ProjectBackupService) -> ProjectBackupMa
         raise EngineeringError(EngineeringErrorCode.BACKUP_INVALID, "backup is invalid") from exc
 
 
-def _model_from_payload(model: type[Any], payload: dict[str, object]) -> Any:
-    columns = {column.name for column in model.__table__.columns}
-    values: dict[str, object] = {}
-    for column in model.__table__.columns:
-        key = "metadata" if column.name == "metadata" else column.name
-        if key not in payload:
-            continue
-        value = payload[key]
-        if column.name in {"created_at", "updated_at", "deleted_at"} and isinstance(value, str):
-            value = datetime.fromisoformat(value)
-        values["entity_metadata" if column.name == "metadata" else column.name] = value
-    if "id" not in columns or "id" not in values:
-        raise BackupValidationError("project backup record has no stable id")
-    return model(**values)
-
-
-def _restore_database_records(
-    session: Session,
-    staging: Path,
-    destination: Path,
-    manifest: ProjectBackupManifest,
-) -> None:
-    """Restore the portable project-authoritative record set in one SQL transaction."""
-
-    record_paths = {item.path for item in manifest.objects}
-    project_path = "records/projects.json"
-    if project_path not in record_paths:
-        raise BackupValidationError("portable project backup has no project record")
-    project_payload = json.loads((staging / project_path).read_text(encoding="utf-8"))
-    if project_payload.get("id") != str(manifest.project_id):
-        raise RestoreConflictError("project record identity does not match manifest")
-    session.rollback()
-    with session.begin():
-        if session.get(ProjectRecord, str(manifest.project_id)) is not None:
-            raise RestoreConflictError("project already exists and overwrite is forbidden")
-        session.add(_model_from_payload(ProjectRecord, project_payload))
-        session.flush()
-        ordered = (
-            (SourceRevisionRecord, "records/source-revisions/"),
-            (SourceWorkspaceRecord, "records/source-workspaces/"),
-            (ArtifactRecord, "records/artifacts/"),
-        )
-        for model, prefix in ordered:
-            for item in manifest.objects:
-                if not item.path.startswith(prefix):
-                    continue
-                payload = json.loads((staging / item.path).read_text(encoding="utf-8"))
-                if payload.get("project_id") != str(manifest.project_id):
-                    raise RestoreConflictError("record project scope does not match manifest")
-                if model is SourceWorkspaceRecord:
-                    payload["root_path"] = str(destination / "source")
-                    (staging / "source").mkdir(parents=True, exist_ok=True)
-                session.add(_model_from_payload(model, payload))
-        session.flush()
-
-
 @router.post("/projects/restore/validate", response_model=ApiEnvelope[RestoreData], tags=["m18e"])
 def validate_restore(
     payload: RestoreValidateRequest,
@@ -328,9 +340,6 @@ def restore_project(
 ) -> ApiEnvelope[RestoreData]:
     actor = authenticated_actor_id(request)
     path = _safe_data_path(request, payload.archive_path, "restore.eea.zip")
-    destination = (
-        Path(request.app.state.settings.data_dir).resolve() / "restored" / str(payload.project_id)
-    )
     identity = IdentityRepository(session).ensure_local_user()
     if actor not in {
         identity.stable_actor_id,
@@ -341,17 +350,18 @@ def restore_project(
             EngineeringErrorCode.PERMISSION_REQUIRED, "restore actor is not authorized"
         )
     try:
-        restore = _backup_service(request).restore_project(
+        restore = RestoreCoordinator(
+            lambda: Session(request.app.state.engine),
+            request.app.state.settings,
+            failure_injector=request.app.state.restore_failure_injector,
+        ).restore(
             path,
-            destination,
-            authorized_project_id=payload.project_id,
+            project_id=payload.project_id,
             actor_id=actor,
             authorize=lambda project, actor_value: (
                 project == payload.project_id and actor_value == actor
             ),
-            before_activate=lambda staging, manifest: _restore_database_records(
-                session, staging, destination, manifest
-            ),
+            requested_operation_id=payload.operation_id,
         )
     except FileNotFoundError as exc:
         raise EngineeringError(
@@ -371,15 +381,14 @@ def restore_project(
         raise EngineeringError(
             EngineeringErrorCode.BACKUP_INVALID, "restore failed closed"
         ) from exc
-    IdentityRepository(session).ensure_project_owner(payload.project_id, identity)
     return ApiEnvelope(
         data=RestoreData(
             valid=True,
             state=restore.state.value,
-            manifest_hash=restore.manifest_hash or "",
+            manifest_hash=restore.manifest.manifest_hash or "",
             project_id=restore.manifest.project_id,
             object_count=len(restore.manifest.objects),
-            staging_path=str(destination),
+            staging_path=str(restore.destination),
         ),
         request_id=_request_id(request),
     )

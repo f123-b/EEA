@@ -58,6 +58,8 @@ from eea_core.source import (
     SourceFileContent,
     SourceRevision,
     SourceWorkspaceStatus,
+    source_file_manifest,
+    source_manifest_hash,
 )
 from eea_core.testing import (
     AutomationLevel,
@@ -126,6 +128,8 @@ __all__ = [
     "TestRun",
     "TestType",
     "WatchdogState",
+    "source_file_manifest",
+    "source_manifest_hash",
 ]
 
 from eea_core.entities import (
@@ -229,6 +233,7 @@ from eea_core.backup import (
     BackupSecretPolicy,
     BackupValidationError,
     ProjectBackupManifest,
+    RestoreOperationState,
     manifest_from_json,
     sha256_bytes,
     validate_archive_member,
@@ -294,6 +299,7 @@ __all__ += [
     "ProjectRoleAssignment",
     "RendererContentRejected",
     "RendererSecurityPolicy",
+    "RestoreOperationState",
     "SanitizedRenderContent",
     "UserIdentity",
     "baseline_failure_plans",

@@ -34,6 +34,7 @@ from eea_core.failure_injection import (
     FailureInjectionPoint,
     InjectedFailureError,
 )
+from eea_core.sandbox import SafePath
 
 
 class BackupOperationError(RuntimeError):
@@ -47,7 +48,10 @@ class RestoreConflictError(BackupOperationError):
 class RestoreState(StrEnum):
     VALIDATED = "VALIDATED"
     STAGED = "STAGED"
+    PREPARED = "PREPARED"
+    FS_ACTIVATED = "FS_ACTIVATED"
     ACTIVATED = "ACTIVATED"
+    ROLLBACK_REQUIRED = "ROLLBACK_REQUIRED"
     FAILED = "FAILED"
 
 
@@ -60,6 +64,15 @@ class RestoreResult:
     @property
     def manifest_hash(self) -> str | None:
         return self.manifest.manifest_hash
+
+
+@dataclass(frozen=True, slots=True)
+class RestoreStaging:
+    """A fully verified staging tree that has not been activated yet."""
+
+    manifest: ProjectBackupManifest
+    staging: Path
+    destination: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,7 +110,12 @@ class ProjectBackupService:
         validate_archive_member(path)
 
     @staticmethod
-    def _inspect_record_content(content: bytes) -> None:
+    def _inspect_record_content(content: bytes, object_type: str = "record") -> None:
+        # Source and portable artifact bytes are opaque content, not
+        # structured authority records. Normal source code may contain words
+        # such as ``token`` or ``password`` without being credential material.
+        if object_type in {"source_file", "artifact_bytes"}:
+            return
         try:
             structured: object = json.loads(content.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -149,6 +167,9 @@ class ProjectBackupService:
             self._read_manifest(archive, manifest_info, self.profile.maximum_backup_manifest_bytes)
         )
         declared = {"manifest.json", *(item.path for item in manifest.objects)}
+        declared_paths = [item.path for item in manifest.objects]
+        if len(declared_paths) != len(set(declared_paths)):
+            raise BackupValidationError("backup manifest contains duplicate object paths")
         if set(names) != declared:
             raise BackupValidationError("backup archive contains undeclared members")
         return manifest, by_name
@@ -216,7 +237,7 @@ class ProjectBackupService:
             self._check_size(record.path, record.content)
             if record.path in seen or record.path == "manifest.json":
                 raise BackupOperationError("backup contains duplicate or reserved object path")
-            self._inspect_record_content(record.content)
+            self._inspect_record_content(record.content, record.object_type)
             seen.add(record.path)
             materialized.append(record)
             total_uncompressed += len(record.content)
@@ -268,15 +289,172 @@ class ProjectBackupService:
             raise BackupOperationError("backup export failed before activation") from exc
 
     def validate_archive(self, archive_path: Path) -> ProjectBackupManifest:
-        """Run bounded metadata, capacity, path, schema, and hash validation only."""
+        """Run bounded preflight plus a streaming hash pass over every object."""
 
         try:
             self._check_backup_limit("backup_archive_bytes", archive_path.stat().st_size)
             with zipfile.ZipFile(archive_path, "r") as archive:
-                manifest, _ = self._preflight_archive(archive)
+                manifest, members = self._preflight_archive(archive)
+                for item in manifest.objects:
+                    with archive.open(members[item.path], "r") as source:
+                        size, content_hash = self._stream_member(
+                            source,
+                            expected_size=item.size_bytes,
+                            maximum_size=self.profile.maximum_backup_member_bytes,
+                        )
+                    if size != item.size_bytes or content_hash != item.content_hash:
+                        raise BackupValidationError("backup object hash or size mismatch")
                 return manifest
         except (OSError, zipfile.BadZipFile) as exc:
             raise BackupValidationError("backup archive cannot be opened") from exc
+
+    def stage_project(
+        self,
+        archive_path: Path,
+        destination: Path,
+        *,
+        authorized_project_id: UUID,
+        actor_id: str,
+        authorize: Callable[[UUID, str], bool],
+        supported_schema_versions: frozenset[str] = frozenset({"m18e.1"}),
+        migration_dry_run: Callable[[ProjectBackupManifest], None] | None = None,
+        staging: Path | None = None,
+    ) -> RestoreStaging:
+        """Validate and stream an archive into a durable, unactivated tree."""
+
+        if not actor_id or not authorize(authorized_project_id, actor_id):
+            raise RestoreConflictError("restore authority was not granted")
+        if destination.exists():
+            raise RestoreConflictError("restore destination collision requires replacement policy")
+        staging_path = staging or destination.with_name(
+            f".{destination.name}.{uuid4().hex}.staging"
+        )
+        try:
+            self._check_backup_limit("backup_archive_bytes", archive_path.stat().st_size)
+            with zipfile.ZipFile(archive_path, "r") as archive:
+                manifest, members = self._preflight_archive(archive)
+                if manifest.schema_version not in supported_schema_versions:
+                    raise BackupValidationError("backup schema version is unsupported")
+                if manifest.project_id != authorized_project_id:
+                    raise RestoreConflictError("backup project does not match authorized project")
+                # A full streaming verification pass precedes any filesystem
+                # writes, so staging is never the first integrity check.
+                for item in manifest.objects:
+                    with archive.open(members[item.path], "r") as source:
+                        size, content_hash = self._stream_member(
+                            source,
+                            expected_size=item.size_bytes,
+                            maximum_size=self.profile.maximum_backup_member_bytes,
+                        )
+                    if size != item.size_bytes or content_hash != item.content_hash:
+                        raise BackupValidationError("backup object hash or size mismatch")
+                if migration_dry_run is not None:
+                    migration_dry_run(manifest)
+                staging_path.mkdir(parents=True, exist_ok=False)
+                guard = SafePath(staging_path)
+                for item in manifest.objects:
+                    self.failure_injector.inject(FailureInjectionPoint.ARTIFACT_OBJECT_WRITE)
+                    output = guard.resolve(item.path)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    with (
+                        archive.open(members[item.path], "r") as source,
+                        output.open("wb") as target,
+                    ):
+                        size, content_hash = self._stream_member(
+                            source,
+                            expected_size=item.size_bytes,
+                            maximum_size=self.profile.maximum_backup_member_bytes,
+                            output=target,
+                        )
+                        target.flush()
+                        os.fsync(target.fileno())
+                    if size != item.size_bytes or content_hash != item.content_hash:
+                        raise BackupValidationError("backup object hash mismatch")
+                manifest_output = guard.resolve("manifest.json")
+                with manifest_output.open("wb") as target:
+                    target.write(manifest.to_json())
+                    target.flush()
+                    os.fsync(target.fileno())
+            self.failure_injector.inject(FailureInjectionPoint.RESTORE_AFTER_STAGE)
+            return RestoreStaging(manifest, staging_path, destination)
+        except Exception as exc:
+            # A process-kill injection represents a crash after the durable
+            # staging write. Leave that tree in place for startup recovery;
+            # all ordinary failures still clean up their temporary data.
+            preserve_for_recovery = isinstance(exc, InjectedFailureError) and (
+                exc.plan.point == FailureInjectionPoint.RESTORE_AFTER_STAGE
+            )
+            if staging_path.exists() and not preserve_for_recovery:
+                self._cleanup_tree(staging_path)
+            if isinstance(exc, (BackupOperationError, BackupValidationError, InjectedFailureError)):
+                raise
+            if isinstance(exc, OSError):
+                raise BackupOperationError("restore failed during bounded staging write") from exc
+            raise BackupOperationError("restore failed closed before activation") from exc
+
+    @staticmethod
+    def _cleanup_tree(path: Path) -> None:
+        if path.exists():
+            for candidate in sorted(path.rglob("*"), reverse=True):
+                if candidate.is_file() or candidate.is_symlink():
+                    candidate.unlink(missing_ok=True)
+                elif candidate.is_dir():
+                    candidate.rmdir()
+            path.rmdir()
+
+    @staticmethod
+    def activate_staged(staging: Path, destination: Path) -> None:
+        """Atomically publish a prepared staging tree and fsync its parent."""
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(staging, destination)
+        try:
+            descriptor = os.open(destination.parent, os.O_RDONLY)
+        except OSError:
+            return
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+    def verify_activated_tree(self, root: Path, manifest: ProjectBackupManifest) -> None:
+        """Verify an activated tree without loading large objects into memory."""
+
+        manifest_path = SafePath(root).resolve("manifest.json")
+        if not manifest_path.is_file():
+            raise BackupValidationError("activated restore manifest is missing")
+        if (
+            manifest_from_json(self._read_bounded_file(manifest_path)).manifest_hash
+            != manifest.manifest_hash
+        ):
+            raise BackupValidationError("activated restore manifest does not match journal")
+        guard = SafePath(root)
+        expected_paths = {"manifest.json", *(item.path for item in manifest.objects)}
+        for candidate in root.rglob("*"):
+            if candidate.is_symlink():
+                raise BackupValidationError("activated restore contains a symlink")
+            if candidate.is_file() and candidate.relative_to(root).as_posix() not in expected_paths:
+                raise BackupValidationError("activated restore contains an undeclared file")
+        for item in manifest.objects:
+            target = guard.resolve(item.path)
+            if not target.is_file() or target.is_symlink():
+                raise BackupValidationError("activated restore object is missing")
+            with target.open("rb") as source:
+                size, content_hash = self._stream_member(
+                    source,
+                    expected_size=item.size_bytes,
+                    maximum_size=self.profile.maximum_backup_member_bytes,
+                )
+            if size != item.size_bytes or content_hash != item.content_hash:
+                raise BackupValidationError("activated restore object hash mismatch")
+
+    def _read_bounded_file(self, path: Path) -> bytes:
+        limit = self.profile.maximum_backup_manifest_bytes
+        with path.open("rb") as source:
+            raw = source.read(limit + 1)
+        if len(raw) > limit:
+            raise BackupValidationError("backup manifest exceeds capacity limit")
+        return raw
 
     def restore_project(
         self,
@@ -339,12 +517,7 @@ class ProjectBackupService:
             return RestoreResult(manifest, RestoreState.ACTIVATED, destination)
         except Exception as exc:
             if staging.exists():
-                for path in sorted(staging.rglob("*"), reverse=True):
-                    if path.is_file() or path.is_symlink():
-                        path.unlink(missing_ok=True)
-                    elif path.is_dir():
-                        path.rmdir()
-                staging.rmdir()
+                self._cleanup_tree(staging)
             if isinstance(exc, (BackupOperationError, BackupValidationError, InjectedFailureError)):
                 raise
             if isinstance(exc, OSError):
@@ -358,5 +531,6 @@ __all__ = [
     "ProjectBackupService",
     "RestoreConflictError",
     "RestoreResult",
+    "RestoreStaging",
     "RestoreState",
 ]
