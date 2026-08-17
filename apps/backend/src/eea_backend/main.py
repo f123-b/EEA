@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from eea_adapters.ai import LiteLLMProvider
 from eea_adapters.components import Stm32CubeG4Provider
 from eea_adapters.hardware import FakeHardwareCommissioningAdapter
+from eea_adapters.schematic import KiCadErcAdapter
 from eea_adapters.secrets import KeyringSecretService
 from eea_adapters.source import FileSystemSourceWorkspaceAdapter, GitCliWorkspaceAdapter
 from eea_adapters.static_analysis import CppcheckAdapter
@@ -224,6 +225,9 @@ def create_app(
         else DomainExtensionRegistry((build_motor_control_plugin(),))
     )
     application.state.static_analysis_provider = CppcheckAdapter()
+    application.state.schematic_erc_provider = KiCadErcAdapter(
+        evidence_root=resolved_settings.build_evidence_dir
+    )
     application.state.test_executor_registry = TestExecutorRegistry()
     application.state.crash_injector = NoopCrashInjector()
     application.state.restore_failure_injector = FailureInjectionHarness()

@@ -7,9 +7,20 @@ engineering state directly into SQL to manufacture a release result.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 import shutil
+import subprocess
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
+import pytest
+from alembic import command
+from alembic.config import Config
+from eea_backend.main import create_app
+from eea_backend.settings import Settings
 from eea_core.claims import EngineeringValue
 from eea_core.enums import EngineeringDimension
 from eea_core.testing import TestExecutionStatus as ExecutionStatus
@@ -248,7 +259,11 @@ def _motor_control_ir() -> MotorControlIR:
     )
 
 
-def _build_vertical_slice(client: TestClient) -> dict[str, Any]:
+def _build_vertical_slice(
+    client: TestClient,
+    *,
+    release_gate: bool = False,
+) -> dict[str, Any]:
     project = _post(client, "/api/v1/projects", {"name": "M19 FOC Minimal E2E"})
     project_id = project["id"]
     analysis = _requirement_analysis(client, project_id)
@@ -414,6 +429,13 @@ def _build_vertical_slice(client: TestClient) -> dict[str, Any]:
         f"/api/v1/projects/{project_id}/schematic/generate",
         {"circuit_id": circuit["circuit"]["id"]},
     )
+    erc: dict[str, Any] | None = None
+    if release_gate:
+        erc = _post(
+            client,
+            f"/api/v1/projects/{project_id}/schematic/erc/run",
+            {"schematic_id": schematic["schematic"]["id"]},
+        )
     device_instance_id = hardware["device_instances"][0]["id"]
     mcu = _post(
         client,
@@ -537,18 +559,79 @@ def _build_vertical_slice(client: TestClient) -> dict[str, Any]:
         f"/api/v1/projects/{project_id}/domains/org.eea.motor_control/validate",
         {"domain_ir": _motor_control_ir().model_dump(mode="json"), "mcu_config_id": config["id"]},
     )
+    firmware_payload: dict[str, object] = {
+        "mcu_config_id": config["id"],
+        "board_name": "foc-stm32g431",
+    }
+    if release_gate:
+        lock = _post(
+            client,
+            f"/api/v1/projects/{project_id}/dependencies/resolve",
+            {
+                "mcu_config_id": config["id"],
+                "requirements": [
+                    {
+                        "capability": "cmsis.core",
+                        "component_key": "st.stm32g4.cmsis-core",
+                        "reason": "M19 DEVICE build CMSIS core",
+                        "source_requirement_ids": [requirement_id],
+                    },
+                    {
+                        "capability": "cmsis.device",
+                        "component_key": "st.stm32g4.cmsis-device",
+                        "reason": "M19 DEVICE build CMSIS device",
+                        "source_requirement_ids": [requirement_id],
+                    },
+                    {
+                        "capability": "stm32.hal",
+                        "component_key": "st.stm32g4.hal",
+                        "reason": "M19 DEVICE build STM32 HAL",
+                        "source_requirement_ids": [requirement_id],
+                    },
+                ],
+                "architecture": "Cortex-M4",
+                "device": "STM32G431KB",
+                "toolchain_id": "arm-none-eabi-gcc",
+                "build_system": "CMAKE",
+            },
+        )
+        _post(
+            client,
+            f"/api/v1/projects/{project_id}/dependencies/materialize",
+            {"lock_id": lock["id"]},
+        )
+        firmware_payload.update(
+            {
+                "dependency_lock_id": lock["id"],
+                "build_target": {
+                    "name": "eea_device",
+                    "family": "STM32G4",
+                    "architecture": "Cortex-M4",
+                    "build_system": "CMAKE",
+                    "toolchain_id": "arm-none-eabi-gcc",
+                    "target_triple": "arm-none-eabi",
+                    "profile": "DEVICE",
+                    "output_name": "eea_device",
+                    "output_format": "ELF",
+                },
+                "build_profile": "DEVICE",
+            }
+        )
     firmware = _post(
         client,
         f"/api/v1/projects/{project_id}/firmware/generate",
-        {"mcu_config_id": config["id"], "board_name": "foc-stm32g431"},
+        firmware_payload,
     )
     firmware_ir = firmware["firmware"]
     assert firmware["source_revision"]["id"] == firmware_ir["source_revision_id"]
+    build_started_at = datetime.now(UTC).isoformat()
     build = _post(
         client,
         f"/api/v1/projects/{project_id}/build",
         {"firmware_id": firmware_ir["id"]},
     )
+    build["m19_started_at"] = build_started_at
+    build["m19_finished_at"] = datetime.now(UTC).isoformat()
     static = _post(
         client,
         f"/api/v1/projects/{project_id}/analysis/static",
@@ -586,7 +669,11 @@ def _build_vertical_slice(client: TestClient) -> dict[str, Any]:
         f"/api/v1/projects/{project_id}/protocol/generate",
         {"protocol_id": protocol["id"]},
     )
-    tests = _post(client, f"/api/v1/projects/{project_id}/tests/generate", {})
+    tests = _post(
+        client,
+        f"/api/v1/projects/{project_id}/tests/generate",
+        {"verification_profile": "SOFTWARE_RELEASE"} if release_gate else {},
+    )
     test_ir = tests["test_ir"]
     test_run = _post(
         client,
@@ -605,7 +692,8 @@ def _build_vertical_slice(client: TestClient) -> dict[str, Any]:
             "schematic_id": schematic["schematic"]["id"],
             "require_build": True,
             "require_static_analysis": True,
-            "require_erc": False,
+            "require_erc": release_gate,
+            "require_test": True,
         },
     )
     traceability_response = client.get(f"/api/v1/projects/{project_id}/traceability")
@@ -619,6 +707,7 @@ def _build_vertical_slice(client: TestClient) -> dict[str, Any]:
         "hardware": hardware,
         "circuit": circuit["circuit"],
         "schematic": schematic,
+        "erc": erc,
         "mcu": config,
         "activation": activation,
         "domain_validation": domain_validation,
@@ -841,3 +930,259 @@ def test_m19_tool_missing_never_becomes_pass(client: TestClient) -> None:
     if shutil.which("kicad-cli") is None:
         assert erc["status"] == "UNKNOWN"
         assert erc["executed"] is False
+
+
+def _write_m19_release_evidence(result: dict[str, Any]) -> None:
+    evidence_value = os.environ.get("EEA_M19_EVIDENCE_DIR")
+    if not evidence_value:
+        return
+    root = Path(evidence_value)
+    root.mkdir(parents=True, exist_ok=True)
+    build = result["build"]
+    firmware = result["firmware"]
+    source_revision = firmware["source_revision"]
+    elf_candidates = sorted(root.glob("*.elf"))
+    assert elf_candidates, (
+        "BuildService did not copy a real ELF into the release evidence directory"
+    )
+    elf = elf_candidates[0]
+    elf_bytes = elf.read_bytes()
+    readelf = subprocess.run(
+        ["arm-none-eabi-readelf", "-h", str(elf)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    build_report = {
+        **json.loads((root / "build-runtime.json").read_text(encoding="utf-8")),
+        "source_manifest_hash": source_revision["source_manifest_hash"],
+        "elf_path": str(elf),
+        "elf_size": len(elf_bytes),
+        "elf_sha256": hashlib.sha256(elf_bytes).hexdigest(),
+        "elf_header": readelf.stdout,
+        "elf_validation_exit_code": readelf.returncode,
+        "build_response": build,
+    }
+    (root / "build-report.json").write_text(
+        json.dumps(build_report, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    static = result["static"]
+    (root / "cppcheck-report.json").write_text(
+        json.dumps(
+            next(item for item in static["tool_results"] if item["tool_id"] == "cppcheck"),
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    (root / "firmware-rules.json").write_text(
+        json.dumps(static["rule_results"], indent=2, sort_keys=True), encoding="utf-8"
+    )
+    (root / "erc-report.json").write_text(
+        json.dumps(result["erc"]["erc_report"], indent=2, sort_keys=True), encoding="utf-8"
+    )
+    (root / "testrun-summary.json").write_text(
+        json.dumps(result["test_run"], indent=2, sort_keys=True), encoding="utf-8"
+    )
+    (root / "review-summary.json").write_text(
+        json.dumps(result["review"], indent=2, sort_keys=True), encoding="utf-8"
+    )
+    tool_commands = {
+        "arm-none-eabi-gcc": ["arm-none-eabi-gcc", "--version"],
+        "cmake": ["cmake", "--version"],
+        "cppcheck": ["cppcheck", "--version"],
+        "kicad-cli": ["kicad-cli", "version"],
+    }
+    versions: dict[str, str] = {}
+    for name, argv in tool_commands.items():
+        completed = subprocess.run(argv, capture_output=True, text=True, check=False)
+        versions[name] = (completed.stdout or completed.stderr).strip()
+    summary = {
+        "project_id": result["project_id"],
+        "m19a": {
+            "real_build": build["status"] == "PASS",
+            "static_analysis": static["status"] == "PASS",
+            "erc": result["erc"]["erc_report"]["status"] == "PASS",
+            "software_test": result["test_run"]["status"] == "PASS",
+            "review": result["review"]["status"] == "PASS",
+        },
+        "m19b": "BLOCKED_HARDWARE",
+        "tools": versions,
+        "build_kind": build["profile"],
+        "p0_requirement_ids": [
+            item["requirement_id"]
+            for item in result["test_ir"]["requirement_snapshots"]
+            if item["priority"] == "MUST" and item["status"] == "ACCEPTED"
+        ],
+    }
+    (root / "release-summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+
+@pytest.fixture(scope="module")
+def m19_release_result(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+    """Run the expensive real-tool gate once; ordinary CI skips it without the gate env."""
+
+    if os.environ.get("EEA_M19_RELEASE_GATE") != "1":
+        pytest.skip("M19 release gate requires the dedicated toolchain CI environment")
+    data_dir = tmp_path_factory.mktemp("m19-release-db")
+    settings = Settings(data_dir=data_dir, insecure_local_dev=True)
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+    command.upgrade(config, "head")
+    with TestClient(create_app(settings)) as release_client:
+        result = _build_vertical_slice(release_client, release_gate=True)
+    _write_m19_release_evidence(result)
+    return result
+
+
+def test_m19_release_requires_real_arm_build(m19_release_result: dict[str, Any]) -> None:
+    build = m19_release_result["build"]
+    assert build["status"] == "PASS"
+    assert build["profile"] == "DEVICE"
+    assert build["toolchain_id"] == "arm-none-eabi-gcc"
+    assert build["artifact_hash"]
+
+
+def test_m19_real_build_produces_arm_elf(m19_release_result: dict[str, Any]) -> None:
+    elf = next(Path(os.environ["EEA_M19_EVIDENCE_DIR"]).glob("*.elf"))
+    content = elf.read_bytes()
+    assert content[:4] == b"\x7fELF"
+    assert int.from_bytes(content[18:20], byteorder="little") == 0x28
+
+
+def test_m19_build_artifact_hash_matches(m19_release_result: dict[str, Any]) -> None:
+    build = m19_release_result["build"]
+    elf = next(Path(os.environ["EEA_M19_EVIDENCE_DIR"]).glob("*.elf"))
+    assert hashlib.sha256(elf.read_bytes()).hexdigest() == build["artifact_hash"]
+
+
+def test_m19_build_is_bound_to_source_revision(m19_release_result: dict[str, Any]) -> None:
+    assert (
+        m19_release_result["build"]["source_revision_id"]
+        == m19_release_result["firmware"]["source_revision"]["id"]
+    )
+
+
+def test_m19_build_is_bound_to_input_snapshot(m19_release_result: dict[str, Any]) -> None:
+    build = m19_release_result["build"]
+    assert build["build_input_snapshot_id"]
+    assert build["build_input_hash"]
+    assert (
+        json.loads(
+            (Path(os.environ["EEA_M19_EVIDENCE_DIR"]) / "build-runtime.json").read_text(
+                encoding="utf-8"
+            )
+        )["build_input_snapshot_id"]
+        == build["build_input_snapshot_id"]
+    )
+
+
+def test_m19_cppcheck_executes(m19_release_result: dict[str, Any]) -> None:
+    cppcheck = next(
+        item
+        for item in m19_release_result["static"]["tool_results"]
+        if item["tool_id"] == "cppcheck"
+    )
+    assert cppcheck["status"] == "PASS"
+    assert cppcheck["version"] != "UNAVAILABLE"
+
+
+def test_m19_firmware_release_rules_have_no_unknown(m19_release_result: dict[str, Any]) -> None:
+    rules = m19_release_result["static"]["rule_results"]
+    assert all(item["status"] != "UNKNOWN" for item in rules)
+
+
+def test_m19_firmware_release_rules_have_no_fail(m19_release_result: dict[str, Any]) -> None:
+    rules = m19_release_result["static"]["rule_results"]
+    assert all(item["status"] not in {"FAIL", "BLOCKED"} for item in rules)
+    assert {item["rule_id"] for item in rules} >= {
+        "APP_DIRECT_HAL_CALL",
+        "ISR_BLOCKING_API",
+        "DRIVER_DEPENDENCY_CYCLE",
+        "MCUCONFIG_FIRMWARE_MISMATCH",
+    }
+
+
+def test_m19_erc_executes(m19_release_result: dict[str, Any]) -> None:
+    report = m19_release_result["erc"]["erc_report"]
+    assert report["executed"] is True
+    assert report["tool_name"] == "kicad-cli"
+
+
+def test_m19_erc_passes(m19_release_result: dict[str, Any]) -> None:
+    assert m19_release_result["erc"]["erc_report"]["status"] == "PASS"
+
+
+def test_m19_authorized_software_test_run_passes(m19_release_result: dict[str, Any]) -> None:
+    test_run = m19_release_result["test_run"]
+    assert test_run["status"] == "PASS"
+    assert all(
+        item["result_authority"] == "DETERMINISTIC_VERIFICATION"
+        for item in test_run["case_results"]
+    )
+
+
+def test_m19_p0_requirement_has_executed_test(m19_release_result: dict[str, Any]) -> None:
+    result = m19_release_result
+    p0_ids = {
+        item["requirement_id"]
+        for item in result["test_ir"]["requirement_snapshots"]
+        if item["priority"] == "MUST" and item["status"] == "ACCEPTED"
+    }
+    tested_ids = {
+        requirement_id
+        for case in result["test_ir"]["cases"]
+        if case["required"]
+        for requirement_id in case["requirement_ids"]
+    }
+    assert p0_ids <= tested_ids
+    assert all(item["status"] == "PASS" for item in result["test_run"]["case_results"])
+
+
+def test_m19_review_requires_build_pass(m19_release_result: dict[str, Any]) -> None:
+    assert m19_release_result["build"]["status"] == "PASS"
+    assert m19_release_result["review"]["status"] == "PASS"
+
+
+def test_m19_review_requires_static_pass(m19_release_result: dict[str, Any]) -> None:
+    assert m19_release_result["static"]["status"] == "PASS"
+    assert m19_release_result["review"]["status"] == "PASS"
+
+
+def test_m19_review_requires_erc_pass(m19_release_result: dict[str, Any]) -> None:
+    assert m19_release_result["erc"]["erc_report"]["status"] == "PASS"
+    assert m19_release_result["review"]["status"] == "PASS"
+
+
+def test_m19_review_requires_test_run_pass(m19_release_result: dict[str, Any]) -> None:
+    assert m19_release_result["test_run"]["status"] == "PASS"
+    assert m19_release_result["review"]["status"] == "PASS"
+
+
+def test_m19_final_release_review_passes(m19_release_result: dict[str, Any]) -> None:
+    review = m19_release_result["review"]
+    assert review["status"] == "PASS"
+    assert review["findings"] == []
+
+
+def test_m19_release_gate_missing_tool_is_not_accepted(m19_release_result: dict[str, Any]) -> None:
+    assert m19_release_result["build"]["status"] != "UNKNOWN"
+    assert m19_release_result["static"]["status"] != "UNKNOWN"
+    assert m19_release_result["erc"]["erc_report"]["status"] != "UNKNOWN"
+
+
+def test_m19_release_gate_has_no_unknown_or_fail_rules(
+    m19_release_result: dict[str, Any],
+) -> None:
+    statuses = {item["status"] for item in m19_release_result["static"]["rule_results"]}
+    assert statuses <= {"PASS", "NOT_APPLICABLE"}
+
+
+def test_m19_hardware_remains_blocked_without_affecting_m19a(
+    m19_release_result: dict[str, Any],
+) -> None:
+    assert m19_release_result["review"]["status"] == "PASS"
+    assert m19_release_result["test_run"]["status"] == "PASS"
+    assert m19_release_result.get("hardware_state", "BLOCKED_HARDWARE") == "BLOCKED_HARDWARE"

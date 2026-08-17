@@ -1512,6 +1512,8 @@ class StaticAnalysisListData(BaseModel):
 class TestGenerateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    verification_profile: str | None = Field(default=None, max_length=100)
+
 
 class TestGenerationData(BaseModel):
     test_ir: TestIR
@@ -1573,6 +1575,7 @@ class ReviewRequest(BaseModel):
     require_build: bool = False
     require_static_analysis: bool = False
     require_erc: bool = False
+    require_test: bool = True
 
 
 class ReviewListData(BaseModel):

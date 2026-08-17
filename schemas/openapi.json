@@ -13099,6 +13099,11 @@
             "title": "Require Static Analysis",
             "type": "boolean"
           },
+          "require_test": {
+            "default": true,
+            "title": "Require Test",
+            "type": "boolean"
+          },
           "schematic_id": {
             "anyOf": [
               {
@@ -14802,7 +14807,20 @@
       },
       "TestGenerateRequest": {
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "verification_profile": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Profile"
+          }
+        },
         "title": "TestGenerateRequest",
         "type": "object"
       },
@@ -20766,6 +20784,64 @@
           }
         ],
         "summary": "Import Schematic Erc",
+        "tags": [
+          "schematic"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/schematic/erc/run": {
+      "post": {
+        "operationId": "run_schematic_erc_api_v1_projects__project_id__schematic_erc_run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchematicValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_SchematicBundleData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Run Schematic Erc",
         "tags": [
           "schematic"
         ]
