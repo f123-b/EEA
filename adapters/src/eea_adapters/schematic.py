@@ -51,12 +51,32 @@ class KiCadErcAdapter:
             workspace = SandboxWorkspace.from_root(Path(temporary))
             legacy = workspace.path("m19-circuit.sch")
             legacy.write_text(self._legacy_schematic(circuit), encoding="utf-8", newline="")
+            home = workspace.path("home")
+            home.mkdir(parents=True, exist_ok=True)
+            config_home = home / "config"
+            cache_home = home / "cache"
+            config_home.mkdir(parents=True, exist_ok=True)
+            cache_home.mkdir(parents=True, exist_ok=True)
             policy = SandboxPolicy(
                 allowed_executables=(executable,),
                 max_processes=64,
+                allowed_environment=(
+                    "PATH",
+                    "HOME",
+                    "TEMP",
+                    "TMP",
+                    "XDG_CONFIG_HOME",
+                    "XDG_CACHE_HOME",
+                ),
                 network_access=release_tool_policy_network_access(),
             )
-            environment = {"TEMP": str(workspace.root), "TMP": str(workspace.root)}
+            environment = {
+                "TEMP": str(workspace.root),
+                "TMP": str(workspace.root),
+                "HOME": str(home),
+                "XDG_CONFIG_HOME": str(config_home),
+                "XDG_CACHE_HOME": str(cache_home),
+            }
             version_result = self._executor.execute(
                 CommandSpec(argv=(executable, "version"), environment=environment),
                 workspace.root,

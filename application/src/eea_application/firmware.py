@@ -36,7 +36,7 @@ from eea_core.firmware import (
     SharedResource,
     StartupConfig,
 )
-from eea_core.mcu_config import MCUConfigIR
+from eea_core.mcu_config import GPIOConfig, MCUConfigIR
 from eea_core.sandbox import CommandSpec, SandboxPolicy, SandboxWorkspace
 from eea_core.source import BuildInputSnapshot, SourceRevision
 
@@ -439,11 +439,16 @@ class FirmwareService:
                 source_lines.append(f"    {function_name}();")
         source_lines.extend(["}", ""])
         for interrupt in sorted(config.interrupts, key=lambda value: (value.priority, value.irq)):
-            handler = _identifier(interrupt.irq) + "_IRQHandler"
+            handler = f"eea_{_identifier(interrupt.source)}_irq_handler"
+            vector_handler = _identifier(interrupt.irq) + "_IRQHandler"
             source_lines.extend(
                 [
                     f"void {handler}(void) {{",
                     "    HAL_IncTick();",
+                    "}",
+                    "",
+                    f"void {vector_handler}(void) {{",
+                    f"    {handler}();",
                     "}",
                     "",
                 ]
@@ -599,13 +604,17 @@ class FirmwareService:
 
     @staticmethod
     def _device_gpio_lines(config: MCUConfigIR) -> list[str]:
-        lines = ["static void eea_gpio_init(void) {", "    GPIO_InitTypeDef gpio = {0};"]
-        initialized_ports: set[str] = set()
+        valid_gpio: list[tuple[GPIOConfig, str, str]] = []
         for gpio_config in sorted(config.gpio, key=lambda value: value.signal_ref):
             match = re.fullmatch(r"P([A-K])(\d{1,2})", gpio_config.signal_ref.upper())
-            if match is None:
-                continue
-            port, pin = match.groups()
+            if match is not None:
+                valid_gpio.append((gpio_config, match.group(1), match.group(2)))
+        if not valid_gpio:
+            return ["static void eea_gpio_init(void) {", "}", ""]
+
+        lines = ["static void eea_gpio_init(void) {", "    GPIO_InitTypeDef gpio = {0};"]
+        initialized_ports: set[str] = set()
+        for gpio_config, port, pin in valid_gpio:
             if port not in initialized_ports:
                 lines.append(f"    __HAL_RCC_GPIO{port}_CLK_ENABLE();")
                 initialized_ports.add(port)
@@ -770,7 +779,7 @@ class FirmwareService:
     def _shared_resources(config: MCUConfigIR) -> list[SharedResource]:
         return [
             SharedResource(
-                name=f"dma:{item.id}",
+                name=f"dma:{item.request}",
                 kind="DMA",
                 users=[item.request],
                 protection="configuration-immutable",
