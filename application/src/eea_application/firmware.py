@@ -530,6 +530,8 @@ class FirmwareService:
         linker = f"components/{linker_files[0]}".replace("\\", "/")
         link_flags = [
             f"-T${{CMAKE_SOURCE_DIR}}/{linker}",
+            "-mcpu=cortex-m4",
+            "-mthumb",
             "-mfpu=fpv4-sp-d16",
             "-mfloat-abi=hard",
             "-Wl,--gc-sections",
