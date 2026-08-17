@@ -868,6 +868,10 @@ class FirmwareBuildService:
                         }
                     )
                 ),
+                # CMake must be able to start its generator (and Ninja must be
+                # able to start one compiler process). Keep the boundary finite
+                # while allowing the DEVICE toolchain's required subprocesses.
+                max_processes=16,
                 network_access=release_tool_policy_network_access(),
             )
             try:
@@ -1142,6 +1146,8 @@ class FirmwareBuildService:
             "cmake",
             "--build",
             "build",
+            "--parallel",
+            "1",
         )
 
     @staticmethod

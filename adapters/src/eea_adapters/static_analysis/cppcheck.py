@@ -42,6 +42,7 @@ class CppcheckAdapter:
             target.write_text(content, encoding="utf-8", newline="")
         policy = SandboxPolicy(
             allowed_executables=(executable,),
+            max_processes=8,
             network_access=release_tool_policy_network_access(),
         )
         environment = {"TEMP": str(sandbox.root), "TMP": str(sandbox.root)}
