@@ -7,17 +7,15 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
-- M19A FOC Minimal E2E implemented on `codex/m19-foc-minimal-e2e`, based on green main
-  `b572fc6b820925ea623a46c6104982efc33a705c`, with implementation commit `82e0943`. The new
-  API-only benchmark drives the frozen STM32G431/DRV8323/AS5047 FOC chain through Requirement,
-  Claim/Device, PinMap, Hardware/Circuit, Schematic/ERC, MCUConfigIR, MotorControl plugin,
-  Firmware/SourceRevision, Build, Static Analysis, Protocol, Test, Traceability, Review, and
-  Dependency Impact. It adds fail-closed coverage for incomplete requirements, pin conflict,
-  invalid AF, electrical violation, unavailable tools, and stale downstream propagation. The
-  focused M19 suite reports **4 passed**; no real motor run, actuator enable, fabricated ELF, or
-  hardware commissioning is claimed. Local Build/ARM/KiCad/hardware gates remain UNKNOWN or
-  BLOCKED as documented in `reports/M19/`. Draft PR #13 remains OPEN/DRAFT/UNMERGED; push CI
-  `31957259756` and Draft PR CI `31957274885` both pass backend, desktop-web, and desktop-tauri.
+- M19A FOC Minimal E2E final gate closed at HEAD `9f42d81` on `codex/m19-foc-minimal-e2e`, based
+  on green main `b572fc6b820925ea623a46c6104982efc33a705c`. The dedicated release job executed a
+  real STM32G431 DEVICE build with ARM GCC 13.2.1, Cppcheck 2.13.0, KiCad 9.0.9 ERC, the four
+  M13 release rules, a 9-case software TestRun, and a required Build/static/ERC/TestRun Review;
+  all gates PASS with zero P0/P1 findings. The strict M19 suite reports **20 passed**. M19B
+  remains `BLOCKED_HARDWARE`; no motor run, actuator enable, flash, or hardware commissioning
+  was attempted. Local tool/hardware limits remain fail-closed as documented in `reports/M19/`.
+  Draft PR #13 remains OPEN/DRAFT/UNMERGED; final PR CI is `32018565886` and push CI is
+  `32018561625`, both green across backend, desktop-web, desktop-tauri, and m19-release.
 
 - M18ER.1 — Runtime Auth & Atomic Restore Closure accepted at implementation HEAD
   `21cde4d6398edc85fcb2ea57a5e1bdc44f989e20` on `codex/m18e-renderer-nfr-hardening`. The closure
