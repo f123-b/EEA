@@ -1298,6 +1298,9 @@ def resolve_dependencies(
         capabilities=payload.capabilities,
         rtos=payload.rtos,
     )
+    # DependencyLockComponent rows have foreign keys to the immutable catalog.
+    # Persist the exact provider snapshot before inserting the lock closure.
+    SqlAlchemyComponentRepository(session).sync_provider_catalog(providers)
     saved = SqlAlchemyDependencyLockRepository(session).add(lock)
     return ApiEnvelope(data=_dependency_lock_data(saved), request_id=_request_id(request))
 
