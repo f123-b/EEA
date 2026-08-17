@@ -157,6 +157,9 @@ class KiCadErcAdapter:
                 cache_library = workspace.path("m19-circuit-cache.lib")
                 if cache_library.is_file():
                     shutil.copyfile(cache_library, self._evidence_root / cache_library.name)
+                symbol_table = workspace.path("sym-lib-table")
+                if symbol_table.is_file():
+                    shutil.copyfile(symbol_table, self._evidence_root / symbol_table.name)
                 if report_path.is_file():
                     shutil.copyfile(report_path, self._evidence_root / "m19-erc.json")
                 else:
@@ -173,6 +176,8 @@ class KiCadErcAdapter:
                 recommendation=recommendation,
                 source_file=str(input_file),
                 upgrade_returncode=upgrade.returncode,
+                upgrade_stdout=upgrade.stdout[:4000],
+                upgrade_stderr=upgrade.stderr[:4000],
             )
 
     @staticmethod
