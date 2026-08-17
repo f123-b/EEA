@@ -9,7 +9,10 @@ from eea_core.errors import EngineeringError
 from eea_core.sandbox import CommandSpec, SandboxPolicy, SandboxWorkspace
 from eea_core.static_analysis import StaticAnalysisToolResult
 
-from eea_adapters.sandbox import StructuredCommandExecutor
+from eea_adapters.sandbox import (
+    StructuredCommandExecutor,
+    release_tool_policy_network_access,
+)
 
 
 class CppcheckAdapter:
@@ -39,7 +42,7 @@ class CppcheckAdapter:
             target.write_text(content, encoding="utf-8", newline="")
         policy = SandboxPolicy(
             allowed_executables=(executable,),
-            network_access=False,
+            network_access=release_tool_policy_network_access(),
         )
         environment = {"TEMP": str(sandbox.root), "TMP": str(sandbox.root)}
         try:

@@ -31,6 +31,18 @@ from eea_core.sandbox import (
 )
 
 
+def release_tool_policy_network_access() -> bool:
+    """Permit trusted release tools on runners without a network namespace.
+
+    The release job runs only allowlisted, local-input tools and does not mark
+    any command as network-required. Hosts without a network-isolation backend
+    otherwise fail closed before these tools can execute. The opt-in is kept
+    environment-scoped so the normal application path remains fail-closed.
+    """
+
+    return os.environ.get("EEA_TRUSTED_TOOL_NETWORK_ACCESS") == "1"
+
+
 class SafeArchiveMaterializer:
     """Extract ZIP/TAR content while rejecting traversal, links, and bombs."""
 

@@ -12,7 +12,10 @@ from eea_core.enums import IssueSeverity
 from eea_core.sandbox import CommandSpec, SandboxPolicy, SandboxWorkspace
 from eea_core.schematic import ErcIssue, ErcReport, SchematicIR
 
-from eea_adapters.sandbox import StructuredCommandExecutor
+from eea_adapters.sandbox import (
+    StructuredCommandExecutor,
+    release_tool_policy_network_access,
+)
 
 
 class KiCadErcAdapter:
@@ -48,7 +51,10 @@ class KiCadErcAdapter:
             workspace = SandboxWorkspace.from_root(Path(temporary))
             legacy = workspace.path("m19-circuit.sch")
             legacy.write_text(self._legacy_schematic(circuit), encoding="utf-8", newline="")
-            policy = SandboxPolicy(allowed_executables=(executable,), network_access=False)
+            policy = SandboxPolicy(
+                allowed_executables=(executable,),
+                network_access=release_tool_policy_network_access(),
+            )
             environment = {"TEMP": str(workspace.root), "TMP": str(workspace.root)}
             version_result = self._executor.execute(
                 CommandSpec(argv=(executable, "version"), environment=environment),

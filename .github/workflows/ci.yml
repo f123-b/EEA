@@ -33,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       EEA_M19_RELEASE_GATE: "1"
+      EEA_TRUSTED_TOOL_NETWORK_ACCESS: "1"
       EEA_M19_EVIDENCE_DIR: ${{ github.workspace }}/m19-release-evidence
       EEA_BUILD_EVIDENCE_DIR: ${{ github.workspace }}/m19-release-evidence
     steps:

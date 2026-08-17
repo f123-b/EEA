@@ -13,7 +13,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from eea_adapters.sandbox import StructuredCommandExecutor
+from eea_adapters.sandbox import (
+    StructuredCommandExecutor,
+    release_tool_policy_network_access,
+)
 from eea_core.build import BuildDiagnostic, BuildRun
 from eea_core.components import DependencyLock
 from eea_core.entities import utc_now
@@ -864,7 +867,8 @@ class FirmwareBuildService:
                             if (resolved := shutil.which(name)) is not None
                         }
                     )
-                )
+                ),
+                network_access=release_tool_policy_network_access(),
             )
             try:
                 version = self._executor.execute(
