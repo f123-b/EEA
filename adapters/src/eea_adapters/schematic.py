@@ -51,6 +51,9 @@ class KiCadErcAdapter:
             workspace = SandboxWorkspace.from_root(Path(temporary))
             legacy = workspace.path("m19-circuit.sch")
             legacy.write_text(self._legacy_schematic(circuit), encoding="utf-8", newline="")
+            workspace.path("m19-circuit-cache.lib").write_text(
+                self._legacy_cache_library(), encoding="utf-8", newline=""
+            )
             home = workspace.path("home")
             home.mkdir(parents=True, exist_ok=True)
             config_home = home / "config"
@@ -148,6 +151,11 @@ class KiCadErcAdapter:
             if self._evidence_root is not None:
                 self._evidence_root.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(input_file, self._evidence_root / input_file.name)
+                cache_library = workspace.path("m19-circuit-cache.lib")
+                if cache_library.is_file():
+                    shutil.copyfile(
+                        cache_library, self._evidence_root / cache_library.name
+                    )
                 if report_path.is_file():
                     shutil.copyfile(report_path, self._evidence_root / "m19-erc.json")
                 else:
@@ -216,6 +224,7 @@ class KiCadErcAdapter:
             'Comment1 "Generated from persisted CircuitIR; no hardware execution"',
             "$EndDescr",
         ]
+        component_index = 1
         for net_index, net in enumerate(
             sorted(circuit.nets, key=lambda item: (item.name, str(item.id)))
         ):
@@ -223,12 +232,24 @@ class KiCadErcAdapter:
             endpoint_positions: list[int] = []
             for endpoint_index, endpoint in enumerate(net.endpoints):
                 x = 2600 + endpoint_index * 1400
-                endpoint_positions.append(x)
-
+                endpoint_positions.append(x - 100)
+                reference = f"J{component_index}"
+                component_index += 1
+                uid = f"{component_index:08X}"
                 lines.extend(
                     [
-                        f"Text Notes {x} {y - 125} 0    40   ~ 0",
-                        f"{endpoint.component_ref}:{endpoint.pin_ref}",
+                        "$Comp",
+                        "L PORT " + reference,
+                        f"U 1 1 {uid}",
+                        f"P {x} {y}",
+                        f'F 0 "{reference}" H {x + 80} {y + 42} 50  0000 L CNN',
+                        (
+                            f'F 1 "{endpoint.component_ref}:{endpoint.pin_ref}" '
+                            f"H {x + 80} {y - 49} 50  0000 L CNN"
+                        ),
+                        "\t1    " + str(x) + " " + str(y),
+                        "\t1    0    0    -1",
+                        "$EndComp",
                     ]
                 )
             if endpoint_positions:
@@ -246,10 +267,12 @@ class KiCadErcAdapter:
                         "Wire Wire Line",
                         f"\t{wire_label} {y} {wire_end} {y}",
                         f"Connection ~ {wire_label} {y}",
-                        f"Text GLabel {wire_start} {y} 0    50   BiDi ~ 0",
-                        net.name,
-                        f"Text GLabel {wire_end} {y} 2    50   BiDi ~ 0",
-                        net.name,
+                    ]
+                )
+                lines.extend(
+                    [
+                        f"Text Notes {wire_label} {y - 100} 0    50   ~ 0",
+                        f"NET: {net.name}",
                     ]
                 )
         lines.extend(
@@ -261,6 +284,31 @@ class KiCadErcAdapter:
             ]
         )
         return "\n".join(lines)
+
+    @staticmethod
+    def _legacy_cache_library() -> str:
+        """Provide a deterministic passive one-pin symbol for legacy KiCad ERC."""
+
+        return "\n".join(
+            [
+                "EESchema-LIBRARY Version 2.4",
+                "#encoding utf-8",
+                "#",
+                "# PORT",
+                "#",
+                "DEF PORT J 0 40 Y Y 1 F N",
+                'F0 "J" 0 100 50 H V C CNN',
+                'F1 "PORT" 0 -100 50 H V C CNN',
+                "DRAW",
+                "S -50 50 50 -50 0 1 10 f",
+                "X P 1 -100 0 50 R 50 50 1 1 P",
+                "ENDDRAW",
+                "ENDDEF",
+                "#",
+                "#End Library",
+                "",
+            ]
+        )
 
 
 __all__ = ["KiCadErcAdapter"]
