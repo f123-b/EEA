@@ -219,7 +219,7 @@ class KiCadErcAdapter:
             '    (comment 1 "Generated from persisted CircuitIR; no hardware execution")',
             "  )",
             "  (lib_symbols",
-            '    (symbol "m19-circuit-cache:PORT"',
+            '    (symbol "PORT"',
             "      (pin_numbers hide)",
             "      (pin_names (offset 0.762))",
             "      (in_bom yes)",
@@ -277,7 +277,7 @@ class KiCadErcAdapter:
                 instance_records.append((symbol_uuid, reference))
                 lines.extend(
                     [
-                        f'  (symbol (lib_id "m19-circuit-cache:PORT") (at {x} {y} 0) (unit 1)',
+                        f'  (symbol (lib_id "PORT") (at {x} {y} 0) (unit 1)',
                         "    (in_bom yes) (on_board yes) (fields_autoplaced)",
                         f'    (uuid "{symbol_uuid}")',
                         reference_property,
