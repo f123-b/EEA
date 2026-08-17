@@ -216,37 +216,28 @@ class KiCadErcAdapter:
             'Comment1 "Generated from persisted CircuitIR; no hardware execution"',
             "$EndDescr",
         ]
-        component_index = 1
         for net_index, net in enumerate(
             sorted(circuit.nets, key=lambda item: (item.name, str(item.id)))
         ):
             y = 1800 + net_index * 650
-            pins: list[int] = []
+            endpoint_positions: list[int] = []
             for endpoint_index, endpoint in enumerate(net.endpoints):
                 x = 2600 + endpoint_index * 1400
-                pins.append(x - 100)
-                reference = f"J{component_index}"
-                component_index += 1
-                uid = f"{component_index:08X}"
+                endpoint_positions.append(x)
+
                 lines.extend(
                     [
-                        "$Comp",
-                        "L Connector_Generic:Conn_01x01 " + reference,
-                        f"U 1 1 {uid}",
-                        f"P {x} {y}",
-                        f'F 0 "{reference}" H {x + 80} {y + 42} 50  0000 L CNN',
-                        (
-                            f'F 1 "{endpoint.component_ref}:{endpoint.pin_ref}" '
-                            f"H {x + 80} {y - 49} 50  0000 L CNN"
-                        ),
-                        "	1    " + str(x) + " " + str(y),
-                        "	1    0    0    -1",
-                        "$EndComp",
+                        f"Text Notes {x} {y - 125} 0    40   ~ 0",
+                        f"{endpoint.component_ref}:{endpoint.pin_ref}",
                     ]
                 )
-            if pins:
-                wire_start = min(pins)
-                wire_end = max(pins) if len(pins) > 1 else pins[0] + 200
+            if endpoint_positions:
+                wire_start = min(endpoint_positions)
+                wire_end = (
+                    max(endpoint_positions)
+                    if len(endpoint_positions) > 1
+                    else endpoint_positions[0] + 200
+                )
                 wire_label = wire_start + max(100, (wire_end - wire_start) // 2)
                 lines.extend(
                     [
@@ -254,20 +245,11 @@ class KiCadErcAdapter:
                         f"\t{wire_start} {y} {wire_label} {y}",
                         "Wire Wire Line",
                         f"\t{wire_label} {y} {wire_end} {y}",
-                        f"Connection ~ {wire_start} {y}",
                         f"Connection ~ {wire_label} {y}",
-                        f"Connection ~ {wire_end} {y}",
-                    ]
-                )
-                # Keep the CircuitIR net name as a drawing note.  KiCad 9's legacy
-                # headless parser does not reliably bind local-label objects to this
-                # generated connector topology; a decorative label would therefore
-                # create a real `label_dangling` ERC violation.  Electrical identity
-                # is carried by the connected wire and endpoint fields above.
-                lines.extend(
-                    [
-                        f"Text Notes {wire_label} {y - 100} 0    50   ~ 0",
-                        f"NET: {net.name}",
+                        f"Text GLabel {wire_start} {y} 0    50   BiDi ~ 0",
+                        net.name,
+                        f"Text GLabel {wire_end} {y} 2    50   BiDi ~ 0",
+                        net.name,
                     ]
                 )
         lines.extend(
