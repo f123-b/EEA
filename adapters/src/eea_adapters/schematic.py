@@ -54,8 +54,9 @@ class KiCadErcAdapter:
             workspace.path("m19-connector.lib").write_text(
                 self._legacy_connector_library(), encoding="utf-8", newline=""
             )
+            connector_library = workspace.path("m19-connector.lib")
             workspace.path("sym-lib-table").write_text(
-                self._symbol_table(), encoding="utf-8", newline=""
+                self._symbol_table(connector_library), encoding="utf-8", newline=""
             )
             home = workspace.path("home")
             home.mkdir(parents=True, exist_ok=True)
@@ -66,7 +67,7 @@ class KiCadErcAdapter:
             kicad_config = config_home / "kicad" / "9.0"
             kicad_config.mkdir(parents=True, exist_ok=True)
             kicad_config.joinpath("sym-lib-table").write_text(
-                self._symbol_table(), encoding="utf-8", newline=""
+                self._symbol_table(connector_library), encoding="utf-8", newline=""
             )
             policy = SandboxPolicy(
                 allowed_executables=(executable,),
@@ -385,13 +386,13 @@ class KiCadErcAdapter:
         )
 
     @staticmethod
-    def _symbol_table() -> str:
+    def _symbol_table(library_path: Path) -> str:
         return "\n".join(
             [
                 "(sym_lib_table",
                 "  (version 7)",
                 '  (lib (name "Connector")(type "Legacy")'
-                '(uri "${KIPRJMOD}/m19-connector.lib")(options "")(descr ""))',
+                f'(uri "{library_path.as_posix()}")(options "")(descr ""))',
                 ")",
                 "",
             ]
