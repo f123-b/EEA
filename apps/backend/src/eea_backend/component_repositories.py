@@ -9,6 +9,8 @@ from eea_core.components import (
     DependencyLock,
     SoftwareComponentDescriptor,
 )
+from eea_core.enums import EngineeringErrorCode
+from eea_core.errors import EngineeringError
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -167,12 +169,64 @@ class SqlAlchemyComponentRepository:
             )
         ]
 
+    def get_release(self, release_id: UUID) -> ComponentRelease | None:
+        record = self._session.scalar(
+            select(ComponentReleaseRecord).where(ComponentReleaseRecord.id == str(release_id))
+        )
+        return _to_release(record) if record else None
+
+    def sync_provider_catalog(self, providers: list[object]) -> None:
+        """Persist provider descriptors/releases before creating FK-backed locks.
+
+        Providers are the authoritative source for immutable catalog data, while
+        dependency locks and materializations reference the SQL rows.  Syncing is
+        idempotent and deliberately rejects a changed descriptor or release rather
+        than overwriting an existing catalog record.
+        """
+        for provider in providers:
+            typed = cast(Any, provider)
+            for descriptor in typed.descriptors():
+                existing_descriptor = self.get(descriptor.component_key)
+                if existing_descriptor is None:
+                    self.add_descriptor(descriptor, commit=False)
+                elif existing_descriptor.model_dump(mode="json") != descriptor.model_dump(
+                    mode="json"
+                ):
+                    raise EngineeringError(
+                        EngineeringErrorCode.DEPENDENCY_CONFLICT,
+                        "Component catalog conflict for an immutable provider descriptor.",
+                        details={"component_key": descriptor.component_key},
+                    )
+                for release in typed.releases(descriptor.id):
+                    existing_release = self.get_release(release.id)
+                    if existing_release is None:
+                        self.add_release(release, commit=False)
+                    elif existing_release.model_dump(mode="json") != release.model_dump(
+                        mode="json"
+                    ):
+                        raise EngineeringError(
+                            EngineeringErrorCode.DEPENDENCY_CONFLICT,
+                            "Component release conflict for an immutable provider release.",
+                            details={"release_id": str(release.id)},
+                        )
+        self._session.flush()
+
 
 class SqlAlchemyDependencyLockRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
     def add(self, lock: DependencyLock, *, commit: bool = True) -> DependencyLock:
+        existing_record = self._session.scalar(
+            select(DependencyLockRecord).where(
+                DependencyLockRecord.project_id == str(lock.project_id),
+                DependencyLockRecord.lock_hash == lock.lock_hash,
+            )
+        )
+        if existing_record is not None:
+            existing = self.get(UUID(existing_record.id), project_id=lock.project_id)
+            if existing is not None:
+                return existing
         self._session.add(
             DependencyLockRecord(
                 id=str(lock.id),

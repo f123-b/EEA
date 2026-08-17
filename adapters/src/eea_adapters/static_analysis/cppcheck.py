@@ -9,7 +9,10 @@ from eea_core.errors import EngineeringError
 from eea_core.sandbox import CommandSpec, SandboxPolicy, SandboxWorkspace
 from eea_core.static_analysis import StaticAnalysisToolResult
 
-from eea_adapters.sandbox import StructuredCommandExecutor
+from eea_adapters.sandbox import (
+    StructuredCommandExecutor,
+    release_tool_policy_network_access,
+)
 
 
 class CppcheckAdapter:
@@ -39,7 +42,8 @@ class CppcheckAdapter:
             target.write_text(content, encoding="utf-8", newline="")
         policy = SandboxPolicy(
             allowed_executables=(executable,),
-            network_access=False,
+            max_processes=64,
+            network_access=release_tool_policy_network_access(),
         )
         environment = {"TEMP": str(sandbox.root), "TMP": str(sandbox.root)}
         try:
@@ -53,7 +57,11 @@ class CppcheckAdapter:
             )
             if version_result.returncode != 0 or version_result.output_truncated:
                 return self._unknown("Cppcheck version command did not complete cleanly.")
-            version = version_result.stdout.splitlines()[0].strip() or "UNKNOWN"
+            version_output = version_result.stdout or version_result.stderr
+            version = next(
+                (line.strip() for line in version_output.splitlines() if line.strip()),
+                "UNKNOWN",
+            )
             result = self._executor.execute(
                 CommandSpec(
                     argv=(

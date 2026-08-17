@@ -28,6 +28,68 @@ jobs:
       - run: eea openapi export --check
       - run: eea openapi typescript --check
 
+  m19-release:
+    needs: backend
+    runs-on: ubuntu-latest
+    env:
+      EEA_M19_RELEASE_GATE: "1"
+      EEA_TRUSTED_TOOL_NETWORK_ACCESS: "1"
+      EEA_M19_EVIDENCE_DIR: ${{ github.workspace }}/m19-release-evidence
+      EEA_BUILD_EVIDENCE_DIR: ${{ github.workspace }}/m19-release-evidence
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: STMicroelectronics/STM32CubeG4
+          ref: d11b194a9f05d1b143d154771f3dbc282c8052a5
+          path: .eea-component-cache/source/STM32CubeG4-v1.6.3
+          submodules: recursive
+      - name: Initialize M19 evidence directory
+        run: |
+          mkdir -p m19-release-evidence
+          printf 'M19 release gate preflight started\n' > m19-release-evidence/preflight.txt
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install M19 release tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository --yes ppa:kicad/kicad-9.0-releases
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-arm-none-eabi \
+            binutils-arm-none-eabi \
+            libnewlib-arm-none-eabi \
+            cmake \
+            ninja-build \
+            cppcheck \
+            kicad
+      - name: Record M19 release tool versions
+        run: |
+          arm-none-eabi-gcc --version
+          arm-none-eabi-g++ --version
+          arm-none-eabi-size --version
+          arm-none-eabi-readelf --version
+          cmake --version
+          ninja --version
+          cppcheck --version
+          kicad-cli version
+      - run: python -m pip install -e ".[dev]"
+      - name: Run M19 strict release gate
+        run: |
+          pytest --no-cov tests/test_m19_foc_minimal_e2e.py \
+            -k "release or real_build or build_artifact or build_is or cppcheck or firmware_release or erc or authorized_software or p0_requirement or review or hardware_remains" \
+            -q
+      - name: Upload M19 release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m19-release-evidence
+          path: m19-release-evidence
+          if-no-files-found: error
+
   desktop-web:
     runs-on: ubuntu-latest
     steps:

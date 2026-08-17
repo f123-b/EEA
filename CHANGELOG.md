@@ -7,6 +7,18 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M19A FOC Minimal E2E was accepted at final pre-acceptance PR HEAD
+  `f8d3352100ef54a37d771e4625f3a2c30cc9a5cd` on `codex/m19-foc-minimal-e2e`, based on green main
+  `b572fc6b820925ea623a46c6104982efc33a705c`. The dedicated release job executed a
+  real STM32G431 DEVICE build with ARM GCC 13.2.1, Cppcheck 2.13.0, KiCad 9.0.9 ERC, the four
+  M13 release rules, a 9-case software TestRun, and a required Build/static/ERC/TestRun Review;
+  all gates PASS with zero P0/P1 findings. The strict M19 suite reports **20 passed**. M19B
+  remains `BLOCKED_HARDWARE`; no motor run, actuator enable, flash, or hardware commissioning
+  was attempted. Local tool/hardware limits remain fail-closed as documented in `reports/M19/`.
+  PR #13 remains OPEN/DRAFT/UNMERGED and is approved to merge; final PR CI is `32021782056` and
+  push CI is `32021777129`, both green across backend, desktop-web, desktop-tauri, and
+  m19-release. M19A is `ACCEPTED`, M19B is `BLOCKED_HARDWARE`, and M20 is `NOT_STARTED`.
+
 - M18ER.1 — Runtime Auth & Atomic Restore Closure accepted at implementation HEAD
   `21cde4d6398edc85fcb2ea57a5e1bdc44f989e20` on `codex/m18e-renderer-nfr-hardening`. The closure
   adds a real Tauri child-process RuntimeBoundary with loopback-only random port/token,

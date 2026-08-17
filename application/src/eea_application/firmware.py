@@ -9,10 +9,14 @@ import re
 import shutil
 import tempfile
 from collections.abc import Iterable, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from eea_adapters.sandbox import StructuredCommandExecutor
+from eea_adapters.sandbox import (
+    StructuredCommandExecutor,
+    release_tool_policy_network_access,
+)
 from eea_core.build import BuildDiagnostic, BuildRun
 from eea_core.components import DependencyLock
 from eea_core.entities import utc_now
@@ -32,7 +36,7 @@ from eea_core.firmware import (
     SharedResource,
     StartupConfig,
 )
-from eea_core.mcu_config import MCUConfigIR
+from eea_core.mcu_config import GPIOConfig, MCUConfigIR
 from eea_core.sandbox import CommandSpec, SandboxPolicy, SandboxWorkspace
 from eea_core.source import BuildInputSnapshot, SourceRevision
 
@@ -435,11 +439,16 @@ class FirmwareService:
                 source_lines.append(f"    {function_name}();")
         source_lines.extend(["}", ""])
         for interrupt in sorted(config.interrupts, key=lambda value: (value.priority, value.irq)):
-            handler = _identifier(interrupt.irq) + "_IRQHandler"
+            handler = f"eea_{_identifier(interrupt.source)}_irq_handler"
+            vector_handler = _identifier(interrupt.irq) + "_IRQHandler"
             source_lines.extend(
                 [
                     f"void {handler}(void) {{",
                     "    HAL_IncTick();",
+                    "}",
+                    "",
+                    f"void {vector_handler}(void) {{",
+                    f"    {handler}();",
                     "}",
                     "",
                 ]
@@ -595,13 +604,17 @@ class FirmwareService:
 
     @staticmethod
     def _device_gpio_lines(config: MCUConfigIR) -> list[str]:
-        lines = ["static void eea_gpio_init(void) {", "    GPIO_InitTypeDef gpio = {0};"]
-        initialized_ports: set[str] = set()
+        valid_gpio: list[tuple[GPIOConfig, str, str]] = []
         for gpio_config in sorted(config.gpio, key=lambda value: value.signal_ref):
             match = re.fullmatch(r"P([A-K])(\d{1,2})", gpio_config.signal_ref.upper())
-            if match is None:
-                continue
-            port, pin = match.groups()
+            if match is not None:
+                valid_gpio.append((gpio_config, match.group(1), match.group(2)))
+        if not valid_gpio:
+            return ["static void eea_gpio_init(void) {", "}", ""]
+
+        lines = ["static void eea_gpio_init(void) {", "    GPIO_InitTypeDef gpio = {0};"]
+        initialized_ports: set[str] = set()
+        for gpio_config, port, pin in valid_gpio:
             if port not in initialized_ports:
                 lines.append(f"    __HAL_RCC_GPIO{port}_CLK_ENABLE();")
                 initialized_ports.add(port)
@@ -766,7 +779,7 @@ class FirmwareService:
     def _shared_resources(config: MCUConfigIR) -> list[SharedResource]:
         return [
             SharedResource(
-                name=f"dma:{item.id}",
+                name=f"dma:{item.request}",
                 kind="DMA",
                 users=[item.request],
                 protection="configuration-immutable",
@@ -788,6 +801,7 @@ class FirmwareBuildService:
         *,
         environment_profile: dict[str, str] | None = None,
         component_cache_root: Path | None = None,
+        evidence_root: Path | None = None,
     ) -> tuple[BuildInputSnapshot, BuildRun]:
         workspace_root.mkdir(parents=True, exist_ok=True)
         unknown_rules = [
@@ -829,6 +843,7 @@ class FirmwareBuildService:
                 duration_ms=0,
             )
 
+        started_at = datetime.now(UTC)
         with tempfile.TemporaryDirectory(dir=workspace_root) as temporary:
             workspace = SandboxWorkspace.from_root(Path(temporary))
             self._materialize(bundle.files, workspace)
@@ -861,7 +876,12 @@ class FirmwareBuildService:
                             if (resolved := shutil.which(name)) is not None
                         }
                     )
-                )
+                ),
+                # CMake must be able to start its generator (and Ninja must be
+                # able to start one compiler process). Keep the boundary finite
+                # while allowing the DEVICE toolchain's required subprocesses.
+                max_processes=64,
+                network_access=release_tool_policy_network_access(),
             )
             try:
                 version = self._executor.execute(
@@ -920,7 +940,10 @@ class FirmwareBuildService:
                         )
                     ]
                 )
-                artifact_hash = self._artifact_hash(workspace, bundle.firmware.build_target)
+                artifact_path = self._artifact_path(workspace, bundle.firmware.build_target)
+                artifact_hash = (
+                    _sha256_bytes(artifact_path.read_bytes()) if artifact_path is not None else None
+                )
                 if status is BuildStatus.PASS and artifact_hash is None:
                     diagnostics.append(
                         self._diagnostic(
@@ -934,7 +957,7 @@ class FirmwareBuildService:
                 duration_ms = (
                     version.duration_ms + configure_result.duration_ms + result.duration_ms
                 )
-                return snapshot, self._run(
+                build_run = self._run(
                     bundle,
                     snapshot,
                     status,
@@ -948,8 +971,22 @@ class FirmwareBuildService:
                     artifact_hash=artifact_hash,
                     duration_ms=duration_ms,
                 )
+                if evidence_root is not None and artifact_path is not None:
+                    self._write_build_evidence(
+                        evidence_root,
+                        build_run,
+                        workspace.root,
+                        artifact_path,
+                        started_at=started_at,
+                        finished_at=datetime.now(UTC),
+                        exit_code=result.returncode,
+                        configure_command=list(configure),
+                        build_command=list(command),
+                    )
+                return snapshot, build_run
             except EngineeringError as error:
                 if error.code not in {
+                    EngineeringErrorCode.CAPABILITY_UNAVAILABLE,
                     EngineeringErrorCode.TOOL_UNAVAILABLE,
                     EngineeringErrorCode.COMMAND_NOT_ALLOWED,
                 }:
@@ -1106,8 +1143,10 @@ class FirmwareBuildService:
 
     @staticmethod
     def _commands(target: FirmwareBuildTarget) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        generator = ("-G", "Ninja") if target.profile is BuildProfile.DEVICE else ()
         return (
             "cmake",
+            *generator,
             "-S",
             ".",
             "-B",
@@ -1116,10 +1155,12 @@ class FirmwareBuildService:
             "cmake",
             "--build",
             "build",
+            "--parallel",
+            "1",
         )
 
     @staticmethod
-    def _artifact_hash(workspace: SandboxWorkspace, target: FirmwareBuildTarget) -> str | None:
+    def _artifact_path(workspace: SandboxWorkspace, target: FirmwareBuildTarget) -> Path | None:
         candidates = [workspace.path(f"build/{target.output_name}")]
         if target.profile is BuildProfile.DEVICE:
             candidates.append(workspace.path(f"build/{target.output_name}.elf"))
@@ -1132,8 +1173,56 @@ class FirmwareBuildService:
                     content
                 ):
                     continue
-                return _sha256_bytes(content)
+                return candidate
         return None
+
+    @staticmethod
+    def _artifact_hash(workspace: SandboxWorkspace, target: FirmwareBuildTarget) -> str | None:
+        artifact = FirmwareBuildService._artifact_path(workspace, target)
+        return _sha256_bytes(artifact.read_bytes()) if artifact is not None else None
+
+    @staticmethod
+    def _write_build_evidence(
+        evidence_root: Path,
+        build_run: BuildRun,
+        working_directory: Path,
+        artifact_path: Path,
+        *,
+        started_at: datetime,
+        finished_at: datetime,
+        exit_code: int,
+        configure_command: list[str],
+        build_command: list[str],
+    ) -> None:
+        evidence_root.mkdir(parents=True, exist_ok=True)
+        copied = evidence_root / artifact_path.name
+        shutil.copyfile(artifact_path, copied)
+        payload = {
+            "build_run_id": str(build_run.id),
+            "project_id": str(build_run.project_id),
+            "firmware_id": str(build_run.firmware_id),
+            "source_revision_id": str(build_run.source_revision_id),
+            "build_input_snapshot_id": str(build_run.build_input_snapshot_id),
+            "build_input_hash": build_run.build_input_hash,
+            "profile": build_run.profile.value,
+            "toolchain_id": build_run.toolchain_id,
+            "toolchain_version": build_run.toolchain_version,
+            "command": build_run.command,
+            "configure_command": configure_command,
+            "build_command": build_command,
+            "working_directory": str(working_directory),
+            "started_at": started_at.isoformat(),
+            "finished_at": finished_at.isoformat(),
+            "duration_ms": build_run.duration_ms,
+            "exit_code": exit_code,
+            "artifact_path": str(copied),
+            "artifact_size": copied.stat().st_size,
+            "artifact_hash": build_run.artifact_hash,
+            "status": build_run.status.value,
+        }
+        (evidence_root / "build-runtime.json").write_text(
+            json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+        )
 
     @staticmethod
     def _is_arm_elf(content: bytes) -> bool:

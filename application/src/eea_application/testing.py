@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Protocol
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 from eea_core.requirements import Requirement
 from eea_core.testing import (
@@ -189,36 +189,89 @@ class TestGenerationResult:
 class TestGenerationService:
     """Generate declarative test skeletons without an LLM or fabricated result."""
 
-    def generate(self, project_id: UUID, requirements: list[Requirement]) -> TestGenerationResult:
+    def generate(
+        self,
+        project_id: UUID,
+        requirements: list[Requirement],
+        *,
+        verification_profile: str | None = None,
+    ) -> TestGenerationResult:
         cases: list[TestCase] = []
         gaps: list[UUID] = []
         requirement_ids = tuple(item.id for item in requirements)
-        for requirement in sorted(requirements, key=lambda item: str(item.id)):
-            if not requirement.acceptance_criteria:
-                gaps.append(requirement.id)
-                continue
-            for index, criterion in enumerate(requirement.acceptance_criteria, start=1):
-                case_id = deterministic_case_id(
-                    project_id, requirement.id, requirement.revision, index
-                )
+        if verification_profile == "SOFTWARE_RELEASE":
+            release_requirement_ids = tuple(
+                item.id for item in requirements if item.acceptance_criteria
+            )
+            for _index, fact in enumerate(
+                (
+                    ("SOFTWARE_BUILD_ARTIFACT", TestType.BUILD, "build.artifact_bound"),
+                    (
+                        "SOFTWARE_STATIC_ANALYSIS",
+                        TestType.STATIC_ANALYSIS,
+                        "static_analysis.complete",
+                    ),
+                    ("SOFTWARE_ERC", TestType.ERC, "erc.pass"),
+                    ("SOFTWARE_PROTOCOL", TestType.PROTOCOL, "protocol.codec_roundtrip"),
+                    (
+                        "SOFTWARE_SOURCE_MANIFEST",
+                        TestType.INTEGRATION,
+                        "source_revision.manifest",
+                    ),
+                    (
+                        "SOFTWARE_MCU_FIRMWARE",
+                        TestType.INTEGRATION,
+                        "mcu_config.firmware_consistent",
+                    ),
+                    ("SOFTWARE_SAFETY", TestType.INTEGRATION, "safety.no_actuator_enable"),
+                    ("SOFTWARE_TRACEABILITY", TestType.INTEGRATION, "traceability.complete"),
+                    ("SOFTWARE_REQUIREMENTS", TestType.INTEGRATION, "requirements.p0_covered"),
+                ),
+                start=1,
+            ):
+                code, test_type, fact_name = fact
                 cases.append(
                     TestCase(
-                        id=case_id,
-                        code=f"REQ_{requirement.code}_{index}",
-                        title=f"Verify {requirement.code} acceptance criterion {index}",
-                        type=TestType.REQUIREMENT,
-                        requirement_ids=(requirement.id,),
-                        expected=(criterion,),
-                        pass_condition=criterion,
+                        id=uuid5(project_id, f"software-release:{code}"),
+                        code=code,
+                        title=f"Verify {fact_name}",
+                        type=test_type,
+                        requirement_ids=release_requirement_ids,
+                        expected=("server-owned fact is true",),
+                        pass_condition=f"{fact_name} == True",
                         automation_level=AutomationLevel.AUTOMATED,
-                        executor_id=ControlledRequirementExecutor.executor_id,
-                        executor_config={
-                            "fact": "requirement.acceptance_criteria_present",
-                            "expected": True,
-                        },
+                        executor_id=DeterministicFactExecutor.executor_id,
+                        executor_config={"fact": fact_name, "expected": True},
                         required=True,
                     )
                 )
+        else:
+            for requirement in sorted(requirements, key=lambda item: str(item.id)):
+                if not requirement.acceptance_criteria:
+                    gaps.append(requirement.id)
+                    continue
+                for index, criterion in enumerate(requirement.acceptance_criteria, start=1):
+                    case_id = deterministic_case_id(
+                        project_id, requirement.id, requirement.revision, index
+                    )
+                    cases.append(
+                        TestCase(
+                            id=case_id,
+                            code=f"REQ_{requirement.code}_{index}",
+                            title=f"Verify {requirement.code} acceptance criterion {index}",
+                            type=TestType.REQUIREMENT,
+                            requirement_ids=(requirement.id,),
+                            expected=(criterion,),
+                            pass_condition=criterion,
+                            automation_level=AutomationLevel.AUTOMATED,
+                            executor_id=ControlledRequirementExecutor.executor_id,
+                            executor_config={
+                                "fact": "requirement.acceptance_criteria_present",
+                                "expected": True,
+                            },
+                            required=True,
+                        )
+                    )
         snapshots = tuple(
             RequirementTestSnapshot(
                 requirement_id=requirement.id,

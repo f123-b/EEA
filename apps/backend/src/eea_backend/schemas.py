@@ -99,6 +99,7 @@ from eea_core.protocol import (
     ProtocolIR,
     ProtocolValidationResult,
 )
+from eea_core.requirements import RequirementDraft
 from eea_core.review import ReviewRun
 from eea_core.schematic import ErcIssue
 from eea_core.source import PatchProposalStatus
@@ -644,6 +645,7 @@ class RequirementStructuredAnalysisRequest(BaseModel):
     profile_version: str = Field(min_length=1, max_length=50)
     values: dict[str, object] = Field(default_factory=dict)
     evidence_refs: dict[str, UUID] = Field(default_factory=dict)
+    requirements: list[RequirementDraft] = Field(default_factory=list, max_length=100)
 
 
 class RequirementNaturalLanguageAnalysisRequest(BaseModel):
@@ -740,7 +742,7 @@ class PinAssignmentData(BaseModel):
     device_ref: str
     package: str | None
     pin_name: str
-    function: dict[str, str]
+    function: dict[str, str | None]
     locked: bool
     score: float
     claim_ids: list[UUID]
@@ -1510,6 +1512,8 @@ class StaticAnalysisListData(BaseModel):
 class TestGenerateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    verification_profile: str | None = Field(default=None, max_length=100)
+
 
 class TestGenerationData(BaseModel):
     test_ir: TestIR
@@ -1571,6 +1575,7 @@ class ReviewRequest(BaseModel):
     require_build: bool = False
     require_static_analysis: bool = False
     require_erc: bool = False
+    require_test: bool = True
 
 
 class ReviewListData(BaseModel):

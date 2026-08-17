@@ -26,7 +26,11 @@ from eea_application.intelligence import DocumentService, MultiSourceDeviceProvi
 from eea_application.mcu_config import MCUConfigService
 from eea_application.pin_planner import PinPlannerService
 from eea_application.projects import ProjectService
-from eea_application.protocol import ProtocolGenerationError, ProtocolGenerator
+from eea_application.protocol import (
+    GeneratedIdentifierRegistry,
+    ProtocolGenerationError,
+    ProtocolGenerator,
+)
 from eea_application.reliability import CrashPoint, EventOutboxService
 from eea_application.requirements import (
     RequirementAnalysisService,
@@ -1298,6 +1302,9 @@ def resolve_dependencies(
         capabilities=payload.capabilities,
         rtos=payload.rtos,
     )
+    # DependencyLockComponent rows have foreign keys to the immutable catalog.
+    # Persist the exact provider snapshot before inserting the lock closure.
+    SqlAlchemyComponentRepository(session).sync_provider_catalog(providers)
     saved = SqlAlchemyDependencyLockRepository(session).add(lock)
     return ApiEnvelope(data=_dependency_lock_data(saved), request_id=_request_id(request))
 
@@ -2149,6 +2156,50 @@ def validate_schematic(
 
 
 @router.post(
+    "/projects/{project_id}/schematic/erc/run",
+    response_model=ApiEnvelope[SchematicBundleData],
+    tags=["schematic"],
+)
+def run_schematic_erc(
+    project_id: UUID,
+    payload: SchematicValidateRequest,
+    request: Request,
+    session: SessionDependency,
+) -> ApiEnvelope[SchematicBundleData]:
+    _service(session).get(project_id)
+    schematics = SqlAlchemySchematicRepository(session)
+    bundle = schematics.get(payload.schematic_id, project_id=project_id)
+    if bundle is None:
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Schematic is not available for this project",
+            details={"schematic_id": str(payload.schematic_id), "project_id": str(project_id)},
+        )
+    circuits = SqlAlchemyCircuitRepository(session)
+    circuit_bundle = circuits.get(bundle.schematic.circuit_id, project_id=project_id)
+    latest = circuits.latest_for_project(project_id)
+    if circuit_bundle is None or latest is None or circuit_bundle.circuit.id != latest.circuit.id:
+        raise EngineeringError(
+            EngineeringErrorCode.INVALID_REQUIREMENT,
+            "Schematic source CircuitIR is stale or unavailable",
+            details={"reason": "STALE_CIRCUIT_IR", "circuit_id": str(bundle.schematic.circuit_id)},
+        )
+    _ensure_latest_hardware(session, project_id, circuit_bundle.circuit.hardware_ir_id)
+    provider = getattr(request.app.state, "schematic_erc_provider", None)
+    if provider is None:
+        report = SchematicService().validate(bundle.schematic, circuit_bundle.circuit)
+    else:
+        report = provider.execute(
+            bundle.schematic,
+            circuit_bundle.circuit,
+            request.app.state.settings.data_dir / "m10-erc" / str(project_id),
+        )
+    schematics.save_erc_report(report)
+    refreshed = schematics.get(bundle.schematic.id, project_id=project_id) or bundle
+    return ApiEnvelope(data=_schematic_bundle_data(refreshed), request_id=_request_id(request))
+
+
+@router.post(
     "/projects/{project_id}/schematic/erc/import",
     response_model=ApiEnvelope[SchematicBundleData],
     tags=["schematic"],
@@ -2939,6 +2990,7 @@ def build_firmware(
         bundle,
         request.app.state.settings.data_dir / "m12-builds" / str(project_id),
         component_cache_root=request.app.state.settings.data_dir / "component-cache",
+        evidence_root=request.app.state.settings.build_evidence_dir,
     )
     saved = SqlAlchemyBuildRunRepository(session).add(snapshot, build, commit=False)
     event_payload = {
@@ -3068,11 +3120,21 @@ def analyze_firmware_static(
     config_bundle = SqlAlchemyMCUConfigRepository(session).get(
         bundle.firmware.mcu_config_id, project_id=project_id
     )
+    build = next(
+        (
+            item
+            for item in SqlAlchemyBuildRunRepository(session).list_for_project(project_id)
+            if item.firmware_id == bundle.firmware.id
+            and item.source_revision_id == bundle.source_revision.id
+        ),
+        None,
+    )
     analysis = FirmwareStaticAnalysisService(
         getattr(request.app.state, "static_analysis_provider", None)
     ).analyze(
         bundle,
         mcu_config=config_bundle.config if config_bundle is not None else None,
+        build_input_snapshot_id=build.build_input_snapshot_id if build is not None else None,
         run_cppcheck=payload.run_cppcheck,
     )
     saved = SqlAlchemyFirmwareStaticAnalysisRepository(session).add(analysis, commit=False)
@@ -3228,6 +3290,7 @@ def analyze_structured_requirements(
         profile_version=payload.profile_version,
         values=payload.values,
         evidence_refs=payload.evidence_refs,
+        requirements=payload.requirements,
     )
     saved = persist_requirement_analysis_bundle(session, analysis)
     return ApiEnvelope(
@@ -3679,6 +3742,173 @@ def list_domain_ui_extensions(
     )
 
 
+def _software_verification_facts(
+    session: Session,
+    project_id: UUID,
+    source_revision_id: UUID,
+    test_ir: TestIR,
+) -> dict[str, object]:
+    """Compute release facts from persisted engineering results, never client input."""
+
+    firmware = SqlAlchemyFirmwareRepository(session).latest_for_project(project_id)
+    builds = SqlAlchemyBuildRunRepository(session).list_for_project(project_id)
+    build = next((item for item in builds if item.source_revision_id == source_revision_id), None)
+    build_ready = bool(
+        build is not None
+        and build.status.value == "PASS"
+        and build.profile.value == "DEVICE"
+        and build.artifact_hash
+        and build.build_input_snapshot_id
+        and firmware is not None
+        and build.firmware_id == firmware.firmware.id
+        and firmware.source_revision.id == source_revision_id
+    )
+
+    analyses = SqlAlchemyFirmwareStaticAnalysisRepository(session).list_for_project(project_id)
+    static = next(
+        (
+            item
+            for item in analyses
+            if item.source_revision_id == source_revision_id
+            and (firmware is None or item.firmware_id == firmware.firmware.id)
+        ),
+        None,
+    )
+    release_rule_ids = {
+        "APP_DIRECT_HAL_CALL",
+        "ISR_BLOCKING_API",
+        "DRIVER_DEPENDENCY_CYCLE",
+        "MCUCONFIG_FIRMWARE_MISMATCH",
+    }
+    rule_statuses = {
+        item.rule_id: item.status
+        for item in (static.rule_results if static is not None else [])
+        if item.rule_id in release_rule_ids
+    }
+    cppcheck = next(
+        (
+            item
+            for item in (static.tool_results if static is not None else [])
+            if item.tool_id == "cppcheck"
+        ),
+        None,
+    )
+    static_ready = bool(
+        static is not None
+        and static.status.value == "PASS"
+        and static.source_revision_id == source_revision_id
+        and build is not None
+        and static.build_input_snapshot_id == build.build_input_snapshot_id
+        and cppcheck is not None
+        and cppcheck.status.value == "PASS"
+        and set(rule_statuses) == release_rule_ids
+        and all(value in {"PASS", "NOT_APPLICABLE"} for value in rule_statuses.values())
+    )
+
+    schematic = SqlAlchemySchematicRepository(session).latest_for_project(project_id)
+    erc = schematic.erc_report if schematic is not None else None
+    erc_ready = bool(erc is not None and erc.executed and erc.status == "PASS")
+
+    protocol = SqlAlchemyProtocolRepository(session).latest_for_project(project_id)
+    protocol_ready = False
+    if protocol is not None:
+        outputs = list(
+            session.scalars(
+                select(GeneratedProtocolOutputRecord).where(
+                    GeneratedProtocolOutputRecord.project_id == str(project_id),
+                    GeneratedProtocolOutputRecord.protocol_id == str(protocol.id),
+                    GeneratedProtocolOutputRecord.protocol_revision == protocol.revision,
+                )
+            )
+        )
+        output_by_target = {item.target: item for item in outputs}
+        python_output = output_by_target.get("PYTHON")
+        if python_output is not None and {"C", "PYTHON", "DBC", "MARKDOWN"} <= set(
+            output_by_target
+        ):
+            try:
+                namespace: dict[str, object] = {"__name__": "eea_generated_protocol_codec"}
+                exec(compile(python_output.content, python_output.path, "exec"), namespace)
+                registry = GeneratedIdentifierRegistry(protocol)
+                protocol_ready = True
+                for message in protocol.messages:
+                    message_id = registry.message(message)
+                    encoder = namespace.get(f"encode_{message_id}")
+                    decoder = namespace.get(f"decode_{message_id}")
+                    if not callable(encoder) or not callable(decoder):
+                        protocol_ready = False
+                        continue
+                    values = {
+                        field.name: field.minimum if field.minimum is not None else 0
+                        for field in message.fields
+                    }
+                    payload = encoder(values)
+                    decoded = decoder(payload)
+                    protocol_ready = protocol_ready and all(
+                        key in decoded and abs(float(decoded[key]) - float(value)) < 1e-6
+                        for key, value in values.items()
+                    )
+            except (ArithmeticError, KeyError, TypeError, ValueError, SyntaxError):
+                protocol_ready = False
+
+    source = SqlAlchemySourceRepository(session).get_revision(
+        source_revision_id, project_id=project_id
+    )
+    source_ready = bool(
+        source is not None
+        and source.file_manifest
+        and all(len(value) == 64 for value in source.file_manifest.values())
+    )
+    config = (
+        SqlAlchemyMCUConfigRepository(session).get(
+            firmware.firmware.mcu_config_id, project_id=project_id
+        )
+        if firmware is not None
+        else None
+    )
+    mcu_ready = bool(
+        firmware is not None
+        and config is not None
+        and firmware.firmware.mcu_config_revision == config.config.revision
+        and firmware.firmware.source_revision_id == source_revision_id
+        and rule_statuses.get("MCUCONFIG_FIRMWARE_MISMATCH") == "PASS"
+    )
+    safety_ready = bool(
+        firmware is not None
+        and not any(
+            re.search(
+                r"(?i)(actuator[_ ]*enable|enable[_ ]*actuator|HAL_TIM_PWM_Start)", file.content
+            )
+            for file in firmware.files
+        )
+    )
+    release_requirement_ids = {
+        item.requirement_id
+        for item in test_ir.requirement_snapshots
+        if item.priority == "MUST" and item.status == "ACCEPTED"
+    }
+    required_requirement_ids = {
+        requirement_id
+        for case in test_ir.cases
+        if case.required
+        for requirement_id in case.requirement_ids
+    }
+    p0_covered = release_requirement_ids <= required_requirement_ids
+    traceability_ready = p0_covered and not any(not case.requirement_ids for case in test_ir.cases)
+    return {
+        "source_revision.exists": source is not None,
+        "build.artifact_bound": build_ready,
+        "static_analysis.complete": static_ready,
+        "erc.pass": erc_ready,
+        "protocol.codec_roundtrip": protocol_ready,
+        "source_revision.manifest": source_ready,
+        "mcu_config.firmware_consistent": mcu_ready,
+        "safety.no_actuator_enable": safety_ready,
+        "traceability.complete": traceability_ready,
+        "requirements.p0_covered": p0_covered,
+    }
+
+
 @router.post(
     "/projects/{project_id}/tests/generate",
     response_model=ApiEnvelope[TestGenerationData],
@@ -3687,13 +3917,15 @@ def list_domain_ui_extensions(
 )
 def generate_tests(
     project_id: UUID,
-    _: TestGenerateRequest,
+    payload: TestGenerateRequest,
     request: Request,
     session: SessionDependency,
 ) -> ApiEnvelope[TestGenerationData]:
     _service(session).get(project_id)
     requirements = SqlAlchemyRequirementRepository(session).list_for_project(project_id)
-    generated = TestGenerationService().generate(project_id, requirements)
+    generated = TestGenerationService().generate(
+        project_id, requirements, verification_profile=payload.verification_profile
+    )
     tests = SqlAlchemyTestRepository(session)
     saved = tests.add_test_ir(generated.test_ir, commit=False)
     dependency_service = _dependency_service(session)
@@ -3801,7 +4033,12 @@ def run_tests(
             details={"test_ir_id": str(payload.test_ir_id) if payload.test_ir_id else None},
         )
     registry = request.app.state.test_executor_registry
-    registry.ensure_project(project_id, facts={"source_revision.exists": True})
+    registry.ensure_project(
+        project_id,
+        facts=_software_verification_facts(
+            session, project_id, payload.source_revision_id, test_ir
+        ),
+    )
     test_run = TestRunService(registry).run(
         project_id=project_id, test_ir=test_ir, source_revision_id=payload.source_revision_id
     )
@@ -4056,6 +4293,7 @@ def create_review(
             require_build=payload.require_build,
             require_static_analysis=payload.require_static_analysis,
             require_erc=payload.require_erc,
+            require_tests=payload.require_test,
         ),
     )
     issue_repository = SqlAlchemyIssueRepository(session)

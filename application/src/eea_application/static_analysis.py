@@ -394,7 +394,8 @@ class FirmwareStaticAnalysisService:
                     "Declare the firmware module dependency graph before release gating."
                 ),
             )
-        names = [item.name for item in modules]
+        resource_names = {item.name for item in bundle.firmware.shared_resources}
+        names = [item.name for item in modules] + sorted(resource_names)
         if len(names) != len(set(names)):
             return cls._rule(
                 bundle,
@@ -406,6 +407,7 @@ class FirmwareStaticAnalysisService:
                 recommendation="Give every firmware module a unique stable name.",
             )
         graph = {item.name: sorted(item.dependencies) for item in modules}
+        graph.update({name: [] for name in resource_names})
         missing = sorted(
             {
                 dependency
