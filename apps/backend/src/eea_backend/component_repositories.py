@@ -217,6 +217,16 @@ class SqlAlchemyDependencyLockRepository:
         self._session = session
 
     def add(self, lock: DependencyLock, *, commit: bool = True) -> DependencyLock:
+        existing_record = self._session.scalar(
+            select(DependencyLockRecord).where(
+                DependencyLockRecord.project_id == str(lock.project_id),
+                DependencyLockRecord.lock_hash == lock.lock_hash,
+            )
+        )
+        if existing_record is not None:
+            existing = self.get(UUID(existing_record.id), project_id=lock.project_id)
+            if existing is not None:
+                return existing
         self._session.add(
             DependencyLockRecord(
                 id=str(lock.id),
