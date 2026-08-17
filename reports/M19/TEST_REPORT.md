@@ -4,10 +4,10 @@
 
 - Repository: `f123-b/EEA`
 - Branch: `codex/m19-foc-minimal-e2e`
-- HEAD: `9f42d81` — `fix(m19): bind static analysis to build snapshot`
+- HEAD: `3b42e69` — `fix(m19): make protocol verification deterministic`
 - Base/main: `b572fc6b820925ea623a46c6104982efc33a705c`
 - Draft PR: [#13](https://github.com/f123-b/EEA/pull/13), OPEN/DRAFT/UNMERGED
-- Release-gate PR CI: `32018565886`; push CI: `32018561625`
+- Release-gate PR CI: `32020845145`; push CI: `32020840664`
 - M19A: FINAL_GATE_CLOSED; M19B: BLOCKED_HARDWARE
 
 ## Release-gate posture

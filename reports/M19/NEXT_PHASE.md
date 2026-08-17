@@ -1,6 +1,6 @@
 # M19 Next Phase
 
-M19A is implemented and its final release gate is closed at HEAD `9f42d81`. PR #13 remains
+M19A is implemented and its final release gate is closed at HEAD `3b42e69`. PR #13 remains
 OPEN/DRAFT/UNMERGED for human review; no merge was performed.
 
 The only remaining M19 scope is hardware commissioning, which is not authorized or available:
