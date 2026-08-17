@@ -54,6 +54,9 @@ class KiCadErcAdapter:
             workspace.path("m19-circuit-cache.lib").write_text(
                 self._legacy_cache_library(), encoding="utf-8", newline=""
             )
+            workspace.path("sym-lib-table").write_text(
+                self._legacy_symbol_table(), encoding="utf-8", newline=""
+            )
             home = workspace.path("home")
             home.mkdir(parents=True, exist_ok=True)
             config_home = home / "config"
@@ -237,7 +240,7 @@ class KiCadErcAdapter:
                 lines.extend(
                     [
                         "$Comp",
-                        "L PORT " + reference,
+                        "L m19-circuit-cache:PORT " + reference,
                         f"U 1 1 {uid}",
                         f"P {x} {y}",
                         f'F 0 "{reference}" H {x + 80} {y + 42} 50  0000 L CNN',
@@ -304,6 +307,19 @@ class KiCadErcAdapter:
                 "ENDDEF",
                 "#",
                 "#End Library",
+                "",
+            ]
+        )
+
+    @staticmethod
+    def _legacy_symbol_table() -> str:
+        return "\n".join(
+            [
+                "(sym_lib_table",
+                "  (version 7)",
+                '  (lib (name "m19-circuit-cache")(type "Legacy")'
+                '(uri "${KIPRJMOD}/m19-circuit-cache.lib")(options "")(descr ""))',
+                ")",
                 "",
             ]
         )
