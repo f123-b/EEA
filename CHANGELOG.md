@@ -7,13 +7,16 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
-- M20 Core Neutrality Smoke Gate implementation started from green main
-  `7573e1f3525c54cd5fb1155f634b77034d74b255` on `codex/m20-core-neutrality-smoke`. Added the
-  generic embedded-controller requirement contract, verified STM32G431 UART/CAN/SPI facts,
-  FreeRTOS dependency/source profile, UART-aware ProtocolIR validation, explicit 0-domain and
-  Core-neutrality tests, and the retained M19 plus new M20 release gates. Local generic focused
-  verification is **18 passed**; real ARM/KiCad release evidence is pending dedicated CI. M20 is
-  `IMPLEMENTED_PENDING_RELEASE_CI`, not accepted.
+- M20 Core Neutrality Smoke Gate is implemented from green main
+  `7573e1f3525c54cd5fb1155f634b77034d74b255` on `codex/m20-core-neutrality-smoke` at implementation
+  HEAD `59477be150d7a37bdbc1f00102e341c68c407079`. Added the generic embedded-controller
+  requirement contract, verified STM32G431 UART/CAN/SPI facts, FreeRTOS dependency/source profile,
+  UART-aware ProtocolIR validation, explicit 0-domain and Core-neutrality tests, and retained M19
+  plus new M20 release gates. Local generic focused verification is **18 passed**. Dedicated push
+  CI `32045405744` and Draft PR CI `32045408851` are green, including real ARM DEVICE build,
+  Cppcheck/Firmware Rules, executed KiCad ERC, 9-case software TestRun, traceability, impact, and
+  required Review; P0/P1 are zero and MotorControl is inactive. Draft PR #14 is open. M20 is
+  `IMPLEMENTED_READY_FOR_FINAL_REVIEW`, not accepted or approved to merge.
 
 - M19A FOC Minimal E2E was accepted and merged. Its final pre-acceptance implementation HEAD
   was
