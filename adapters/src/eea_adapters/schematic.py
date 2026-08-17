@@ -49,14 +49,8 @@ class KiCadErcAdapter:
         workspace_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=workspace_root) as temporary:
             workspace = SandboxWorkspace.from_root(Path(temporary))
-            legacy = workspace.path("m19-circuit.sch")
-            legacy.write_text(self._legacy_schematic(circuit), encoding="utf-8", newline="")
-            workspace.path("m19-circuit-cache.lib").write_text(
-                self._legacy_cache_library(), encoding="utf-8", newline=""
-            )
-            workspace.path("sym-lib-table").write_text(
-                self._legacy_symbol_table(), encoding="utf-8", newline=""
-            )
+            input_file = workspace.path("m19-circuit.kicad_sch")
+            input_file.write_text(self._modern_schematic(circuit), encoding="utf-8", newline="")
             home = workspace.path("home")
             home.mkdir(parents=True, exist_ok=True)
             config_home = home / "config"
@@ -103,16 +97,6 @@ class KiCadErcAdapter:
                     recommendation=version_result.stderr or "KiCad version command failed.",
                 )
 
-            upgrade = self._executor.execute(
-                CommandSpec(
-                    argv=(executable, "sch", "upgrade", "--force", str(legacy)),
-                    environment=environment,
-                ),
-                workspace.root,
-                policy,
-            )
-            candidates = sorted(workspace.root.rglob("*.kicad_sch"))
-            input_file = candidates[0] if candidates else legacy
             report_path = workspace.path("m19-erc.json")
             erc = self._executor.execute(
                 CommandSpec(
@@ -154,12 +138,6 @@ class KiCadErcAdapter:
             if self._evidence_root is not None:
                 self._evidence_root.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(input_file, self._evidence_root / input_file.name)
-                cache_library = workspace.path("m19-circuit-cache.lib")
-                if cache_library.is_file():
-                    shutil.copyfile(cache_library, self._evidence_root / cache_library.name)
-                symbol_table = workspace.path("sym-lib-table")
-                if symbol_table.is_file():
-                    shutil.copyfile(symbol_table, self._evidence_root / symbol_table.name)
                 if report_path.is_file():
                     shutil.copyfile(report_path, self._evidence_root / "m19-erc.json")
                 else:
@@ -175,9 +153,9 @@ class KiCadErcAdapter:
                 issues=issues,
                 recommendation=recommendation,
                 source_file=str(input_file),
-                upgrade_returncode=upgrade.returncode,
-                upgrade_stdout=upgrade.stdout[:4000],
-                upgrade_stderr=upgrade.stderr[:4000],
+                erc_returncode=erc.returncode,
+                erc_stdout=erc.stdout[:4000],
+                erc_stderr=erc.stderr[:4000],
             )
 
     @staticmethod
@@ -218,116 +196,153 @@ class KiCadErcAdapter:
         )
 
     @staticmethod
-    def _legacy_schematic(circuit: CircuitIR) -> str:
+    def _modern_schematic(circuit: CircuitIR) -> str:
+        """Generate a self-contained KiCad schematic with real passive pins."""
+
+        uuid_index = 0
+
+        def make_uuid() -> str:
+            nonlocal uuid_index
+            uuid_index += 1
+            return f"00000000-0000-4000-8000-{uuid_index:012x}"
+
+        def mm(mils: int | float) -> str:
+            value = float(mils) * 0.0254
+            return f"{value:.4f}".rstrip("0").rstrip(".")
+
+        def font(size: str = "1.27") -> list[str]:
+            return ["(effects", f"  (font (size {size} {size}))", ")"]
+
         lines = [
-            "EESchema Schematic File Version 4",
-            "LIBS:m19-circuit-cache",
-            "EELAYER 29 0",
-            "EELAYER END",
-            "$Descr A4 11693 8268",
-            "Sheet 1 1",
-            'Title "EEA M19 CircuitIR ERC Gate"',
-            'Comment1 "Generated from persisted CircuitIR; no hardware execution"',
-            "$EndDescr",
+            "(kicad_sch (version 20210621) (generator eeschema)",
+            f'  (uuid "{make_uuid()}")',
+            '  (paper "A4")',
+            "  (title_block",
+            '    (title "EEA M19 CircuitIR ERC Gate")',
+            '    (comment 1 "Generated from persisted CircuitIR; no hardware execution")',
+            "  )",
+            "  (lib_symbols",
+            '    (symbol "m19-circuit-cache:PORT"',
+            "      (pin_numbers hide)",
+            "      (pin_names (offset 0.762))",
+            "      (in_bom yes)",
+            "      (on_board yes)",
+            '      (property "Reference" "J" (id 0) (at 0 2.54 0)',
+            "        (effects (font (size 1.27 1.27)))",
+            "      )",
+            '      (property "Value" "PORT" (id 1) (at 0 -2.54 0)',
+            "        (effects (font (size 1.27 1.27)))",
+            "      )",
+            '      (property "Footprint" "" (id 2) (at 0 0 0)',
+            "        (effects (font (size 1.27 1.27)) hide)",
+            "      )",
+            '      (property "Datasheet" "~" (id 3) (at 0 0 0)',
+            "        (effects (font (size 1.27 1.27)) hide)",
+            "      )",
+            '      (symbol "PORT_0_1"',
+            "        (rectangle (start -1.27 1.27) (end 1.27 -1.27)",
+            "          (stroke (width 0) (type default))",
+            "          (fill (type background))",
+            "        )",
+            "      )",
+            '      (symbol "PORT_1_1"',
+            "        (pin passive line (at -2.54 0 0) (length 2.54)",
+            '          (name "P" (effects (font (size 1.27 1.27))))',
+            '          (number "1" (effects (font (size 1.27 1.27))))',
+            "        )",
+            "      )",
+            "    )",
+            "  )",
         ]
         component_index = 1
+        instance_records: list[tuple[str, str]] = []
         for net_index, net in enumerate(
             sorted(circuit.nets, key=lambda item: (item.name, str(item.id)))
         ):
-            y = 1800 + net_index * 650
-            endpoint_positions: list[int] = []
+            y_mils = 1800 + net_index * 650
+            y = mm(y_mils)
+            pin_positions: list[str] = []
             for endpoint_index, endpoint in enumerate(net.endpoints):
-                x = 2600 + endpoint_index * 1400
-                endpoint_positions.append(x - 100)
+                x_mils = 2600 + endpoint_index * 1400
+                x = mm(x_mils)
+                pin_x = mm(x_mils - 100)
+                symbol_uuid = make_uuid()
+                pin_uuid = make_uuid()
                 reference = f"J{component_index}"
+                endpoint_label = f"{endpoint.component_ref}:{endpoint.pin_ref}"
+                reference_property = (
+                    f'    (property "Reference" "{reference}" (id 0) (at {x} {mm(y_mils + 105)} 0)'
+                )
+                value_property = (
+                    f'    (property "Value" "{endpoint_label}" (id 1) (at {x} {mm(y_mils - 105)} 0)'
+                )
                 component_index += 1
-                uid = f"{component_index:08X}"
+                instance_records.append((symbol_uuid, reference))
                 lines.extend(
                     [
-                        "$Comp",
-                        "L m19-circuit-cache:PORT " + reference,
-                        f"U 1 1 {uid}",
-                        f"P {x} {y}",
-                        f'F 0 "{reference}" H {x + 80} {y + 42} 50  0000 L CNN',
-                        (
-                            f'F 1 "{endpoint.component_ref}:{endpoint.pin_ref}" '
-                            f"H {x + 80} {y - 49} 50  0000 L CNN"
-                        ),
-                        "\t1    " + str(x) + " " + str(y),
-                        "\t1    0    0    -1",
-                        "$EndComp",
+                        f'  (symbol (lib_id "m19-circuit-cache:PORT") (at {x} {y} 0) (unit 1)',
+                        "    (in_bom yes) (on_board yes) (fields_autoplaced)",
+                        f'    (uuid "{symbol_uuid}")',
+                        reference_property,
+                        "      (effects (font (size 1.27 1.27)) (justify left))",
+                        "    )",
+                        value_property,
+                        "      (effects (font (size 1.27 1.27)) (justify left))",
+                        "    )",
+                        f'    (property "Footprint" "" (id 2) (at {x} {y} 0)',
+                        "      (effects (font (size 1.27 1.27)) hide)",
+                        "    )",
+                        f'    (property "Datasheet" "~" (id 3) (at {x} {y} 0)',
+                        "      (effects (font (size 1.27 1.27)) hide)",
+                        "    )",
+                        f'    (pin "1" (uuid "{pin_uuid}"))',
+                        "  )",
                     ]
                 )
-            if endpoint_positions:
-                wire_start = min(endpoint_positions)
-                wire_end = (
-                    max(endpoint_positions)
-                    if len(endpoint_positions) > 1
-                    else endpoint_positions[0] + 200
-                )
-                wire_label = wire_start + max(100, (wire_end - wire_start) // 2)
+                pin_positions.append(pin_x)
+            if len(pin_positions) > 1:
+                wire_start = min(float(position) for position in pin_positions)
+                wire_end = max(float(position) for position in pin_positions)
+                wire_mid = (wire_start + wire_end) / 2
+                wire_mid_text = f"{wire_mid:.4f}".rstrip("0").rstrip(".")
                 lines.extend(
                     [
-                        "Wire Wire Line",
-                        f"\t{wire_start} {y} {wire_label} {y}",
-                        "Wire Wire Line",
-                        f"\t{wire_label} {y} {wire_end} {y}",
-                        f"Connection ~ {wire_label} {y}",
-                    ]
-                )
-                lines.extend(
-                    [
-                        f"Text Notes {wire_label} {y - 100} 0    50   ~ 0",
-                        f"NET: {net.name}",
+                        f"  (wire (pts (xy {pin_positions[0]} {y}) (xy {wire_mid_text} {y}))",
+                        "    (stroke (width 0) (type solid) (color 0 0 0 0))",
+                        f'    (uuid "{make_uuid()}")',
+                        "  )",
+                        f"  (wire (pts (xy {wire_mid_text} {y}) (xy {pin_positions[-1]} {y}))",
+                        "    (stroke (width 0) (type solid) (color 0 0 0 0))",
+                        f'    (uuid "{make_uuid()}")',
+                        "  )",
+                        f"  (junction (at {wire_mid_text} {y}) (diameter 0) (color 0 0 0 0)",
+                        f'    (uuid "{make_uuid()}")',
+                        "  )",
+                        f'  (text "NET: {net.name}" (exclude_from_sim no) '
+                        f"(at {wire_mid_text} {mm(y_mils - 100)} 0)",
+                        "    (effects (font (size 1.27 1.27)))",
+                        f'    (uuid "{make_uuid()}")',
+                        "  )",
                     ]
                 )
         lines.extend(
             [
-                "Text Notes 1800 700 0    80   ~ 16",
-                "EEA M19 CircuitIR -> KiCad ERC",
-                "$EndSCHEMATC",
-                "",
+                "  (sheet_instances",
+                '    (path "/" (page "1"))',
+                "  )",
+                "  (symbol_instances",
             ]
         )
+        for symbol_uuid, reference in instance_records:
+            lines.extend(
+                [
+                    f'    (path "/{symbol_uuid}"',
+                    f'      (reference "{reference}") (unit 1) (value "PORT") (footprint "")',
+                    "    )",
+                ]
+            )
+        lines.extend(["  )", ")", ""])
         return "\n".join(lines)
-
-    @staticmethod
-    def _legacy_cache_library() -> str:
-        """Provide a deterministic passive one-pin symbol for legacy KiCad ERC."""
-
-        return "\n".join(
-            [
-                "EESchema-LIBRARY Version 2.4",
-                "#encoding utf-8",
-                "#",
-                "# PORT",
-                "#",
-                "DEF PORT J 0 40 Y Y 1 F N",
-                'F0 "J" 0 100 50 H V C CNN',
-                'F1 "PORT" 0 -100 50 H V C CNN',
-                "DRAW",
-                "S -50 50 50 -50 0 1 10 f",
-                "X P 1 -100 0 50 R 50 50 1 1 P",
-                "ENDDRAW",
-                "ENDDEF",
-                "#",
-                "#End Library",
-                "",
-            ]
-        )
-
-    @staticmethod
-    def _legacy_symbol_table() -> str:
-        return "\n".join(
-            [
-                "(sym_lib_table",
-                "  (version 7)",
-                '  (lib (name "m19-circuit-cache")(type "Legacy")'
-                '(uri "${KIPRJMOD}/m19-circuit-cache.lib")(options "")(descr ""))',
-                ")",
-                "",
-            ]
-        )
 
 
 __all__ = ["KiCadErcAdapter"]
