@@ -63,6 +63,11 @@ class KiCadErcAdapter:
             cache_home = home / "cache"
             config_home.mkdir(parents=True, exist_ok=True)
             cache_home.mkdir(parents=True, exist_ok=True)
+            kicad_config = config_home / "kicad" / "9.0"
+            kicad_config.mkdir(parents=True, exist_ok=True)
+            kicad_config.joinpath("sym-lib-table").write_text(
+                self._symbol_table(), encoding="utf-8", newline=""
+            )
             policy = SandboxPolicy(
                 allowed_executables=(executable,),
                 max_processes=64,
@@ -148,6 +153,9 @@ class KiCadErcAdapter:
                     source = workspace.path(support_file)
                     if source.is_file():
                         shutil.copyfile(source, self._evidence_root / source.name)
+                config_table = kicad_config / "sym-lib-table"
+                if config_table.is_file():
+                    shutil.copyfile(config_table, self._evidence_root / "kicad-sym-lib-table")
                 if report_path.is_file():
                     shutil.copyfile(report_path, self._evidence_root / "m19-erc.json")
                 else:
