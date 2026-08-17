@@ -259,13 +259,15 @@ class KiCadErcAdapter:
                         f"Connection ~ {wire_end} {y}",
                     ]
                 )
-                # Place the local label on a split wire segment.  This is the legacy
-                # KiCad representation that survives the headless file upgrade with
-                # an unambiguous label-to-wire junction.
+                # Keep the CircuitIR net name as a drawing note.  KiCad 9's legacy
+                # headless parser does not reliably bind local-label objects to this
+                # generated connector topology; a decorative label would therefore
+                # create a real `label_dangling` ERC violation.  Electrical identity
+                # is carried by the connected wire and endpoint fields above.
                 lines.extend(
                     [
-                        f"Text Label {wire_label} {y} 0    50   ~ 0",
-                        net.name,
+                        f"Text Notes {wire_label} {y - 100} 0    50   ~ 0",
+                        f"NET: {net.name}",
                     ]
                 )
         lines.extend(
