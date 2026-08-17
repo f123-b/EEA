@@ -643,6 +643,11 @@ def _dbc_source(protocol: ProtocolIR, registry: GeneratedIdentifierRegistry) -> 
     ]
     arbitration_keys: set[int] = set()
     for message in canonical_messages(protocol):
+        transport = next(
+            item for item in protocol.transports if item.transport_id == message.transport_ref
+        )
+        if transport.transport_type.upper() != "CAN":
+            continue
         can_id = message.can_id | (0x80000000 if message.extended_id else 0)
         if can_id in arbitration_keys:
             raise ProtocolGenerationError(

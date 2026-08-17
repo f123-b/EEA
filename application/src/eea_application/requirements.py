@@ -970,3 +970,106 @@ def build_foc_benchmark_profile() -> RequirementProfile:
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
     )
+
+
+def build_embedded_controller_benchmark_profile() -> RequirementProfile:
+    """Return the generic UART/CAN/SPI/RTOS benchmark contract.
+
+    This is deliberately expressed only as generic requirement data.  The
+    optional domain registry is not involved in registering or evaluating it.
+    """
+
+    from datetime import UTC, datetime
+
+    return RequirementProfile(
+        schema_version=REQUIREMENT_PROFILE_SCHEMA_VERSION,
+        profile_name="embedded-controller-benchmark",
+        profile_version="1.0",
+        purpose="Deterministic generic embedded-controller workflow for STM32G431.",
+        fields=[
+            RequirementFieldSpec(
+                key="target.device",
+                label="Target device",
+                value_type=RequirementValueType.TEXT,
+                required=True,
+                claim_predicate="target.device",
+                text_min_length=1,
+            ),
+            RequirementFieldSpec(
+                key="target.package",
+                label="Target package",
+                value_type=RequirementValueType.TEXT,
+                required=True,
+                claim_predicate="target.package",
+                text_min_length=1,
+            ),
+            RequirementFieldSpec(
+                key="interfaces.uart",
+                label="UART interface",
+                value_type=RequirementValueType.ENUM,
+                allowed_values=["USART2"],
+                required=True,
+                claim_predicate="interfaces.uart",
+            ),
+            RequirementFieldSpec(
+                key="interfaces.can",
+                label="CAN interface",
+                value_type=RequirementValueType.ENUM,
+                allowed_values=["FDCAN1"],
+                required=True,
+                claim_predicate="interfaces.can",
+            ),
+            RequirementFieldSpec(
+                key="interfaces.spi",
+                label="SPI sensor interface",
+                value_type=RequirementValueType.ENUM,
+                allowed_values=["SPI1"],
+                required=True,
+                claim_predicate="interfaces.spi",
+            ),
+            RequirementFieldSpec(
+                key="sensor.type",
+                label="Sensor type",
+                value_type=RequirementValueType.TEXT,
+                required=True,
+                claim_predicate="sensor.type",
+                text_min_length=1,
+            ),
+            RequirementFieldSpec(
+                key="rtos.name",
+                label="RTOS",
+                value_type=RequirementValueType.ENUM,
+                allowed_values=["FreeRTOS"],
+                required=True,
+                claim_predicate="rtos.name",
+            ),
+            RequirementFieldSpec(
+                key="rtos.tasks",
+                label="RTOS tasks",
+                value_type=RequirementValueType.LIST,
+                required=True,
+                claim_predicate="rtos.tasks",
+                list_min_items=3,
+            ),
+        ],
+        evidence_contracts=[
+            RequirementEvidenceContract(
+                key="device_source",
+                description="authoritative STM32G431 package and peripheral facts",
+                allowed_types=[EvidenceType.DOCUMENT, EvidenceType.DEVICE_DB],
+            ),
+            RequirementEvidenceContract(
+                key="interface_source",
+                description="UART, CAN, SPI and sensor interface contract",
+                allowed_types=[EvidenceType.DOCUMENT, EvidenceType.USER_CONFIRMATION],
+            ),
+            RequirementEvidenceContract(
+                key="rtos_source",
+                description="FreeRTOS task and synchronization contract",
+                allowed_types=[EvidenceType.DOCUMENT, EvidenceType.USER_CONFIRMATION],
+            ),
+        ],
+        active=True,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )

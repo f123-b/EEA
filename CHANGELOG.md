@@ -7,7 +7,16 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
-- M19A FOC Minimal E2E was accepted at final pre-acceptance PR HEAD
+- M20 Core Neutrality Smoke Gate implementation started from green main
+  `7573e1f3525c54cd5fb1155f634b77034d74b255` on `codex/m20-core-neutrality-smoke`. Added the
+  generic embedded-controller requirement contract, verified STM32G431 UART/CAN/SPI facts,
+  FreeRTOS dependency/source profile, UART-aware ProtocolIR validation, explicit 0-domain and
+  Core-neutrality tests, and the retained M19 plus new M20 release gates. Local generic focused
+  verification is **18 passed**; real ARM/KiCad release evidence is pending dedicated CI. M20 is
+  `IMPLEMENTED_PENDING_RELEASE_CI`, not accepted.
+
+- M19A FOC Minimal E2E was accepted and merged. Its final pre-acceptance implementation HEAD
+  was
   `f8d3352100ef54a37d771e4625f3a2c30cc9a5cd` on `codex/m19-foc-minimal-e2e`, based on green main
   `b572fc6b820925ea623a46c6104982efc33a705c`. The dedicated release job executed a
   real STM32G431 DEVICE build with ARM GCC 13.2.1, Cppcheck 2.13.0, KiCad 9.0.9 ERC, the four
@@ -15,9 +24,11 @@ the frozen documentation changelogs under `docs/`.
   all gates PASS with zero P0/P1 findings. The strict M19 suite reports **20 passed**. M19B
   remains `BLOCKED_HARDWARE`; no motor run, actuator enable, flash, or hardware commissioning
   was attempted. Local tool/hardware limits remain fail-closed as documented in `reports/M19/`.
-  PR #13 remains OPEN/DRAFT/UNMERGED and is approved to merge; final PR CI is `32021782056` and
-  push CI is `32021777129`, both green across backend, desktop-web, desktop-tauri, and
-  m19-release. M19A is `ACCEPTED`, M19B is `BLOCKED_HARDWARE`, and M20 is `NOT_STARTED`.
+  PR #13 was finalized at `e9b947e1d21202ea568c65af49a866f4961c6cc1` and merged with merge
+  commit `7573e1f3525c54cd5fb1155f634b77034d74b255` at `2026-08-17T14:25:12Z`. Acceptance CI
+  `32038057014`, push CI `32038052903`, and post-merge main CI `32038973317` were green across
+  backend, desktop-web, desktop-tauri, and m19-release. M19A is `ACCEPTED_AND_MERGED`, M19B is
+  `BLOCKED_HARDWARE`, and M20 is now in progress on `codex/m20-core-neutrality-smoke`.
 
 - M18ER.1 — Runtime Auth & Atomic Restore Closure accepted at implementation HEAD
   `21cde4d6398edc85fcb2ea57a5e1bdc44f989e20` on `codex/m18e-renderer-nfr-hardening`. The closure

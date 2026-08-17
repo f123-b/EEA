@@ -23,6 +23,7 @@ from eea_application.reliability import (
 )
 from eea_application.requirements import (
     build_claim_predicate_definitions,
+    build_embedded_controller_benchmark_profile,
     build_foc_benchmark_profile,
     ensure_requirement_prompt_registered,
 )
@@ -65,53 +66,58 @@ from plugins.builtin.motor_control import build_motor_control_plugin
 
 def seed_builtin_requirement_contracts(session: Session) -> None:
     profile_repository = SqlAlchemyRequirementProfileRepository(session)
-    expected_profile = build_foc_benchmark_profile()
-    existing_profile = profile_repository.get(
-        expected_profile.profile_name, expected_profile.profile_version
-    )
     comparable = {"id", "revision", "created_at", "updated_at", "metadata"}
-    if existing_profile is None:
-        try:
-            profile_repository.add(expected_profile)
-        except ValueError:
-            existing_profile = profile_repository.get(
-                expected_profile.profile_name, expected_profile.profile_version
-            )
-            if existing_profile is None:
-                raise
-    if existing_profile is not None and existing_profile.model_dump(
-        mode="json", exclude=comparable
-    ) != (expected_profile.model_dump(mode="json", exclude=comparable)):
-        raise EngineeringError(
-            EngineeringErrorCode.SCHEMA_VERSION_UNSUPPORTED,
-            "Durable requirement profile contract does not match the application contract",
-            details={
-                "profile_name": expected_profile.profile_name,
-                "profile_version": expected_profile.profile_version,
-            },
+    expected_profiles = [
+        build_foc_benchmark_profile(),
+        build_embedded_controller_benchmark_profile(),
+    ]
+    for expected_profile in expected_profiles:
+        existing_profile = profile_repository.get(
+            expected_profile.profile_name, expected_profile.profile_version
         )
+        if existing_profile is None:
+            try:
+                profile_repository.add(expected_profile)
+            except ValueError:
+                existing_profile = profile_repository.get(
+                    expected_profile.profile_name, expected_profile.profile_version
+                )
+                if existing_profile is None:
+                    raise
+        if existing_profile is not None and existing_profile.model_dump(
+            mode="json", exclude=comparable
+        ) != expected_profile.model_dump(mode="json", exclude=comparable):
+            raise EngineeringError(
+                EngineeringErrorCode.SCHEMA_VERSION_UNSUPPORTED,
+                "Durable requirement profile contract does not match the application contract",
+                details={
+                    "profile_name": expected_profile.profile_name,
+                    "profile_version": expected_profile.profile_version,
+                },
+            )
     ensure_requirement_prompt_registered(SqlAlchemyPromptRepository(session))
 
     predicate_repository = SqlAlchemyClaimPredicateRepository(session)
     predicate_registry = ClaimPredicateRegistry(predicate_repository)
     comparable = {"id", "revision", "created_at", "updated_at", "metadata"}
-    for expected in build_claim_predicate_definitions(expected_profile):
-        existing = predicate_repository.get(expected.predicate)
-        if existing is None:
-            try:
-                predicate_registry.register(expected)
-            except ValueError:
-                existing = predicate_repository.get(expected.predicate)
-                if existing is None:
-                    raise
-        if existing is not None and existing.model_dump(
-            mode="json", exclude=comparable
-        ) != expected.model_dump(mode="json", exclude=comparable):
-            raise EngineeringError(
-                EngineeringErrorCode.SCHEMA_VERSION_UNSUPPORTED,
-                "Durable Claim predicate contract does not match the application contract",
-                details={"predicate": expected.predicate},
-            )
+    for profile in expected_profiles:
+        for expected in build_claim_predicate_definitions(profile):
+            existing = predicate_repository.get(expected.predicate)
+            if existing is None:
+                try:
+                    predicate_registry.register(expected)
+                except ValueError:
+                    existing = predicate_repository.get(expected.predicate)
+                    if existing is None:
+                        raise
+            if existing is not None and existing.model_dump(
+                mode="json", exclude=comparable
+            ) != expected.model_dump(mode="json", exclude=comparable):
+                raise EngineeringError(
+                    EngineeringErrorCode.SCHEMA_VERSION_UNSUPPORTED,
+                    "Durable Claim predicate contract does not match the application contract",
+                    details={"predicate": expected.predicate},
+                )
 
 
 def seed_builtin_requirement_profiles(session: Session) -> None:

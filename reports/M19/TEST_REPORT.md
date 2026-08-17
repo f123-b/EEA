@@ -4,11 +4,14 @@
 
 - Repository: `f123-b/EEA`
 - Branch: `codex/m19-foc-minimal-e2e`
-- Final PR HEAD before acceptance-docs commit: `f8d3352100ef54a37d771e4625f3a2c30cc9a5cd` — `docs(m19): refresh final release evidence`
-- Base/main: `b572fc6b820925ea623a46c6104982efc33a705c`
-- Draft PR: [#13](https://github.com/f123-b/EEA/pull/13), OPEN/DRAFT/UNMERGED
-- Release-gate PR CI: `32021782056`; push CI: `32021777129`
-- M19A: ACCEPTED; M19B: BLOCKED_HARDWARE; APPROVED_TO_MERGE: YES
+- Final implementation HEAD before acceptance docs: `f8d3352100ef54a37d771e4625f3a2c30cc9a5cd`
+- Final PR HEAD: `e9b947e1d21202ea568c65af49a866f4961c6cc1`
+- Base/main after merge: `7573e1f3525c54cd5fb1155f634b77034d74b255`
+- PR: [#13](https://github.com/f123-b/EEA/pull/13), MERGED by merge commit
+  `7573e1f3525c54cd5fb1155f634b77034d74b255` at `2026-08-17T14:25:12Z`
+- Acceptance PR CI: `32038057014`; acceptance push CI: `32038052903`; post-merge main CI:
+  `32038973317`
+- M19A: ACCEPTED_AND_MERGED; M19B: BLOCKED_HARDWARE
 
 ## Release-gate posture
 
@@ -16,7 +19,8 @@ M19A is **IMPLEMENTED** and **FINAL_GATE_CLOSED**. The dedicated `m19-release` j
 normal API/Application/repository vertical slice in GitHub Actions with real release tools. It
 does not claim a real motor run, actuator enable, or hardware commissioning success.
 
-Its uploaded artifact is `m19-release-evidence` from PR run `32018565886`.
+Its uploaded artifact is `m19-release-evidence` from the green release runs; the post-merge
+main gate also completed successfully.
 
 ## Implemented vertical slice
 
@@ -89,6 +93,8 @@ M19_P0 = 0
 M19_P1 = 0
 M20 = NOT_STARTED
 M21 = NOT_STARTED
-PR_13 = OPEN_DRAFT_UNMERGED
-APPROVED_TO_MERGE = YES
+PR_13 = MERGED
+M19_MERGE_SHA = 7573e1f3525c54cd5fb1155f634b77034d74b255
+MAIN_CI = GREEN
+M20 = IN_PROGRESS_ON_CODEX_M20_BRANCH
 ```
