@@ -61,7 +61,11 @@ class KiCadErcAdapter:
                 workspace.root,
                 policy,
             )
-            tool_version = version_result.stdout.splitlines()[0].strip() or "UNKNOWN"
+            version_output = version_result.stdout or version_result.stderr
+            tool_version = next(
+                (line.strip() for line in version_output.splitlines() if line.strip()),
+                "UNKNOWN",
+            )
             if version_result.returncode != 0:
                 return self._report(
                     schematic,

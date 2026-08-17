@@ -56,7 +56,11 @@ class CppcheckAdapter:
             )
             if version_result.returncode != 0 or version_result.output_truncated:
                 return self._unknown("Cppcheck version command did not complete cleanly.")
-            version = version_result.stdout.splitlines()[0].strip() or "UNKNOWN"
+            version_output = version_result.stdout or version_result.stderr
+            version = next(
+                (line.strip() for line in version_output.splitlines() if line.strip()),
+                "UNKNOWN",
+            )
             result = self._executor.execute(
                 CommandSpec(
                     argv=(
