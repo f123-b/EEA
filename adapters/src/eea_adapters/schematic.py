@@ -245,23 +245,26 @@ class KiCadErcAdapter:
                     ]
                 )
             if pins:
+                wire_start = min(pins)
+                wire_end = max(pins) if len(pins) > 1 else pins[0] + 200
+                wire_label = wire_start + max(100, (wire_end - wire_start) // 2)
                 lines.extend(
                     [
                         "Wire Wire Line",
-                        f"\t{min(pins)} {y} {max(pins) if len(pins) > 1 else pins[0] + 200} {y}",
-                        f"Connection ~ {min(pins)} {y}",
-                        f"Connection ~ {max(pins) if len(pins) > 1 else pins[0] + 200} {y}",
+                        f"\t{wire_start} {y} {wire_label} {y}",
+                        "Wire Wire Line",
+                        f"\t{wire_label} {y} {wire_end} {y}",
+                        f"Connection ~ {wire_start} {y}",
+                        f"Connection ~ {wire_label} {y}",
+                        f"Connection ~ {wire_end} {y}",
                     ]
                 )
-                # Legacy KiCad labels are anchored at their declared coordinate.  Keep
-                # both ends explicitly connected so the upgraded schematic has no
-                # dangling-label or unconnected-wire violations.
-                wire_end = max(pins) if len(pins) > 1 else pins[0] + 200
+                # Place the local label on a split wire segment.  This is the legacy
+                # KiCad representation that survives the headless file upgrade with
+                # an unambiguous label-to-wire junction.
                 lines.extend(
                     [
-                        f"Text Label {min(pins)} {y} 0    50   ~ 0",
-                        net.name,
-                        f"Text Label {wire_end} {y} 2    50   ~ 0",
+                        f"Text Label {wire_label} {y} 0    50   ~ 0",
                         net.name,
                     ]
                 )
