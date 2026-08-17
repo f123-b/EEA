@@ -51,6 +51,12 @@ class KiCadErcAdapter:
             workspace = SandboxWorkspace.from_root(Path(temporary))
             input_file = workspace.path("m19-circuit.kicad_sch")
             input_file.write_text(self._modern_schematic(circuit), encoding="utf-8", newline="")
+            workspace.path("m19-connector.lib").write_text(
+                self._legacy_connector_library(), encoding="utf-8", newline=""
+            )
+            workspace.path("sym-lib-table").write_text(
+                self._symbol_table(), encoding="utf-8", newline=""
+            )
             home = workspace.path("home")
             home.mkdir(parents=True, exist_ok=True)
             config_home = home / "config"
@@ -138,6 +144,10 @@ class KiCadErcAdapter:
             if self._evidence_root is not None:
                 self._evidence_root.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(input_file, self._evidence_root / input_file.name)
+                for support_file in ("m19-connector.lib", "sym-lib-table"):
+                    source = workspace.path(support_file)
+                    if source.is_file():
+                        shutil.copyfile(source, self._evidence_root / source.name)
                 if report_path.is_file():
                     shutil.copyfile(report_path, self._evidence_root / "m19-erc.json")
                 else:
@@ -342,6 +352,42 @@ class KiCadErcAdapter:
             )
         lines.extend(["  )", ")", ""])
         return "\n".join(lines)
+
+    @staticmethod
+    def _legacy_connector_library() -> str:
+        return "\n".join(
+            [
+                "EESchema-LIBRARY Version 2.4",
+                "#encoding utf-8",
+                "#",
+                "# PORT",
+                "#",
+                "DEF PORT J 0 40 Y Y 1 F N",
+                'F0 "J" 0 100 50 H V C CNN',
+                'F1 "PORT" 0 -100 50 H V C CNN',
+                "DRAW",
+                "S -50 50 50 -50 0 1 10 f",
+                "X P 1 -100 0 50 R 50 50 1 1 P",
+                "ENDDRAW",
+                "ENDDEF",
+                "#",
+                "#End Library",
+                "",
+            ]
+        )
+
+    @staticmethod
+    def _symbol_table() -> str:
+        return "\n".join(
+            [
+                "(sym_lib_table",
+                "  (version 7)",
+                '  (lib (name "Connector")(type "Legacy")'
+                '(uri "${KIPRJMOD}/m19-connector.lib")(options "")(descr ""))',
+                ")",
+                "",
+            ]
+        )
 
 
 __all__ = ["KiCadErcAdapter"]
