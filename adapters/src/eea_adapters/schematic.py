@@ -249,9 +249,22 @@ class KiCadErcAdapter:
                     [
                         "Wire Wire Line",
                         f"\t{min(pins)} {y} {max(pins) if len(pins) > 1 else pins[0] + 200} {y}",
+                        f"Connection ~ {min(pins)} {y}",
+                        f"Connection ~ {max(pins) if len(pins) > 1 else pins[0] + 200} {y}",
                     ]
                 )
-                lines.extend([f"Text Label {min(pins) + 50} {y} 0    50   ~ 0", net.name])
+                # Legacy KiCad labels are anchored at their declared coordinate.  Keep
+                # both ends explicitly connected so the upgraded schematic has no
+                # dangling-label or unconnected-wire violations.
+                wire_end = max(pins) if len(pins) > 1 else pins[0] + 200
+                lines.extend(
+                    [
+                        f"Text Label {min(pins)} {y} 0    50   ~ 0",
+                        net.name,
+                        f"Text Label {wire_end} {y} 2    50   ~ 0",
+                        net.name,
+                    ]
+                )
         lines.extend(
             [
                 "Text Notes 1800 700 0    80   ~ 16",
