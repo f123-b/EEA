@@ -153,9 +153,7 @@ class KiCadErcAdapter:
                 shutil.copyfile(input_file, self._evidence_root / input_file.name)
                 cache_library = workspace.path("m19-circuit-cache.lib")
                 if cache_library.is_file():
-                    shutil.copyfile(
-                        cache_library, self._evidence_root / cache_library.name
-                    )
+                    shutil.copyfile(cache_library, self._evidence_root / cache_library.name)
                 if report_path.is_file():
                     shutil.copyfile(report_path, self._evidence_root / "m19-erc.json")
                 else:
