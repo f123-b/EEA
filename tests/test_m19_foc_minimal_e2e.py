@@ -941,9 +941,14 @@ def _write_m19_release_evidence(result: dict[str, Any]) -> None:
     build = result["build"]
     firmware = result["firmware"]
     source_revision = firmware["source_revision"]
+    (root / "build-response.json").write_text(
+        json.dumps(build, indent=2, sort_keys=True), encoding="utf-8"
+    )
     elf_candidates = sorted(root.glob("*.elf"))
     assert elf_candidates, (
-        "BuildService did not copy a real ELF into the release evidence directory"
+        "BuildService did not copy a real ELF into the release evidence directory: "
+        f"status={build.get('status')}, diagnostics={build.get('diagnostics')}, "
+        f"stdout={build.get('stdout', '')[-2000:]}, stderr={build.get('stderr', '')[-2000:]}"
     )
     elf = elf_candidates[0]
     elf_bytes = elf.read_bytes()
