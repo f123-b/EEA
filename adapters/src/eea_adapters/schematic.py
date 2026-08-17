@@ -210,9 +210,6 @@ class KiCadErcAdapter:
             value = float(mils) * 0.0254
             return f"{value:.4f}".rstrip("0").rstrip(".")
 
-        def font(size: str = "1.27") -> list[str]:
-            return ["(effects", f"  (font (size {size} {size}))", ")"]
-
         lines = [
             "(kicad_sch (version 20210621) (generator eeschema)",
             f'  (uuid "{make_uuid()}")',
@@ -304,14 +301,16 @@ class KiCadErcAdapter:
                 wire_start = min(float(position) for position in pin_positions)
                 wire_end = max(float(position) for position in pin_positions)
                 wire_mid = (wire_start + wire_end) / 2
+                wire_start_text = f"{wire_start:.4f}".rstrip("0").rstrip(".")
+                wire_end_text = f"{wire_end:.4f}".rstrip("0").rstrip(".")
                 wire_mid_text = f"{wire_mid:.4f}".rstrip("0").rstrip(".")
                 lines.extend(
                     [
-                        f"  (wire (pts (xy {pin_positions[0]} {y}) (xy {wire_mid_text} {y}))",
+                        f"  (wire (pts (xy {wire_start_text} {y}) (xy {wire_mid_text} {y}))",
                         "    (stroke (width 0) (type solid) (color 0 0 0 0))",
                         f'    (uuid "{make_uuid()}")',
                         "  )",
-                        f"  (wire (pts (xy {wire_mid_text} {y}) (xy {pin_positions[-1]} {y}))",
+                        f"  (wire (pts (xy {wire_mid_text} {y}) (xy {wire_end_text} {y}))",
                         "    (stroke (width 0) (type solid) (color 0 0 0 0))",
                         f'    (uuid "{make_uuid()}")',
                         "  )",
