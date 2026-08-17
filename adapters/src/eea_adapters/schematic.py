@@ -53,7 +53,7 @@ class KiCadErcAdapter:
             legacy.write_text(self._legacy_schematic(circuit), encoding="utf-8", newline="")
             policy = SandboxPolicy(
                 allowed_executables=(executable,),
-                max_processes=8,
+                max_processes=64,
                 network_access=release_tool_policy_network_access(),
             )
             environment = {"TEMP": str(workspace.root), "TMP": str(workspace.root)}
