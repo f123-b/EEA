@@ -3,7 +3,7 @@
 import re
 from base64 import b64decode
 from binascii import Error as Base64Error
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated, Any, cast
 from uuid import UUID, uuid4
@@ -26,7 +26,11 @@ from eea_application.intelligence import DocumentService, MultiSourceDeviceProvi
 from eea_application.mcu_config import MCUConfigService
 from eea_application.pin_planner import PinPlannerService
 from eea_application.projects import ProjectService
-from eea_application.protocol import ProtocolGenerationError, ProtocolGenerator
+from eea_application.protocol import (
+    GeneratedIdentifierRegistry,
+    ProtocolGenerationError,
+    ProtocolGenerator,
+)
 from eea_application.reliability import CrashPoint, EventOutboxService
 from eea_application.requirements import (
     RequirementAnalysisService,
@@ -3825,35 +3829,15 @@ def _software_verification_facts(
             try:
                 namespace: dict[str, object] = {"__name__": "eea_generated_protocol_codec"}
                 exec(compile(python_output.content, python_output.path, "exec"), namespace)
-                encoders: list[Callable[[Any], Any]] = sorted(
-                    (
-                        cast(Callable[[Any], Any], value)
-                        for name, value in namespace.items()
-                        if name.startswith("encode_")
-                        and not name.endswith("_raw")
-                        and callable(value)
-                    ),
-                    key=lambda value: getattr(value, "__name__", ""),
-                )
-                decoders: list[Callable[[Any], Any]] = sorted(
-                    (
-                        cast(Callable[[Any], Any], value)
-                        for name, value in namespace.items()
-                        if name.startswith("decode_")
-                        and not name.endswith("_raw")
-                        and callable(value)
-                    ),
-                    key=lambda value: getattr(value, "__name__", ""),
-                )
-                protocol_ready = len(encoders) == len(protocol.messages) and len(encoders) == len(
-                    decoders
-                )
-                for message, encoder, decoder in zip(
-                    sorted(protocol.messages, key=lambda item: (str(item.message_id), item.name)),
-                    encoders,
-                    decoders,
-                    strict=True,
-                ):
+                registry = GeneratedIdentifierRegistry(protocol)
+                protocol_ready = True
+                for message in protocol.messages:
+                    message_id = registry.message(message)
+                    encoder = namespace.get(f"encode_{message_id}")
+                    decoder = namespace.get(f"decode_{message_id}")
+                    if not callable(encoder) or not callable(decoder):
+                        protocol_ready = False
+                        continue
                     values = {
                         field.name: field.minimum if field.minimum is not None else 0
                         for field in message.fields
