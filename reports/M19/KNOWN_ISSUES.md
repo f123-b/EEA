@@ -21,5 +21,9 @@ The following are not implementation successes and are intentionally not convert
 
 ## Scope boundary
 
-M19A is closed. No M19R/M19R.1/M19R.2 work and no M20 work was created. M20 and M21 remain
-`NOT_STARTED`; only a separately authorized hardware commissioning phase may address M19B.
+M19A is **ACCEPTED** with P0/P1 both zero and is approved to merge. The final PR head before
+the acceptance-docs commit was `f8d3352100ef54a37d771e4625f3a2c30cc9a5cd`; PR CI
+`32021782056` and push CI `32021777129` were green for backend, desktop-web, desktop-tauri,
+and m19-release. No M19R/M19R.1/M19R.2 work was created. M20 and M21 remain `NOT_STARTED` at
+this M19 report checkpoint; only a separately authorized hardware commissioning phase may
+address M19B.

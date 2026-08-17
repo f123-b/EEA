@@ -4,11 +4,11 @@
 
 - Repository: `f123-b/EEA`
 - Branch: `codex/m19-foc-minimal-e2e`
-- HEAD: `3b42e69` — `fix(m19): make protocol verification deterministic`
+- Final PR HEAD before acceptance-docs commit: `f8d3352100ef54a37d771e4625f3a2c30cc9a5cd` — `docs(m19): refresh final release evidence`
 - Base/main: `b572fc6b820925ea623a46c6104982efc33a705c`
 - Draft PR: [#13](https://github.com/f123-b/EEA/pull/13), OPEN/DRAFT/UNMERGED
-- Release-gate PR CI: `32020845145`; push CI: `32020840664`
-- M19A: FINAL_GATE_CLOSED; M19B: BLOCKED_HARDWARE
+- Release-gate PR CI: `32021782056`; push CI: `32021777129`
+- M19A: ACCEPTED; M19B: BLOCKED_HARDWARE; APPROVED_TO_MERGE: YES
 
 ## Release-gate posture
 
@@ -37,7 +37,7 @@ while inverter, encoder, and current-sense facts remain in HardwareIR/CircuitIR.
 
 ## Verification performed
 
-- M19 strict release gate: **20 passed, 4 deselected, 1 warning**.
+- M19 strict release gate: **20 passed, 4 deselected, 1 warning** (PR CI `32021782056`).
 - DEVICE Build: **PASS** with real `eea_device.elf` (30,780 bytes), SHA-256
   `c9c706a236bf624bd2fc9a9bbe6d37fac857f71d6173d94afc85993da438b6db`, ARM GCC `13.2.1`,
   CMake `3.31.6`, and a persisted BuildInputSnapshot.
@@ -83,11 +83,12 @@ M18DR = ACCEPTED_AND_MERGED
 M18E = ACCEPTED_AND_MERGED
 M18ER = ACCEPTED_AND_MERGED
 M18ER.1 = ACCEPTED_AND_MERGED
-M19A = IMPLEMENTED_AND_FINAL_GATE_CLOSED
+M19A = ACCEPTED
 M19B = BLOCKED_HARDWARE
 M19_P0 = 0
 M19_P1 = 0
 M20 = NOT_STARTED
 M21 = NOT_STARTED
 PR_13 = OPEN_DRAFT_UNMERGED
+APPROVED_TO_MERGE = YES
 ```
