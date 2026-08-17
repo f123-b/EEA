@@ -257,6 +257,7 @@ class Stm32CubeG4Provider:
                 f"{source_root}/include",
                 f"{source_root}/portable/GCC/ARM_CM4F/port.c",
                 f"{source_root}/portable/GCC/ARM_CM4F/portmacro.h",
+                f"{source_root}/portable/MemMang/heap_4.c",
             ]
         else:
             raise EngineeringError(

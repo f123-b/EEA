@@ -731,6 +731,13 @@ def test_m20_freertos_firmware_generation(m20_result: dict[str, Any]) -> None:
         )
         assert "-mfpu=fpv4-sp-d16" in cmake
         assert "-mfloat-abi=hard" in cmake
+        assert "target_link_options(eea_device PRIVATE" in cmake
+        assert "-T${CMAKE_SOURCE_DIR}/components/Projects/NUCLEO-G431KB" in cmake
+        assert any(
+            file_path.endswith("Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c")
+            for component in m20_result["lock"]["resolved_components"]
+            for file_path in component["files"]
+        )
 
 
 def test_m20_source_revision_binding(m20_result: dict[str, Any]) -> None:
