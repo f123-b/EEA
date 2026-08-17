@@ -51,10 +51,10 @@ class KiCadErcAdapter:
             workspace = SandboxWorkspace.from_root(Path(temporary))
             input_file = workspace.path("m19-circuit.kicad_sch")
             input_file.write_text(self._modern_schematic(circuit), encoding="utf-8", newline="")
-            workspace.path("m19-connector.lib").write_text(
-                self._legacy_connector_library(), encoding="utf-8", newline=""
+            workspace.path("m19-connector.kicad_sym").write_text(
+                self._modern_connector_library(), encoding="utf-8", newline=""
             )
-            connector_library = workspace.path("m19-connector.lib")
+            connector_library = workspace.path("m19-connector.kicad_sym")
             workspace.path("sym-lib-table").write_text(
                 self._symbol_table(connector_library), encoding="utf-8", newline=""
             )
@@ -150,7 +150,7 @@ class KiCadErcAdapter:
             if self._evidence_root is not None:
                 self._evidence_root.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(input_file, self._evidence_root / input_file.name)
-                for support_file in ("m19-connector.lib", "sym-lib-table"):
+                for support_file in ("m19-connector.kicad_sym", "sym-lib-table"):
                     source = workspace.path(support_file)
                     if source.is_file():
                         shutil.copyfile(source, self._evidence_root / source.name)
@@ -363,24 +363,43 @@ class KiCadErcAdapter:
         return "\n".join(lines)
 
     @staticmethod
-    def _legacy_connector_library() -> str:
+    def _modern_connector_library() -> str:
         return "\n".join(
             [
-                "EESchema-LIBRARY Version 2.4",
-                "#encoding utf-8",
-                "#",
-                "# PORT",
-                "#",
-                "DEF PORT J 0 40 Y Y 1 F N",
-                'F0 "J" 0 100 50 H V C CNN',
-                'F1 "PORT" 0 -100 50 H V C CNN',
-                "DRAW",
-                "S -50 50 50 -50 0 1 10 f",
-                "X P 1 -100 0 50 R 50 50 1 1 P",
-                "ENDDRAW",
-                "ENDDEF",
-                "#",
-                "#End Library",
+                "(kicad_symbol_lib",
+                "  (version 20231120)",
+                "  (generator kicad_symbol_editor)",
+                '  (symbol "PORT"',
+                "    (pin_numbers hide)",
+                "    (pin_names (offset 0.762))",
+                "    (in_bom yes)",
+                "    (on_board yes)",
+                '    (property "Reference" "J" (id 0) (at 0 2.54 0)',
+                "      (effects (font (size 1.27 1.27)))",
+                "    )",
+                '    (property "Value" "PORT" (id 1) (at 0 -2.54 0)',
+                "      (effects (font (size 1.27 1.27)))",
+                "    )",
+                '    (property "Footprint" "" (id 2) (at 0 0 0)',
+                "      (effects (font (size 1.27 1.27)) hide)",
+                "    )",
+                '    (property "Datasheet" "~" (id 3) (at 0 0 0)',
+                "      (effects (font (size 1.27 1.27)) hide)",
+                "    )",
+                '    (symbol "PORT_0_1"',
+                "      (rectangle (start -1.27 1.27) (end 1.27 -1.27)",
+                "        (stroke (width 0) (type default))",
+                "        (fill (type background))",
+                "      )",
+                "    )",
+                '    (symbol "PORT_1_1"',
+                "      (pin passive line (at -2.54 0 0) (length 2.54)",
+                '        (name "P" (effects (font (size 1.27 1.27))))',
+                '        (number "1" (effects (font (size 1.27 1.27))))',
+                "      )",
+                "    )",
+                "  )",
+                ")",
                 "",
             ]
         )
@@ -391,7 +410,7 @@ class KiCadErcAdapter:
             [
                 "(sym_lib_table",
                 "  (version 7)",
-                '  (lib (name "Connector")(type "Legacy")'
+                '  (lib (name "Connector")(type "KiCad")'
                 f'(uri "{library_path.as_posix()}")(options "")(descr ""))',
                 ")",
                 "",
