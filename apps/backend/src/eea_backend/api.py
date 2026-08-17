@@ -3116,11 +3116,21 @@ def analyze_firmware_static(
     config_bundle = SqlAlchemyMCUConfigRepository(session).get(
         bundle.firmware.mcu_config_id, project_id=project_id
     )
+    build = next(
+        (
+            item
+            for item in SqlAlchemyBuildRunRepository(session).list_for_project(project_id)
+            if item.firmware_id == bundle.firmware.id
+            and item.source_revision_id == bundle.source_revision.id
+        ),
+        None,
+    )
     analysis = FirmwareStaticAnalysisService(
         getattr(request.app.state, "static_analysis_provider", None)
     ).analyze(
         bundle,
         mcu_config=config_bundle.config if config_bundle is not None else None,
+        build_input_snapshot_id=build.build_input_snapshot_id if build is not None else None,
         run_cppcheck=payload.run_cppcheck,
     )
     saved = SqlAlchemyFirmwareStaticAnalysisRepository(session).add(analysis, commit=False)
