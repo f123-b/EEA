@@ -518,7 +518,11 @@ class FirmwareService:
         compile_flags = [
             "-mcpu=cortex-m4",
             "-mthumb",
-            "-mfloat-abi=soft",
+            # STM32G431 is a Cortex-M4F.  The pinned FreeRTOS ARM_CM4F
+            # port saves/restores the single-precision FPU registers, so the
+            # generated DEVICE target must use the matching hard-float ABI.
+            "-mfpu=fpv4-sp-d16",
+            "-mfloat-abi=hard",
             "-ffunction-sections",
             "-fdata-sections",
             *target.compiler_flags,

@@ -723,6 +723,14 @@ def test_m20_freertos_firmware_generation(m20_result: dict[str, Any]) -> None:
     }
     assert "freertos.kernel" in firmware["component_refs"] or m20_result["lock"] is None
     assert any("FreeRTOS" in item["content"] for item in m20_result["firmware"]["files"])
+    if m20_result["lock"] is not None:
+        cmake = next(
+            item["content"]
+            for item in m20_result["firmware"]["files"]
+            if item["path"] == "CMakeLists.txt"
+        )
+        assert "-mfpu=fpv4-sp-d16" in cmake
+        assert "-mfloat-abi=hard" in cmake
 
 
 def test_m20_source_revision_binding(m20_result: dict[str, Any]) -> None:
