@@ -1,12 +1,13 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::process::{Child, Command, Stdio};
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use getrandom::fill as fill_random;
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 #[derive(Clone, Serialize)]
 pub struct RuntimeSession {
@@ -73,12 +74,41 @@ fn authenticated_version_request(url: &str, token: &str) -> Result<bool, String>
     Ok(text.starts_with("HTTP/1.1 200 ") || text.starts_with("HTTP/1.0 200 "))
 }
 
-fn start_backend() -> Result<RuntimeProcess, String> {
+fn bundled_backend(app: &AppHandle) -> Result<PathBuf, String> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|_| "runtime resource directory is unavailable".to_owned())?;
+    let names = if cfg!(windows) {
+        ["eea-api.exe", "eea-api"]
+    } else {
+        ["eea-api", "eea-api.exe"]
+    };
+    for name in names {
+        for candidate in [resource_dir.join(name), resource_dir.join("resources").join(name)] {
+            if candidate.is_file() {
+                return Ok(candidate);
+            }
+        }
+    }
+    Err("bundled backend sidecar is missing; package the eea-api resource".to_owned())
+}
+
+fn backend_executable(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(explicit) = std::env::var_os("EEA_BACKEND_EXECUTABLE") {
+        return Ok(PathBuf::from(explicit));
+    }
+    if cfg!(debug_assertions) {
+        return Ok(PathBuf::from("eea-api"));
+    }
+    bundled_backend(app)
+}
+
+fn start_backend(app: &AppHandle) -> Result<RuntimeProcess, String> {
     let port = free_loopback_port()?;
     let token = ephemeral_token()?;
     let url = format!("http://127.0.0.1:{port}");
-    let executable = std::env::var_os("EEA_BACKEND_EXECUTABLE")
-        .unwrap_or_else(|| "eea-api".into());
+    let executable = backend_executable(app)?;
     let mut command = Command::new(executable);
     command
         .env("EEA_RUNTIME_HOST", "127.0.0.1")
@@ -120,7 +150,10 @@ fn start_backend() -> Result<RuntimeProcess, String> {
 }
 
 #[tauri::command]
-fn get_runtime_session(state: State<'_, RuntimeBoundary>) -> Result<RuntimeSession, String> {
+fn get_runtime_session(
+    app: AppHandle,
+    state: State<'_, RuntimeBoundary>,
+) -> Result<RuntimeSession, String> {
     let mut process = state
         .process
         .lock()
@@ -136,7 +169,7 @@ fn get_runtime_session(state: State<'_, RuntimeBoundary>) -> Result<RuntimeSessi
         }
         process.take();
     }
-    let started = start_backend()?;
+    let started = start_backend(&app)?;
     let session = started.session.clone();
     *process = Some(started);
     Ok(session)
