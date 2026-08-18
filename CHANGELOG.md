@@ -17,7 +17,21 @@ the frozen documentation changelogs under `docs/`.
   Cppcheck/Firmware Rules, executed KiCad ERC, 9-case software TestRun, traceability, impact, and
   required Review; P0/P1 are zero and MotorControl is inactive. Final push CI `32046538805` and
   final Draft PR CI `32046544964` are green. M20 final acceptance is recorded as `ACCEPTED`, with
-  `APPROVED_TO_MERGE=YES`; PR #14 remains open Draft until the formal merge.
+  `APPROVED_TO_MERGE=YES`. Acceptance docs were finalized in commit
+  `5578e4f359326bc275f65ae90eb0dbce871b16f9`; PR #14 was merged normally at merge commit
+  `67c7e3ea42d00f67cc473b2041929555764a3daf` on `2026-08-18T04:21:20Z`. Post-merge main CI
+  `32098839155` is green. M21 is now implemented on `codex/m21-desktop-ui-vertical-slice`.
+
+- M21 Desktop UI Vertical Slice is implemented from green main
+  `67c7e3ea42d00f67cc473b2041929555764a3daf` at implementation HEAD
+  `331acf883cb5f6d64124574cbb4f699d9a812ea6`. Added the metadata-driven engineering workbench,
+  M20 generic benchmark renderer workflow, dynamic Domain UI activation/deactivation, controlled
+  AI surface, authenticated Tauri sidecar bootstrap, PyInstaller packaging, renderer/unit E2E,
+  and `desktop-ui-test` / `desktop-package-smoke` CI jobs. Local verification reports 4 UI unit
+  tests and 2 Playwright E2E tests passed; the package smoke authenticated the bundled backend
+  and rejected an unauthenticated request. `M21=IMPLEMENTED`,
+  `READY_FOR_M21_FINAL_REVIEW=YES`, and `M22=NOT_STARTED`. The final deliverable is a Draft PR;
+  M21 is not merged.
 
 - M19A FOC Minimal E2E was accepted and merged. Its final pre-acceptance implementation HEAD
   was
