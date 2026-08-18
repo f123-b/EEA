@@ -5,7 +5,7 @@
 - Repository: `f123-b/EEA`
 - Branch: `codex/m21-desktop-ui-vertical-slice`
 - Base SHA: `67c7e3ea42d00f67cc473b2041929555764a3daf` (green post-M20 main)
-- Final implementation HEAD: `331acf883cb5f6d64124574cbb4f699d9a812ea6`
+- Final implementation HEAD: `1430645d476388dd0b3494ff568fc1b1eae6defb`
 - M21 state: `IMPLEMENTED`
 - `READY_FOR_M21_FINAL_REVIEW=YES`
 - `M22=NOT_STARTED`

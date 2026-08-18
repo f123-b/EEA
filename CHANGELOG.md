@@ -24,7 +24,7 @@ the frozen documentation changelogs under `docs/`.
 
 - M21 Desktop UI Vertical Slice is implemented from green main
   `67c7e3ea42d00f67cc473b2041929555764a3daf` at implementation HEAD
-  `331acf883cb5f6d64124574cbb4f699d9a812ea6`. Added the metadata-driven engineering workbench,
+  `1430645d476388dd0b3494ff568fc1b1eae6defb`. Added the metadata-driven engineering workbench,
   M20 generic benchmark renderer workflow, dynamic Domain UI activation/deactivation, controlled
   AI surface, authenticated Tauri sidecar bootstrap, PyInstaller packaging, renderer/unit E2E,
   and `desktop-ui-test` / `desktop-package-smoke` CI jobs. Local verification reports 4 UI unit
