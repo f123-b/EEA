@@ -47,9 +47,9 @@ business rules.
 
 ## CI evidence
 
-Push CI run [`32104485567`](https://github.com/f123-b/EEA/actions/runs/32104485567) validates the
-backend, existing desktop web gate, Tauri sidecar/package path, new `desktop-ui-test` job, and
-new `desktop-package-smoke` job. The final result is recorded after the run completes.
+Push CI run [`32105561851`](https://github.com/f123-b/EEA/actions/runs/32105561851), attempt 2, is
+green across `backend`, `desktop-web`, `desktop-tauri`, `desktop-ui-test`,
+`desktop-package-smoke`, `m19-release`, and `m20-release`.
 
 M19 and M20 release coverage remains retained in the workflow. M20 was formally merged in PR
 #14 at merge SHA `67c7e3ea42d00f67cc473b2041929555764a3daf`; post-merge main CI run
