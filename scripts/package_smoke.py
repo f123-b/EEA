@@ -39,7 +39,9 @@ def main() -> None:
             "EEA_INSECURE_LOCAL_DEV": "false",
         }
     )
-    with tempfile.TemporaryDirectory(prefix="eea-package-smoke-", ignore_cleanup_errors=True) as data_dir:
+    with tempfile.TemporaryDirectory(
+        prefix="eea-package-smoke-", ignore_cleanup_errors=True
+    ) as data_dir:
         env["EEA_DATA_DIR"] = data_dir
         process = subprocess.Popen(
             [str(executable)],
@@ -76,7 +78,9 @@ def main() -> None:
                 urlopen(f"{base_url}/api/v1/meta/version", timeout=2)
             except HTTPError as error:
                 if error.code not in {401, 403}:
-                    raise SystemExit(f"unauthenticated request returned HTTP {error.code}") from error
+                    raise SystemExit(
+                        f"unauthenticated request returned HTTP {error.code}"
+                    ) from error
             else:
                 raise SystemExit("unauthenticated request unexpectedly succeeded")
             print(f"Package smoke passed: authenticated sidecar at {base_url}")
