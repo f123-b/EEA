@@ -21,7 +21,7 @@ class Stm32G431FixtureProvider:
             revision_label="A",
             packages=["UFQFPN48", "LQFP64"],
             memory={"flash_bytes": 131072, "sram_bytes": 32768},
-            peripherals=["TIM1", "FDCAN1", "ADC1", "DMA1"],
+            peripherals=["TIM1", "FDCAN1", "ADC1", "DMA1", "USART2", "SPI1"],
             pins=[
                 DevicePin(
                     name="PA8",
@@ -75,6 +75,72 @@ class Stm32G431FixtureProvider:
                     five_v_tolerant=False,
                     functions=[
                         PinFunction(peripheral="ADC1", signal="IN1", alternate_function=None)
+                    ],
+                    source_refs=[self.name],
+                ),
+                DevicePin(
+                    name="PA2",
+                    package="UFQFPN48",
+                    package_pin="12",
+                    voltage_domain="VDDIO1",
+                    five_v_tolerant=False,
+                    functions=[
+                        PinFunction(peripheral="USART2", signal="TX", alternate_function="AF7")
+                    ],
+                    source_refs=[self.name],
+                ),
+                DevicePin(
+                    name="PA3",
+                    package="UFQFPN48",
+                    package_pin="13",
+                    voltage_domain="VDDIO1",
+                    five_v_tolerant=False,
+                    functions=[
+                        PinFunction(peripheral="USART2", signal="RX", alternate_function="AF7")
+                    ],
+                    source_refs=[self.name],
+                ),
+                DevicePin(
+                    name="PA5",
+                    package="UFQFPN48",
+                    package_pin="19",
+                    voltage_domain="VDDIO1",
+                    five_v_tolerant=False,
+                    functions=[
+                        PinFunction(peripheral="SPI1", signal="SCK", alternate_function="AF5")
+                    ],
+                    source_refs=[self.name],
+                ),
+                DevicePin(
+                    name="PA6",
+                    package="UFQFPN48",
+                    package_pin="20",
+                    voltage_domain="VDDIO1",
+                    five_v_tolerant=False,
+                    functions=[
+                        PinFunction(peripheral="SPI1", signal="MISO", alternate_function="AF5")
+                    ],
+                    source_refs=[self.name],
+                ),
+                DevicePin(
+                    name="PA7",
+                    package="UFQFPN48",
+                    package_pin="21",
+                    voltage_domain="VDDIO1",
+                    five_v_tolerant=False,
+                    functions=[
+                        PinFunction(peripheral="SPI1", signal="MOSI", alternate_function="AF5")
+                    ],
+                    source_refs=[self.name],
+                ),
+                DevicePin(
+                    name="PB0",
+                    package="UFQFPN48",
+                    package_pin="31",
+                    voltage_domain="VDDIO2",
+                    five_v_tolerant=False,
+                    functions=[
+                        PinFunction(peripheral="GPIO", signal="CS", alternate_function=None)
                     ],
                     source_refs=[self.name],
                 ),

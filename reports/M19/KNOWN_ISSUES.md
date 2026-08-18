@@ -21,9 +21,9 @@ The following are not implementation successes and are intentionally not convert
 
 ## Scope boundary
 
-M19A is **ACCEPTED** with P0/P1 both zero and is approved to merge. The final PR head before
-the acceptance-docs commit was `f8d3352100ef54a37d771e4625f3a2c30cc9a5cd`; PR CI
-`32021782056` and push CI `32021777129` were green for backend, desktop-web, desktop-tauri,
-and m19-release. No M19R/M19R.1/M19R.2 work was created. M20 and M21 remain `NOT_STARTED` at
-this M19 report checkpoint; only a separately authorized hardware commissioning phase may
-address M19B.
+M19A is **ACCEPTED_AND_MERGED** with P0/P1 both zero. The final PR head was
+`e9b947e1d21202ea568c65af49a866f4961c6cc1`; merge commit/main HEAD is
+`7573e1f3525c54cd5fb1155f634b77034d74b255`; acceptance CI was `32038057014` and post-merge
+main CI was `32038973317`, green for backend, desktop-web, desktop-tauri, and m19-release.
+No M19R/M19R.1/M19R.2 work was created. M20 proceeds on its separate branch; only a separately
+authorized hardware commissioning phase may address M19B.

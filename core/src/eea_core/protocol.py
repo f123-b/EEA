@@ -313,15 +313,18 @@ def validate_protocol(protocol: ProtocolIR) -> ProtocolValidationResult:
     }
     transport_errors: list[dict[str, object]] = []
     for transport in protocol.transports:
-        if transport.transport_type.upper() != "CAN":
+        if transport.transport_type.upper() not in {"CAN", "UART"}:
             transport_errors.append(
-                {"transport_id": transport.transport_id, "reason": "CAN_REQUIRED"}
+                {"transport_id": transport.transport_id, "reason": "TRANSPORT_TYPE_UNSUPPORTED"}
             )
-        if transport.can.frame_kind.upper() not in {"CLASSIC", "FD"}:
+        if transport.transport_type.upper() == "CAN" and transport.can.frame_kind.upper() not in {
+            "CLASSIC",
+            "FD",
+        }:
             transport_errors.append(
                 {"transport_id": transport.transport_id, "reason": "FRAME_KIND_INVALID"}
             )
-        if transport.can.nominal_bitrate <= 0:
+        if transport.transport_type.upper() == "CAN" and transport.can.nominal_bitrate <= 0:
             transport_errors.append(
                 {"transport_id": transport.transport_id, "reason": "BITRATE_MUST_BE_POSITIVE"}
             )
@@ -347,15 +350,23 @@ def validate_protocol(protocol: ProtocolIR) -> ProtocolValidationResult:
         )
     ]
 
+    can_messages = [
+        message
+        for message in protocol.messages
+        if transports.get(message.transport_ref) is not None
+        and transports[message.transport_ref].transport_type.upper() == "CAN"
+    ]
     can_id_errors: list[dict[str, object]] = [
         {"message": message.name, "can_id": message.can_id, "extended": message.extended_id}
-        for message in protocol.messages
+        for message in can_messages
         if message.can_id < 0 or message.can_id > (0x1FFFFFFF if message.extended_id else 0x7FF)
     ]
     arbitration_groups: dict[tuple[str, bool, int], list[str]] = {}
     for message in protocol.messages:
-        key = (message.transport_ref, message.extended_id, message.can_id)
-        arbitration_groups.setdefault(key, []).append(message.name)
+        message_transport = transports.get(message.transport_ref)
+        if message_transport is not None and message_transport.transport_type.upper() == "CAN":
+            key = (message.transport_ref, message.extended_id, message.can_id)
+            arbitration_groups.setdefault(key, []).append(message.name)
     duplicate_arbitration_ids = {
         f"{transport}:{'extended' if extended else 'standard'}:{can_id:#x}": names
         for (transport, extended, can_id), names in arbitration_groups.items()
@@ -389,8 +400,10 @@ def validate_protocol(protocol: ProtocolIR) -> ProtocolValidationResult:
         message_transport = transports.get(message.transport_ref)
         if message_transport is None:
             continue
-        if message.payload_length_bytes not in can_fd_valid_lengths(
-            message_transport.can.frame_kind
+        if (
+            message_transport.transport_type.upper() == "CAN"
+            and message.payload_length_bytes
+            not in can_fd_valid_lengths(message_transport.can.frame_kind)
         ):
             payload_errors.append(
                 {

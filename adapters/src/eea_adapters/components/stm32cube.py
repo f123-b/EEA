@@ -97,6 +97,15 @@ class Stm32CubeG4Provider:
                         ComponentDependencySpec(component_key="st.stm32g4.cmsis-core"),
                     ),
                 ),
+                self._descriptor(
+                    "freertos.kernel",
+                    "FreeRTOS kernel",
+                    SoftwareComponentRole.RTOS,
+                    ["rtos.kernel", "freertos"],
+                    compatibility,
+                    "MIT",
+                    (ComponentDependencySpec(component_key="st.stm32g4.cmsis-device"),),
+                ),
             )
         return self._descriptor_cache
 
@@ -242,6 +251,14 @@ class Stm32CubeG4Provider:
                 "Drivers/STM32G4xx_HAL_Driver/Inc",
                 "Drivers/STM32G4xx_HAL_Driver/Src",
             ]
+        elif component_key == "freertos.kernel":
+            source_root = "Middlewares/Third_Party/FreeRTOS/Source"
+            roots = [
+                f"{source_root}/include",
+                f"{source_root}/portable/GCC/ARM_CM4F/port.c",
+                f"{source_root}/portable/GCC/ARM_CM4F/portmacro.h",
+                f"{source_root}/portable/MemMang/heap_4.c",
+            ]
         else:
             raise EngineeringError(
                 EngineeringErrorCode.COMPONENT_UNAVAILABLE,
@@ -259,6 +276,11 @@ class Stm32CubeG4Provider:
                     for path in candidate.rglob("*")
                     if path.is_file() and path.suffix.lower() in {".c", ".h", ".s", ".S"}
                 )
+        if component_key == "freertos.kernel":
+            kernel_source = self.root / "Middlewares/Third_Party/FreeRTOS/Source"
+            paths.extend(path for path in kernel_source.glob("*.c") if path.is_file())
+            port_root = kernel_source / "portable/GCC/ARM_CM4F"
+            paths.extend(path for path in port_root.glob("port.*") if path.is_file())
         files = sorted(path.relative_to(self.root).as_posix() for path in paths)
         if component_key == "st.stm32g4.cmsis-device":
             files = [
