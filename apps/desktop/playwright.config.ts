@@ -11,7 +11,7 @@ export default defineConfig({
   fullyParallel: false,
   timeout: 180_000,
   expect: { timeout: 15_000 },
-  reporter: process.env.CI ? [["line"], ["html", { outputFolder: "test-results/m21-report", open: "never" }]] : "line",
+  reporter: process.env.CI ? [["line"], ["html", { outputFolder: "playwright-report/m21-report", open: "never" }]] : "line",
   use: {
     ...devices["Desktop Chrome"],
     baseURL: "http://127.0.0.1:4173",
