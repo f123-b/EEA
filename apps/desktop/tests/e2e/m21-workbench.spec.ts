@@ -30,7 +30,7 @@ test("activates and deactivates domain UI from backend metadata", async ({ page 
   await page.getByRole("button", { name: "Create project" }).click();
   await page.getByLabel("Name").fill(`M21 Domain UI E2E ${Date.now()}`);
   await page.getByRole("dialog").getByRole("button", { name: "Create project" }).click();
-  await page.getByRole("button", { name: "Domains" }).click();
+  await page.getByRole("button", { name: "Domains", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Domain Extensions" })).toBeVisible();
 
   const motorCard = page.locator(".domain-card").filter({ hasText: /MotorControl|Motor Control/i }).first();

@@ -30,6 +30,7 @@ apps/desktop/src-tauri/resources/eea-api*
 build/backend-sidecar/
 build/backend-sidecar-spec/
 apps/desktop/test-results/
+apps/desktop/playwright-report/
 
 # Editors and operating systems
 .idea/
