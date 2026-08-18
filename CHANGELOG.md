@@ -15,8 +15,9 @@ the frozen documentation changelogs under `docs/`.
   plus new M20 release gates. Local generic focused verification is **18 passed**. Dedicated push
   CI `32045405744` and Draft PR CI `32045408851` are green, including real ARM DEVICE build,
   Cppcheck/Firmware Rules, executed KiCad ERC, 9-case software TestRun, traceability, impact, and
-  required Review; P0/P1 are zero and MotorControl is inactive. Draft PR #14 is open. M20 is
-  `IMPLEMENTED_READY_FOR_FINAL_REVIEW`, not accepted or approved to merge.
+  required Review; P0/P1 are zero and MotorControl is inactive. Final push CI `32046538805` and
+  final Draft PR CI `32046544964` are green. M20 final acceptance is recorded as `ACCEPTED`, with
+  `APPROVED_TO_MERGE=YES`; PR #14 remains open Draft until the formal merge.
 
 - M19A FOC Minimal E2E was accepted and merged. Its final pre-acceptance implementation HEAD
   was

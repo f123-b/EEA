@@ -5,10 +5,10 @@
 - Repository: `f123-b/EEA`
 - Branch: `codex/m20-core-neutrality-smoke`
 - Base SHA: `7573e1f3525c54cd5fb1155f634b77034d74b255` (green post-merge main)
-- Implementation HEAD covered by release evidence: `59477be150d7a37bdbc1f00102e341c68c407079`
+- Final implementation HEAD accepted: `03769aa284427b7b458ae8e3789ff8deef23fd8a`
 - Benchmark: `STM32G431 + UART + CAN + SPI Sensor + FreeRTOS`
 - MotorControl activation: `NONE`; no MotorControlIR is used
-- M20 state: `IMPLEMENTED_READY_FOR_FINAL_REVIEW`
+- M20 state: `ACCEPTED`
 
 M20 extends the existing generic Project → Requirement → Evidence/Claim → Pin Planner →
 HardwareIR → CircuitIR → Schematic/ERC → MCUConfigIR → FirmwareIR → SourceRevision → Build →
@@ -43,8 +43,8 @@ not add a second hardware model or a domain-specific shortcut.
 
 ## Release evidence
 
-The dedicated push run [`32045405744`](https://github.com/f123-b/EEA/actions/runs/32045405744)
-and the duplicate Draft PR run [`32045408851`](https://github.com/f123-b/EEA/actions/runs/32045408851)
+The final implementation push run [`32046538805`](https://github.com/f123-b/EEA/actions/runs/32046538805)
+and the final Draft PR run [`32046544964`](https://github.com/f123-b/EEA/actions/runs/32046544964)
 are green across `backend`, `desktop-web`, `desktop-tauri`, `m19-release`, and `m20-release`.
 
 - Real DEVICE build: **PASS**; build run `299b16fb-1795-4d57-91f8-58d86d9d34ac`; build input
@@ -61,5 +61,5 @@ are green across `backend`, `desktop-web`, `desktop-tauri`, `m19-release`, and `
   static, ERC, and TestRun evidence present; findings and issue IDs empty.
 - Release summary: `motor_control_active=false`, `P0=0`, `P1=0`.
 
-M20 is implementation-complete and ready for final human review. It remains `IMPLEMENTED`, never
-`ACCEPTED` or approved to merge, until that review is explicitly recorded.
+M20 final human acceptance is recorded: `M20=ACCEPTED`, `M20_P0=0`, `M20_P1=0`, and
+`APPROVED_TO_MERGE=YES`. The PR remains Draft until the formal merge operation completes.
