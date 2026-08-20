@@ -213,7 +213,7 @@ function ercReport(value: JsonRecord | null): JsonRecord {
 function requireReleaseErc(value: JsonRecord): void {
   const report = ercReport(value);
   if (report.executed !== true || report.status !== "PASS") {
-    throw new Error("Release workflow requires an executed PASS KiCad ERC report");
+    throw new Error(`Release workflow requires an executed PASS KiCad ERC report · ${JSON.stringify(report)}`);
   }
 }
 

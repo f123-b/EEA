@@ -147,7 +147,18 @@ def main() -> None:
             if not readiness.is_file():
                 process.terminate()
                 process.wait(timeout=10)
-                raise SystemExit("packaged desktop did not publish renderer readiness")
+                stdout.flush()
+                stderr.flush()
+                diagnostic = "\n".join(
+                    (
+                        stdout_path.read_text(encoding="utf-8", errors="replace"),
+                        stderr_path.read_text(encoding="utf-8", errors="replace"),
+                    )
+                ).strip()
+                raise SystemExit(
+                    "packaged desktop did not publish renderer readiness"
+                    + (f"\n{diagnostic[-4000:]}" if diagnostic else "")
+                )
             time.sleep(0.5)
             if process.poll() is not None:
                 raise SystemExit("packaged desktop did not stay alive after renderer readiness")

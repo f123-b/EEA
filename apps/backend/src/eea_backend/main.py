@@ -41,6 +41,7 @@ from fastapi.responses import JSONResponse
 from pydantic import SecretStr
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
+from starlette.middleware.cors import CORSMiddleware
 
 from eea_backend.api import router as core_router
 from eea_backend.claim_repositories import SqlAlchemyClaimPredicateRepository
@@ -221,6 +222,18 @@ def create_app(
         description="Versioned API for the Embedded Engineering Agent platform.",
         lifespan=lifespan,
     )
+    desktop_origins = [
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+    ]
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=desktop_origins,
+        allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID"],
+    )
     application.state.settings = resolved_settings
     application.state.local_session_token = SecretStr(token_urlsafe(32))
     application.state.engine = engine
@@ -281,7 +294,11 @@ def create_app(
         request_id = request.headers.get("X-Request-ID", f"req_{uuid4().hex}")
         request.state.request_id = request_id
         origin = request.headers.get("Origin")
-        allowed_origins = {"http://127.0.0.1", "http://localhost", "tauri://localhost"}
+        allowed_origins = {
+            "http://127.0.0.1",
+            "http://localhost",
+            *desktop_origins,
+        }
         if origin is not None and origin not in allowed_origins:
             return JSONResponse(
                 status_code=403,
