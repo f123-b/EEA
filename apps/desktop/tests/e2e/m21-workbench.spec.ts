@@ -27,7 +27,10 @@ test("@release drives the M20 benchmark through the real DEVICE release gate", a
   await page.getByRole("button", { name: "Run M20 UI workflow" }).click();
   await expect(page.getByText("Run M20 generic UI workflow · deterministic backend operation running")).toBeVisible();
   await expect(page.getByText("Run M20 generic UI workflow · deterministic backend operation running")).toBeHidden({ timeout: 900_000 });
-  await expect(page.locator(".feedback-error")).toHaveCount(0);
+  const workflowError = page.locator(".feedback-error");
+  if (await workflowError.count()) {
+    throw new Error(`M21 DEVICE UI workflow failed: ${(await workflowError.innerText()).trim()}`);
+  }
   await expect(page.getByRole("heading", { name: "Review" })).toBeVisible({ timeout: 900_000 });
   await expect(page.getByTestId("release-gate-status")).toHaveText("PASS");
   await expect(page.getByTestId("build-status")).toHaveAttribute("data-value", "PASS");

@@ -293,7 +293,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: m21-ui-release-evidence
-          path: m21-ui-release-evidence
+          path: |
+            m21-ui-release-evidence
+            apps/desktop/test-results
+            apps/desktop/playwright-report/m21-report
           if-no-files-found: error
 
   desktop-package-smoke:

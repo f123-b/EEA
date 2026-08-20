@@ -13,6 +13,9 @@ export function App() {
 
   const reportWorkbenchReady = useCallback(async () => {
     if (!("__TAURI_INTERNALS__" in window)) return;
+    if (document.readyState !== "complete") {
+      await new Promise<void>((resolve) => window.addEventListener("load", () => resolve(), { once: true }));
+    }
     const credentialPattern = /(?:Bearer\s+[A-Za-z0-9._~-]{20,}|\b[0-9a-f]{64}\b)/u;
     const storageClean = [window.localStorage, window.sessionStorage].every((storage) => {
       for (let index = 0; index < storage.length; index += 1) {
