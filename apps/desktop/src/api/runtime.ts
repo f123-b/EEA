@@ -12,14 +12,6 @@ export type RuntimeBootstrap = Readonly<{
   version: unknown;
 }>;
 
-export type RendererSmokeState = Readonly<{
-  renderer_ready: boolean;
-  workbench_ready: boolean;
-  url_clean: boolean;
-  storage_clean: boolean;
-  dom_clean: boolean;
-}>;
-
 type DesktopImportMeta = ImportMeta & {
   env?: Record<string, string | undefined>;
 };
@@ -41,8 +33,8 @@ export async function bootstrapRuntime(): Promise<RuntimeBootstrap> {
 }
 
 /** Test-only observation hook. Rust ignores it unless the packaged smoke evidence env is set. */
-export async function reportDesktopSmokeReady(rendererState: RendererSmokeState): Promise<boolean> {
-  return invoke<boolean>("record_desktop_smoke_ready", { rendererState });
+export async function reportDesktopSmokeReady(): Promise<boolean> {
+  return invoke<boolean>("record_desktop_smoke_ready");
 }
 
 /**

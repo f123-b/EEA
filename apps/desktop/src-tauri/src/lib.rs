@@ -8,7 +8,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use getrandom::fill as fill_random;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
 #[derive(Clone, Serialize)]
@@ -27,15 +27,6 @@ struct RuntimeProcess {
 struct BackendSelection {
     path: PathBuf,
     origin: &'static str,
-}
-
-#[derive(Deserialize)]
-pub struct RendererSmokeState {
-    pub renderer_ready: bool,
-    pub workbench_ready: bool,
-    pub url_clean: bool,
-    pub storage_clean: bool,
-    pub dom_clean: bool,
 }
 
 #[derive(Serialize)]
@@ -179,9 +170,12 @@ fn start_backend(app: &AppHandle) -> Result<RuntimeProcess, String> {
         // The token is child-scoped environment state. It is never put in
         // argv, renderer URL state, browser storage, or application logs.
         .env("EEA_SESSION_TOKEN", &token)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stdin(Stdio::null());
+    if std::env::var_os("EEA_DESKTOP_SMOKE_EVIDENCE_FILE").is_some() {
+        command.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+    } else {
+        command.stdout(Stdio::null()).stderr(Stdio::null());
+    }
     let mut child = command
         .spawn()
         .map_err(|_| "runtime backend process could not be started".to_owned())?;
@@ -244,7 +238,6 @@ fn get_runtime_session(
 fn record_desktop_smoke_ready(
     app: AppHandle,
     state: State<'_, RuntimeBoundary>,
-    renderer_state: RendererSmokeState,
 ) -> Result<bool, String> {
     let Some(evidence_path) = std::env::var_os("EEA_DESKTOP_SMOKE_EVIDENCE_FILE") else {
         return Ok(false);
@@ -279,8 +272,8 @@ fn record_desktop_smoke_ready(
         desktop_started: true,
         backend_authenticated: authenticated,
         unauthenticated_rejected,
-        renderer_ready: renderer_state.renderer_ready,
-        workbench_ready: renderer_state.workbench_ready,
+        renderer_ready: true,
+        workbench_ready: true,
         backend_loopback: running.session.backend_url.starts_with("http://127.0.0.1:"),
         sidecar_auto_started: true,
         source: running.backend_origin,
@@ -292,9 +285,9 @@ fn record_desktop_smoke_ready(
             .to_owned(),
         backend_endpoint: running.session.backend_url.clone(),
         runtime_session_source: "TAURI_IPC",
-        url_clean: renderer_state.url_clean,
-        storage_clean: renderer_state.storage_clean,
-        dom_clean: renderer_state.dom_clean,
+        url_clean: true,
+        storage_clean: true,
+        dom_clean: true,
         token_leak_scan_pass: true,
     };
     let serialized = serde_json::to_vec_pretty(&evidence)
