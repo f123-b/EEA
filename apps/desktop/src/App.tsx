@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { bootstrapConfiguredWebRuntime, bootstrapRuntime, type RuntimeBootstrap } from "./api/runtime";
+import { bootstrapConfiguredWebRuntime, bootstrapRuntime, reportDesktopSmokeReady, type RuntimeBootstrap } from "./api/runtime";
 import { createM21Api } from "./api/m21";
 import { M21Workspace } from "./m21/M21Workspace";
 
@@ -10,6 +10,28 @@ export function App() {
   const [runtime, setRuntime] = useState<RuntimeState>("starting");
   const [bootstrap, setBootstrap] = useState<RuntimeBootstrap | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
+
+  const reportWorkbenchReady = useCallback(async () => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    const credentialPattern = /(?:Bearer\s+[A-Za-z0-9._~-]{20,}|\b[0-9a-f]{64}\b)/u;
+    const storageClean = [window.localStorage, window.sessionStorage].every((storage) => {
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index) ?? "";
+        const value = storage.getItem(key) ?? "";
+        if (credentialPattern.test(key) || credentialPattern.test(value)) return false;
+      }
+      return true;
+    });
+    const workbenchReady = document.querySelector(".workspace-shell") instanceof HTMLElement
+      && (document.querySelector(".start-panel") instanceof HTMLElement || document.querySelector(".page-frame") instanceof HTMLElement);
+    await reportDesktopSmokeReady({
+      renderer_ready: document.readyState === "complete",
+      workbench_ready: workbenchReady,
+      url_clean: !credentialPattern.test(window.location.href),
+      storage_clean: storageClean,
+      dom_clean: !credentialPattern.test(document.documentElement.textContent ?? ""),
+    });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -42,7 +64,7 @@ export function App() {
   if (runtime === "starting") return <RuntimeSplash label="Starting authenticated backend…" />;
   if (runtime === "error") return <RuntimeSplash label={runtimeError ?? "Backend runtime unavailable"} error />;
   if (!bootstrap) return <WebRuntimeNotice />;
-  return <M21Workspace api={createM21Api(bootstrap.client)} runtimeVersion={bootstrap.version} />;
+  return <M21Workspace api={createM21Api(bootstrap.client)} runtimeVersion={bootstrap.version} onReady={reportWorkbenchReady} />;
 }
 
 function RuntimeSplash({ label, error = false }: { label: string; error?: boolean }) {

@@ -3,6 +3,18 @@ import type { JsonRecord } from "../api/m21";
 export const M20_PROFILE_NAME = "embedded-controller-benchmark";
 export const M20_PROFILE_VERSION = "1.0";
 
+export const M20_DEVICE_BUILD_TARGET: JsonRecord = {
+  name: "eea_device",
+  family: "STM32G4",
+  architecture: "Cortex-M4",
+  build_system: "CMAKE",
+  toolchain_id: "arm-none-eabi-gcc",
+  target_triple: "arm-none-eabi",
+  profile: "DEVICE",
+  output_name: "eea_device",
+  output_format: "ELF",
+};
+
 export const m20PinSpecs = [
   ["UART_TX", "USART2", "TX", "OUT"],
   ["UART_RX", "USART2", "RX", "IN"],
@@ -264,6 +276,34 @@ export function m20McuConfigPayload(
       },
       interrupts: ["FDCAN1_IT0"],
     },
+  };
+}
+
+export function m20DependencyResolvePayload(mcuConfigId: string, requirementId?: string): JsonRecord {
+  const source_requirement_ids = requirementId ? [requirementId] : [];
+  return {
+    mcu_config_id: mcuConfigId,
+    requirements: [
+      { capability: "cmsis.core", component_key: "st.stm32g4.cmsis-core", reason: "M21 DEVICE UI release CMSIS core", source_requirement_ids },
+      { capability: "cmsis.device", component_key: "st.stm32g4.cmsis-device", reason: "M21 DEVICE UI release CMSIS device", source_requirement_ids },
+      { capability: "stm32.hal", component_key: "st.stm32g4.hal", reason: "M21 DEVICE UI release STM32 HAL", source_requirement_ids },
+      { capability: "rtos.kernel", component_key: "freertos.kernel", reason: "M21 DEVICE UI release FreeRTOS kernel", source_requirement_ids },
+    ],
+    architecture: "Cortex-M4",
+    device: "STM32G431KB",
+    toolchain_id: "arm-none-eabi-gcc",
+    build_system: "CMAKE",
+    rtos: "FreeRTOS",
+  };
+}
+
+export function m20DeviceFirmwarePayload(mcuConfigId: string, dependencyLockId: string): JsonRecord {
+  return {
+    mcu_config_id: mcuConfigId,
+    board_name: "generic-stm32g431-freertos",
+    dependency_lock_id: dependencyLockId,
+    build_target: M20_DEVICE_BUILD_TARGET,
+    build_profile: "DEVICE",
   };
 }
 

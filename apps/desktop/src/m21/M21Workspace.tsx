@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { DomainUIContribution, ProjectData } from "../api/generated";
 import { BackendRequestError, type JsonRecord, type M21Api } from "../api/m21";
@@ -6,6 +6,8 @@ import {
   M20_PROFILE_NAME,
   M20_PROFILE_VERSION,
   m20CircuitPayload,
+  m20DependencyResolvePayload,
+  m20DeviceFirmwarePayload,
   m20EvidencePayloads,
   m20McuConfigPayload,
   m20PinPlanPayload,
@@ -35,6 +37,8 @@ type WorkflowState = {
   schematic: JsonRecord | null;
   erc: JsonRecord | null;
   mcuConfig: JsonRecord | null;
+  dependencyLock: JsonRecord | null;
+  dependencyMaterialization: JsonRecord[];
   firmware: JsonRecord | null;
   build: JsonRecord | null;
   staticAnalysis: JsonRecord | null;
@@ -66,6 +70,8 @@ const emptyWorkflow: WorkflowState = {
   schematic: null,
   erc: null,
   mcuConfig: null,
+  dependencyLock: null,
+  dependencyMaterialization: [],
   firmware: null,
   build: null,
   staticAnalysis: null,
@@ -162,11 +168,94 @@ function testIrId(tests: JsonRecord | null): string | undefined {
   return typeof testIr.id === "string" ? testIr.id : undefined;
 }
 
+const REQUIRED_FIRMWARE_RULES = new Set([
+  "APP_DIRECT_HAL_CALL",
+  "ISR_BLOCKING_API",
+  "DRIVER_DEPENDENCY_CYCLE",
+  "MCUCONFIG_FIRMWARE_MISMATCH",
+]);
+
+function requireDeviceFirmware(firmware: JsonRecord): void {
+  const target = asRecord(firmware.build_target);
+  if (
+    target.profile !== "DEVICE"
+    || target.toolchain_id !== "arm-none-eabi-gcc"
+    || target.target_triple !== "arm-none-eabi"
+    || firmware.dependency_lock_id == null
+  ) {
+    throw new Error("Release workflow requires backend-confirmed DEVICE firmware, DependencyLock, and arm-none-eabi target");
+  }
+}
+
+function requireReleaseBuild(build: JsonRecord): void {
+  if (build.status !== "PASS" || build.profile !== "DEVICE" || build.toolchain_id !== "arm-none-eabi-gcc" || !build.artifact_hash) {
+    throw new Error("Release workflow requires a PASS DEVICE BuildRun with a real ELF artifact hash");
+  }
+}
+
+function requireReleaseStatic(analysis: JsonRecord): void {
+  const cppcheck = asArray(analysis.tool_results).map(asRecord).find((item) => item.tool_id === "cppcheck");
+  const rules = asArray(analysis.rule_results).map(asRecord);
+  const rulesById = new Map(rules.map((item) => [String(item.rule_id), item]));
+  const requiredRulesPass = [...REQUIRED_FIRMWARE_RULES].every((id) => {
+    const status = rulesById.get(id)?.status;
+    return status === "PASS" || status === "NOT_APPLICABLE";
+  });
+  if (analysis.status !== "PASS" || cppcheck?.status !== "PASS" || !requiredRulesPass) {
+    throw new Error("Release workflow requires PASS Cppcheck and all four firmware release rules");
+  }
+}
+
+function ercReport(value: JsonRecord | null): JsonRecord {
+  return asRecord(value?.erc_report);
+}
+
+function requireReleaseErc(value: JsonRecord): void {
+  const report = ercReport(value);
+  if (report.executed !== true || report.status !== "PASS") {
+    throw new Error("Release workflow requires an executed PASS KiCad ERC report");
+  }
+}
+
+function traceabilityReleaseStatus(traceability: JsonRecord | null): "PASS" | "BLOCKED" {
+  const coverage = asRecord(traceability?.coverage);
+  const blocking = [
+    ...asArray(coverage.uncovered_requirement_ids),
+    ...asArray(coverage.unexecuted_requirement_ids),
+    ...asArray(coverage.failing_requirement_ids),
+    ...asArray(coverage.blocked_requirement_ids),
+    ...asArray(coverage.unknown_requirement_ids),
+    ...asArray(coverage.stale_requirement_ids),
+  ];
+  return coverage.release_critical_requirements !== undefined && blocking.length === 0 ? "PASS" : "BLOCKED";
+}
+
+function releaseGateStatus(workflow: WorkflowState): "PASS" | "BLOCKED" {
+  try {
+    if (!workflow.firmware || !workflow.build || !workflow.staticAnalysis || !workflow.erc) return "BLOCKED";
+    requireDeviceFirmware(workflow.firmware);
+    requireReleaseBuild(workflow.build);
+    requireReleaseStatic(workflow.staticAnalysis);
+    requireReleaseErc(workflow.erc);
+  } catch {
+    return "BLOCKED";
+  }
+  const testResults = asArray(workflow.testRun?.case_results).map(asRecord);
+  if (
+    workflow.testRun?.status !== "PASS"
+    || testResults.length === 0
+    || testResults.some((item) => item.status !== "PASS")
+    || traceabilityReleaseStatus(workflow.traceability) !== "PASS"
+    || workflow.review?.status !== "PASS"
+  ) return "BLOCKED";
+  return "PASS";
+}
+
 function projectLabel(project: ProjectData): string {
   return project.name || shortId(project.id);
 }
 
-export function M21Workspace({ api, runtimeVersion }: { api: M21Api; runtimeVersion: unknown }) {
+export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; runtimeVersion: unknown; onReady?: () => Promise<void> }) {
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [workflow, setWorkflow] = useState<WorkflowState>(emptyWorkflow);
@@ -185,6 +274,7 @@ export function M21Workspace({ api, runtimeVersion }: { api: M21Api; runtimeVers
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiResult, setAiResult] = useState<JsonRecord | null>(null);
+  const readyReported = useRef(false);
 
   const selectedProject = projects.find((project) => project.id === projectId) ?? null;
   const navItems = useMemo(() => buildNavigation(context.extensions), [context.extensions]);
@@ -249,12 +339,13 @@ export function M21Workspace({ api, runtimeVersion }: { api: M21Api; runtimeVers
       latestReview,
       source: source ? asRecord(source) : null,
     });
-    const [pinPlan, architecture, circuit, schematic, mcuConfig, firmware, protocol, tests, traceability] = await Promise.all([
+    const [pinPlan, architecture, circuit, schematic, mcuConfig, dependencies, firmware, protocol, tests, traceability] = await Promise.all([
       optional(() => api.getPinMap(nextProjectId)),
       optional(() => api.getArchitecture(nextProjectId)),
       optional(() => api.getCircuit(nextProjectId)),
       optional(() => api.getSchematic(nextProjectId)),
       optional(() => api.getMcuConfig(nextProjectId)),
+      optional(() => api.getDependencies(nextProjectId)),
       optional(() => api.getFirmware(nextProjectId)),
       optional(() => api.getProtocol(nextProjectId)),
       optional(() => api.listTests(nextProjectId)),
@@ -267,7 +358,8 @@ export function M21Workspace({ api, runtimeVersion }: { api: M21Api; runtimeVers
       circuit: circuit ? asRecord(circuit) : current.circuit,
       schematic: schematic ? asRecord(schematic) : current.schematic,
       mcuConfig: mcuConfig ? asRecord(mcuConfig) : current.mcuConfig,
-      firmware: firmware ? asRecord(firmware) : current.firmware,
+      dependencyLock: dependencies ? asRecord(dependencies) : current.dependencyLock,
+      firmware: firmware ? nestedRecord(firmware, "firmware") : current.firmware,
       protocol: protocol ? asRecord(protocol) : current.protocol,
       tests: tests ? asRecord(tests) : current.tests,
       traceability: traceability ? asRecord(traceability) : current.traceability,
@@ -278,8 +370,16 @@ export function M21Workspace({ api, runtimeVersion }: { api: M21Api; runtimeVers
   }, [api]);
 
   useEffect(() => {
-    void refreshProjects().catch((loadError: unknown) => setError(apiFailureMessage(loadError)));
-  }, [refreshProjects]);
+    void refreshProjects()
+      .then(() => {
+        window.requestAnimationFrame(() => {
+          if (readyReported.current) return;
+          readyReported.current = true;
+          void onReady?.().catch(() => undefined);
+        });
+      })
+      .catch((loadError: unknown) => setError(apiFailureMessage(loadError)));
+  }, [onReady, refreshProjects]);
 
   useEffect(() => {
     if (!projectId) {
@@ -417,22 +517,37 @@ export function M21Workspace({ api, runtimeVersion }: { api: M21Api; runtimeVers
     await runAction("Generate FirmwareIR", async () => {
       const configId = typeof mcuConfig.id === "string" ? mcuConfig.id : undefined;
       if (!configId) throw new Error("Generate MCU Config first");
-      const firmwareBundle = await api.generateFirmware(projectId, {
-        mcu_config_id: configId,
-        board_name: "generic-stm32g431-freertos",
-      });
-      setWorkflow((current) => ({ ...current, firmware: nestedRecord(firmwareBundle, "firmware") }));
+      const dependencyLock = await api.resolveDependencies(
+        projectId,
+        m20DependencyResolvePayload(configId, requirementId(workflow.analysis)),
+      );
+      const materialization = await api.materializeDependencies(projectId, String(dependencyLock.id));
+      const firmwareBundle = await api.generateFirmware(
+        projectId,
+        m20DeviceFirmwarePayload(configId, String(dependencyLock.id)),
+      );
+      const firmware = nestedRecord(firmwareBundle, "firmware");
+      requireDeviceFirmware(firmware);
+      setWorkflow((current) => ({
+        ...current,
+        dependencyLock,
+        dependencyMaterialization: materialization,
+        firmware,
+      }));
       navigate("firmware");
     });
   };
 
   const runBuild = async () => {
     if (!projectId || !workflow.firmware) return;
+    const firmware = workflow.firmware;
     await runAction("Build DEVICE firmware", async () => {
-      const id = firmwareId(workflow.firmware);
+      const id = firmwareId(firmware);
       if (!id) throw new Error("Generate Firmware first");
+      requireDeviceFirmware(firmware);
       const build = await api.build(projectId, id);
       setWorkflow((current) => ({ ...current, build }));
+      requireReleaseBuild(build);
       await refreshProject(projectId);
     });
   };
@@ -444,6 +559,7 @@ export function M21Workspace({ api, runtimeVersion }: { api: M21Api; runtimeVers
       if (!id) throw new Error("Generate Firmware first");
       const analysis = await api.runStaticAnalysis(projectId, id);
       setWorkflow((current) => ({ ...current, staticAnalysis: analysis }));
+      requireReleaseStatic(analysis);
       navigate("firmware");
     });
   };
@@ -483,6 +599,15 @@ export function M21Workspace({ api, runtimeVersion }: { api: M21Api; runtimeVers
   const runReview = async () => {
     if (!projectId || !workflow.firmware) return;
     await runAction("Run deterministic review", async () => {
+      requireDeviceFirmware(workflow.firmware as JsonRecord);
+      if (!workflow.build) throw new Error("Run the DEVICE build before Review");
+      requireReleaseBuild(workflow.build);
+      if (!workflow.staticAnalysis) throw new Error("Run static analysis before Review");
+      requireReleaseStatic(workflow.staticAnalysis);
+      if (!workflow.erc) throw new Error("Run ERC before Review");
+      requireReleaseErc(workflow.erc);
+      if (workflow.testRun?.status !== "PASS") throw new Error("Run the PASS software TestRun before Review");
+      if (traceabilityReleaseStatus(workflow.traceability) !== "PASS") throw new Error("Refresh complete release traceability before Review");
       const sourceId = sourceRevisionId(workflow.firmware);
       if (!sourceId) throw new Error("Firmware has no SourceRevision binding");
       const review = await api.runReview(projectId, {
@@ -498,6 +623,7 @@ export function M21Workspace({ api, runtimeVersion }: { api: M21Api; runtimeVers
         require_test: true,
       });
       setWorkflow((current) => ({ ...current, review }));
+      if (review.status !== "PASS") throw new Error("Backend Review did not return PASS");
       await refreshProject(projectId);
       navigate("review");
     });
@@ -528,18 +654,36 @@ export function M21Workspace({ api, runtimeVersion }: { api: M21Api; runtimeVers
       const schematicBundle = await api.generateSchematic(projectId, circuit.id as string);
       const schematic = nestedRecord(schematicBundle, "schematic");
       const erc = await api.runErc(projectId, schematic.id as string);
+      requireReleaseErc(erc);
       const mcuBundle = await api.generateMcuConfig(projectId, m20McuConfigPayload(hardware, circuit, schematic, requirementId(analysis)));
       const mcu = nestedRecord(mcuBundle, "config");
-      const firmwareBundle = await api.generateFirmware(projectId, { mcu_config_id: mcu.id, board_name: "generic-stm32g431-freertos" });
+      const dependencyLock = await api.resolveDependencies(
+        projectId,
+        m20DependencyResolvePayload(String(mcu.id), requirementId(analysis)),
+      );
+      const dependencyMaterialization = await api.materializeDependencies(projectId, String(dependencyLock.id));
+      const firmwareBundle = await api.generateFirmware(
+        projectId,
+        m20DeviceFirmwarePayload(String(mcu.id), String(dependencyLock.id)),
+      );
       const firmware = nestedRecord(firmwareBundle, "firmware");
+      requireDeviceFirmware(firmware);
       const build = await api.build(projectId, firmware.id as string);
+      requireReleaseBuild(build);
       const staticAnalysis = await api.runStaticAnalysis(projectId, firmware.id as string);
+      requireReleaseStatic(staticAnalysis);
       const protocol = await api.createProtocol(projectId, m20ProtocolPayload(requirementId(analysis)));
       const protocolOutputs = await api.generateProtocol(projectId, { protocol_id: protocol.id });
       const tests = await api.generateTests(projectId, "SOFTWARE_RELEASE");
       const testIr = nestedRecord(tests, "test_ir");
       const testRun = await api.runTests(projectId, { test_ir_id: testIr.id, source_revision_id: firmware.source_revision_id });
+      if (testRun.status !== "PASS" || asArray(testRun.case_results).some((item) => !["PASS", "NOT_APPLICABLE"].includes(String(asRecord(item).status)))) {
+        throw new Error("Release workflow requires a PASS deterministic software TestRun");
+      }
       const traceability = await api.getTraceability(projectId);
+      if (traceabilityReleaseStatus(traceability) !== "PASS") {
+        throw new Error("Release workflow has uncovered, unexecuted, failing, blocked, unknown, or stale MUST requirements");
+      }
       const review = await api.runReview(projectId, {
         source_revision_id: firmware.source_revision_id,
         test_ir_id: testIr.id,
@@ -552,7 +696,10 @@ export function M21Workspace({ api, runtimeVersion }: { api: M21Api; runtimeVers
         require_erc: true,
         require_test: true,
       });
-      setWorkflow({ analysis, pinPlan: lockedPlan, architecture, circuit, schematic: schematicBundle, erc, mcuConfig: mcu, firmware, build, staticAnalysis, protocol, protocolOutputs, tests, testRun, traceability, review });
+      if (review.status !== "PASS") {
+        throw new Error("Release workflow requires an explicit backend Review PASS");
+      }
+      setWorkflow({ analysis, pinPlan: lockedPlan, architecture, circuit, schematic: schematicBundle, erc, mcuConfig: mcu, dependencyLock, dependencyMaterialization, firmware, build, staticAnalysis, protocol, protocolOutputs, tests, testRun, traceability, review });
       await refreshProject(projectId);
       navigate("review");
     });
@@ -779,7 +926,7 @@ function HardwarePage({ workflow, onGenerateHardware, onGenerateSchematic, onNav
 
 function SchematicPage({ workflow, onGenerateSchematic, onRunErc, busy }: PageProps) {
   const schematic = nestedRecord(workflow.schematic, "schematic");
-  const erc = workflow.erc ?? nestedRecord(workflow.schematic, "erc_report");
+  const erc = workflow.erc ? ercReport(workflow.erc) : nestedRecord(workflow.schematic, "erc_report");
   return <PageFrame eyebrow="SCHEMATIC / ERC" title="Schematic & ERC" description="Generated schematic metadata and executable ERC state are explicit. UNKNOWN is not rendered as PASS." actions={<><button className="ghost-button" disabled={!workflow.circuit || Boolean(busy)} onClick={() => void onGenerateSchematic()}>Generate schematic</button><button className="primary-button" disabled={!schematic.id || Boolean(busy)} onClick={() => void onRunErc()}>Run ERC</button></>}><div className="two-column"><div className="panel-card"><PanelTitle label="Artifact" title="Generated schematic" /><KeyValueList values={{ "Artifact ID": shortId(schematic.artifact_id), Format: stringValue(schematic.format), "Content hash": shortId(schematic.content_hash, 18), "Input hash": shortId(schematic.input_hash, 18), "ERC executed": erc.executed === true ? "YES" : "NO" }} /></div><div className="panel-card"><PanelTitle label="Electrical Rule Check" title="Tool result" /><div className="result-header"><StatusPill status={erc.status as string | undefined} /><span>{erc.executed === true ? "Executed" : "Not executed"}</span></div><p className="muted">{stringValue(erc.recommendation, "Run ERC to receive tool-backed results.")}</p><div className="rule-list">{asArray(erc.issues).map((issue, index) => <RuleRow key={index} rule={asRecord(issue)} />)}</div></div></div></PageFrame>;
 }
 
@@ -791,7 +938,36 @@ function McuConfigPage({ workflow, onGenerateMcu, onGenerateFirmware, busy }: Pa
 function FirmwarePage({ workflow, onGenerateFirmware, onRunBuild, onRunStatic, busy, onNavigate }: PageProps) {
   const firmware = workflow.firmware;
   const files = asArray(firmware?.files);
-  return <PageFrame eyebrow="FIRMWARE / SOURCE" title="Firmware & SourceRevision" description="Generated files, SourceRevision binding, build artifact, and static analysis stay connected to backend IDs and hashes." actions={<><button className="ghost-button" disabled={!workflow.mcuConfig || Boolean(busy)} onClick={() => void onGenerateFirmware()}>Generate FirmwareIR</button><button className="primary-button" disabled={!firmware || Boolean(busy)} onClick={() => void onRunBuild()}>Run DEVICE build</button><button className="ghost-button" disabled={!firmware || Boolean(busy)} onClick={() => void onRunStatic()}>Run static</button></>}><div className="metric-grid"><Metric label="FirmwareIR" value={statusLabel(firmware?.status as string | undefined)} detail={shortId(firmware?.id)} /><Metric label="SourceRevision" value={shortId(firmware?.source_revision_id)} detail="Authoritative source binding" /><Metric label="Build" value={statusLabel(workflow.build?.status as string | undefined)} detail={shortId(workflow.build?.artifact_hash)} /><Metric label="Static" value={statusLabel(workflow.staticAnalysis?.status as string | undefined)} detail={`${asArray(workflow.staticAnalysis?.rule_results).length} rules`} /></div><div className="two-column"><div className="panel-card"><PanelTitle label="Source workspace" title="Generated files" action={<button className="ghost-button" onClick={() => onNavigate("settings")}>Workspace settings</button>} /><div className="file-tree">{files.length === 0 ? <EmptyState text="Generate FirmwareIR to see the source tree." /> : files.slice(0, 30).map((file, index) => { const item = asRecord(file); return <div className="file-row" key={index}><span className="file-icon">{String(item.path).endsWith("/") ? "▾" : "·"}</span><span>{stringValue(item.path)}</span><span className="file-hash">{shortId(item.content_hash, 14)}</span></div>; })}</div></div><div className="panel-card"><PanelTitle label="Deterministic evidence" title="Build & static output" /><KeyValueList values={{ "Build input": shortId(workflow.build?.build_input_hash, 18), "Artifact hash": shortId(workflow.build?.artifact_hash, 18), Toolchain: stringValue(workflow.build?.toolchain_version), "Command": Array.isArray(workflow.build?.command) ? workflow.build.command.join(" ") : "—" }} /><div className="rule-list">{asArray(workflow.staticAnalysis?.rule_results).slice(0, 8).map((rule, index) => <RuleRow key={index} rule={asRecord(rule)} />)}</div></div></div></PageFrame>;
+  const target = asRecord(firmware?.build_target);
+  const profile = workflow.build?.profile ?? target.profile;
+  const toolchainId = workflow.build?.toolchain_id ?? target.toolchain_id;
+  const targetTriple = target.target_triple;
+  const outputFormat = stringValue(target.output_format, "ELF").toUpperCase();
+  const artifactName = workflow.build?.artifact_hash
+    ? `${stringValue(target.output_name, "eea_device")}.${outputFormat.toLowerCase()}`
+    : "UNKNOWN";
+  const cppcheck = asArray(workflow.staticAnalysis?.tool_results).map(asRecord).find((item) => item.tool_id === "cppcheck");
+  return <PageFrame eyebrow="FIRMWARE / SOURCE" title="Firmware & SourceRevision" description="Generated files, SourceRevision binding, DependencyLock, DEVICE build artifact, and static analysis stay connected to backend IDs and hashes." actions={<><button className="ghost-button" disabled={!workflow.mcuConfig || Boolean(busy)} onClick={() => void onGenerateFirmware()}>Generate DEVICE FirmwareIR</button><button className="primary-button" disabled={!firmware || Boolean(busy)} onClick={() => void onRunBuild()}>Run DEVICE build</button><button className="ghost-button" disabled={!firmware || Boolean(busy)} onClick={() => void onRunStatic()}>Run static</button></>}>
+    <div className="metric-grid">
+      <Metric label="Build profile" value={profile} detail="Backend BuildRun" testId="build-profile" />
+      <Metric label="Build status" value={workflow.build?.status} detail={shortId(workflow.build?.id)} testId="build-status" />
+      <Metric label="Artifact" value={artifactName} detail={outputFormat} testId="build-artifact" />
+      <Metric label="Static" value={workflow.staticAnalysis?.status} detail={`${asArray(workflow.staticAnalysis?.rule_results).length} rules`} testId="static-status" />
+    </div>
+    <div className="two-column">
+      <div className="panel-card"><PanelTitle label="DEVICE source authority" title="Dependency & revision binding" /><div className="mini-list">
+        <EvidenceValue label="DependencyLock" value={stringValue(workflow.dependencyLock?.id ?? firmware?.dependency_lock_id)} testId="dependency-lock-id" />
+        <EvidenceValue label="DependencyLock hash" value={stringValue(workflow.dependencyLock?.lock_hash ?? firmware?.dependency_lock_hash)} testId="dependency-lock-hash" />
+        <EvidenceValue label="SourceRevision" value={stringValue(firmware?.source_revision_id)} testId="source-revision-id" />
+        <EvidenceValue label="BuildInputSnapshot" value={stringValue(workflow.build?.build_input_snapshot_id)} testId="build-input-snapshot-id" />
+        <EvidenceValue label="Toolchain" value={`${stringValue(toolchainId)} ${stringValue(workflow.build?.toolchain_version)}`.trim()} testId="build-toolchain" />
+        <EvidenceValue label="Target" value={stringValue(targetTriple)} testId="build-target" />
+        <EvidenceValue label="Artifact SHA256" value={stringValue(workflow.build?.artifact_hash)} testId="build-artifact-sha256" />
+      </div></div>
+      <div className="panel-card"><PanelTitle label="Deterministic evidence" title="Cppcheck & firmware release rules" /><EvidenceValue label="Cppcheck" value={stringValue(cppcheck?.status)} testId="cppcheck-status" /><div className="rule-list">{asArray(workflow.staticAnalysis?.rule_results).map((rule, index) => <RuleRow key={index} rule={asRecord(rule)} testId={`firmware-rule-${stringValue(asRecord(rule).rule_id, String(index))}`} />)}</div></div>
+    </div>
+    <div className="panel-card"><PanelTitle label="Source workspace" title="Generated files" action={<button className="ghost-button" onClick={() => onNavigate("settings")}>Workspace settings</button>} /><div className="file-tree">{files.length === 0 ? <EmptyState text="Source files are backend-owned; generate DEVICE FirmwareIR to bind the authoritative revision." /> : files.slice(0, 30).map((file, index) => { const item = asRecord(file); return <div className="file-row" key={index}><span className="file-icon">{String(item.path).endsWith("/") ? "▾" : "·"}</span><span>{stringValue(item.path)}</span><span className="file-hash">{shortId(item.content_hash, 14)}</span></div>; })}</div></div>
+  </PageFrame>;
 }
 
 function ProtocolPage({ workflow, onGenerateProtocol, busy }: PageProps) {
@@ -805,8 +981,22 @@ function TestsPage({ workflow, onRunTests, busy, onNavigate }: PageProps) {
 
 function ReviewPage({ workflow, context, onTraceability, onReview, busy, onNavigate }: PageProps) {
   const coverage = asRecord(workflow.traceability?.coverage);
-  const ercStatus = workflow.erc?.status ?? nestedRecord(workflow.schematic, "erc_report").status;
-  return <PageFrame eyebrow="RELEASE GATE" title="Review" description="One closeout surface for Build, Static Analysis, ERC, Tests, Traceability, Impact, and deterministic findings." actions={<><button className="ghost-button" disabled={!workflow.firmware || Boolean(busy)} onClick={() => void onTraceability()}>Refresh traceability</button><button className="primary-button" disabled={!workflow.firmware || Boolean(busy)} onClick={() => void onReview()}>Run Review</button></>}><div className="metric-grid"><Metric label="Build" value={statusLabel(workflow.build?.status as string | undefined)} detail={shortId(workflow.build?.id)} /><Metric label="Static" value={statusLabel(workflow.staticAnalysis?.status as string | undefined)} detail={shortId(workflow.staticAnalysis?.id)} /><Metric label="ERC" value={typeof ercStatus === "string" ? ercStatus : undefined} detail={workflow.erc?.executed === true ? "Executed" : "—"} /><Metric label="TestRun" value={statusLabel(workflow.testRun?.status as string | undefined)} detail={shortId(workflow.testRun?.id)} /></div><div className="review-banner"><div><span className="eyebrow">DETERMINISTIC REVIEW</span><h2>{statusLabel(workflow.review?.status as string | undefined)}</h2><p>{workflow.review ? `${asArray(workflow.review.findings).length} findings · ${asArray(workflow.review.issue_ids).length} linked issues` : "Review has not run for this SourceRevision."}</p></div><StatusPill status={typeof workflow.review?.status === "string" ? workflow.review.status : undefined} /></div><div className="two-column"><div className="panel-card"><PanelTitle label="Traceability" title="Requirement → Claim → Pin → MCU → Firmware → Test" /><KeyValueList values={{ "Total requirements": displayCount(coverage.total_requirements), "Design coverage": typeof coverage.design_coverage_ratio === "number" ? `${Math.round(coverage.design_coverage_ratio * 100)}%` : "UNKNOWN", "Verification coverage": typeof coverage.verification_coverage_ratio === "number" ? `${Math.round(coverage.verification_coverage_ratio * 100)}%` : "UNKNOWN", "Uncovered": displayCount(asArray(coverage.uncovered_requirement_ids).length), "Stale impacts": displayCount(asArray(coverage.stale_requirement_ids).length) }} /><button className="ghost-button full-width" onClick={() => onNavigate("dashboard")}>View project health</button></div><div className="panel-card"><PanelTitle label="Findings / issues" title="Blockers stay visible" /><div className="rule-list">{asArray(workflow.review?.findings).map((finding, index) => <RuleRow key={index} rule={asRecord(finding)} />)}{context.issues.slice(0, 5).map((issue) => <IssueRow key={String(issue.id)} issue={issue} />)}{!workflow.review && context.issues.length === 0 && <EmptyState text="No review findings loaded." />}</div></div></div></PageFrame>;
+  const erc = workflow.erc ? ercReport(workflow.erc) : nestedRecord(workflow.schematic, "erc_report");
+  const caseResults = asArray(workflow.testRun?.case_results).map(asRecord);
+  const passedCases = caseResults.filter((item) => item.status === "PASS").length;
+  const traceabilityStatus = traceabilityReleaseStatus(workflow.traceability);
+  const gateStatus = releaseGateStatus(workflow);
+  return <PageFrame eyebrow="RELEASE GATE" title="Review" description="One closeout surface for DEVICE Build, Static Analysis, ERC, Tests, Traceability, Impact, and deterministic findings." actions={<><button className="ghost-button" disabled={!workflow.firmware || Boolean(busy)} onClick={() => void onTraceability()}>Refresh traceability</button><button className="primary-button" disabled={!workflow.firmware || Boolean(busy)} onClick={() => void onReview()}>Run Review</button></>}>
+    <div className="metric-grid">
+      <Metric label="Build" value={workflow.build?.status} detail={String(workflow.build?.profile ?? "UNKNOWN")} testId="build-status" />
+      <Metric label="Static" value={workflow.staticAnalysis?.status} detail={shortId(workflow.staticAnalysis?.id)} testId="static-status" />
+      <Metric label="ERC" value={erc.status} detail={erc.executed === true ? "Executed" : "Not executed"} testId="erc-status" />
+      <Metric label="TestRun" value={workflow.testRun?.status} detail={`${passedCases}/${caseResults.length} PASS`} testId="test-run-status" />
+    </div>
+    <div className="review-banner" data-testid="release-gate"><div><span className="eyebrow">M21 DEVICE RELEASE GATE</span><h2 data-testid="release-gate-status">{gateStatus}</h2><p>{gateStatus === "PASS" ? "All required backend gates returned explicit PASS." : "UNKNOWN, missing, BLOCKED, or FAIL evidence cannot close this release gate."}</p></div><StatusPill status={gateStatus} /></div>
+    <div className="review-banner"><div><span className="eyebrow">DETERMINISTIC REVIEW</span><h2 data-testid="review-status">{statusLabel(workflow.review?.status as string | undefined)}</h2><p>{workflow.review ? `${asArray(workflow.review.findings).length} findings · ${asArray(workflow.review.issue_ids).length} linked issues` : "Review has not run for this SourceRevision."}</p></div><StatusPill status={typeof workflow.review?.status === "string" ? workflow.review.status : undefined} /></div>
+    <div className="two-column"><div className="panel-card"><PanelTitle label="Traceability" title="Requirement → Claim → Pin → MCU → Firmware → Test" /><EvidenceValue label="Release traceability" value={traceabilityStatus} testId="traceability-status" /><KeyValueList values={{ "Release-critical requirements": displayCount(coverage.release_critical_requirements), "Total requirements": displayCount(coverage.total_requirements), "Design coverage": typeof coverage.design_coverage_ratio === "number" ? `${Math.round(coverage.design_coverage_ratio * 100)}%` : "UNKNOWN", "Verification coverage": typeof coverage.verification_coverage_ratio === "number" ? `${Math.round(coverage.verification_coverage_ratio * 100)}%` : "UNKNOWN", "Uncovered": displayCount(asArray(coverage.uncovered_requirement_ids).length), "Unknown": displayCount(asArray(coverage.unknown_requirement_ids).length), "Stale": displayCount(asArray(coverage.stale_requirement_ids).length) }} /><EvidenceValue label="Software cases" value={`${passedCases}/${caseResults.length} PASS`} testId="test-case-summary" /><button className="ghost-button full-width" onClick={() => onNavigate("dashboard")}>View project health</button></div><div className="panel-card"><PanelTitle label="Findings / issues" title="Blockers stay visible" /><div className="rule-list">{asArray(workflow.review?.findings).map((finding, index) => <RuleRow key={index} rule={asRecord(finding)} />)}{context.issues.slice(0, 5).map((issue) => <IssueRow key={String(issue.id)} issue={issue} />)}{!workflow.review && context.issues.length === 0 && <EmptyState text="No review findings loaded." />}</div></div></div>
+  </PageFrame>;
 }
 
 function DomainsPage({ context, onActivateDomain, onDeactivateDomain, busy }: PageProps) {
@@ -826,8 +1016,9 @@ function ExtensionPage({ extension }: PageProps & { extension?: DomainUIContribu
   return <PageFrame eyebrow="DOMAIN EXTENSION" title={extension?.label ?? "Extension"} description="This surface was registered from backend UI metadata. It is not a Core hardcoded domain page."><div className="panel-card"><PanelTitle label={extension?.kind ?? "extension"} title={extension?.extension_id ?? "Unknown extension"} /><p className="muted">Route: {extension?.route ?? "—"}</p><div className="schema-preview"><span className="eyebrow">DESCRIPTOR SCHEMA</span><pre>{JSON.stringify(extension?.json_schema ?? {}, null, 2)}</pre></div></div></PageFrame>;
 }
 
-function Metric({ label, value, detail }: { label: string; value: unknown; detail: string }) {
-  return <div className="metric-card"><span className="metric-label">{label}</span><strong className={`metric-value ${statusTone(String(value)).startsWith("pass") ? "metric-pass" : ""}`}>{statusLabel(typeof value === "string" ? value : String(value ?? "UNKNOWN"))}</strong><span className="metric-detail">{detail}</span></div>;
+function Metric({ label, value, detail, testId }: { label: string; value: unknown; detail: string; testId?: string }) {
+  const rendered = typeof value === "string" ? value : String(value ?? "UNKNOWN");
+  return <div className="metric-card" data-testid={testId} data-value={rendered}><span className="metric-label">{label}</span><strong className={`metric-value ${statusTone(rendered).startsWith("pass") ? "metric-pass" : ""}`}>{statusLabel(rendered)}</strong><span className="metric-detail">{detail}</span></div>;
 }
 
 function StatusPill({ status, label }: { status?: string | null; label?: string }) {
@@ -858,13 +1049,18 @@ function MiniRow({ label, value }: { label: string; value: string }) {
   return <div className="mini-row"><span>{label}</span><strong>{value}</strong></div>;
 }
 
+function EvidenceValue({ label, value, testId }: { label: string; value: string; testId: string }) {
+  const rendered = value || "UNKNOWN";
+  return <div className="mini-row" data-testid={testId} data-value={rendered}><span>{label}</span><strong title={rendered}>{rendered}</strong></div>;
+}
+
 function ObjectSummary({ label, items }: { label: string; items: unknown }) {
   return <div className="object-summary"><span className="metric-label">{label}</span><strong>{asArray(items).length}</strong><span className="muted">backend objects</span></div>;
 }
 
-function RuleRow({ rule }: { rule: JsonRecord }) {
+function RuleRow({ rule, testId }: { rule: JsonRecord; testId?: string }) {
   const status = rule.status ?? rule.severity;
-  return <div className="rule-row"><StatusPill status={status as string | undefined} /><span><strong>{stringValue(rule.rule_id ?? rule.code ?? rule.title, "Rule result")}</strong><small>{stringValue(rule.message ?? rule.recommendation, "No diagnostic message")}</small></span></div>;
+  return <div className="rule-row" data-testid={testId} data-status={stringValue(status)}><StatusPill status={status as string | undefined} /><span><strong>{stringValue(rule.rule_id ?? rule.code ?? rule.title, "Rule result")}</strong><small>{stringValue(rule.message ?? rule.recommendation, "No diagnostic message")}</small></span></div>;
 }
 
 function IssueRow({ issue }: { issue: JsonRecord }) {
