@@ -189,7 +189,14 @@ function requireDeviceFirmware(firmware: JsonRecord): void {
 
 function requireReleaseBuild(build: JsonRecord): void {
   if (build.status !== "PASS" || build.profile !== "DEVICE" || build.toolchain_id !== "arm-none-eabi-gcc" || !build.artifact_hash) {
-    throw new Error("Release workflow requires a PASS DEVICE BuildRun with a real ELF artifact hash");
+    const evidence = {
+      status: build.status,
+      profile: build.profile,
+      toolchain_id: build.toolchain_id,
+      artifact_hash: build.artifact_hash,
+      diagnostics: build.diagnostics,
+    };
+    throw new Error(`Release workflow requires a PASS DEVICE BuildRun with a real ELF artifact hash · ${JSON.stringify(evidence)}`);
   }
 }
 

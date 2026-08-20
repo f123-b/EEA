@@ -36,6 +36,7 @@ def main() -> None:
             "EEA_RUNTIME_HOST": "127.0.0.1",
             "EEA_RUNTIME_PORT": str(port),
             "EEA_SESSION_TOKEN": token,
+            "EEA_DESKTOP_AUTO_MIGRATE": "1",
             "EEA_ENV": "development",
             "EEA_INSECURE_LOCAL_DEV": "false",
         }
@@ -74,6 +75,17 @@ def main() -> None:
                 raise SystemExit("sidecar did not complete the authenticated handshake")
             if b'"success":true' not in response_body.replace(b" ", b"").lower():
                 raise SystemExit(f"unexpected version envelope: {response_body!r}")
+            projects_request = Request(
+                f"{base_url}/api/v1/projects",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            with urlopen(projects_request, timeout=5) as response:
+                projects_body = response.read()
+                if (
+                    response.status != 200
+                    or b'"success":true' not in projects_body.replace(b" ", b"").lower()
+                ):
+                    raise SystemExit(f"sidecar database schema is not ready: {projects_body!r}")
             try:
                 urlopen(f"{base_url}/api/v1/meta/version", timeout=2)
             except HTTPError as error:
@@ -83,7 +95,9 @@ def main() -> None:
                     ) from error
             else:
                 raise SystemExit("unauthenticated request unexpectedly succeeded")
-            print("Backend sidecar smoke passed: loopback bearer contract verified")
+            print(
+                "Backend sidecar smoke passed: migrations, loopback, and bearer contract verified"
+            )
         finally:
             process.terminate()
             try:

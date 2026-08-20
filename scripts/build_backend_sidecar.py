@@ -66,6 +66,8 @@ def build(output: Path) -> Path:
         "PySide6",
         "--exclude-module",
         "tkinter",
+        "--add-data",
+        f"{ROOT / 'migrations'}{os.pathsep}migrations",
     ]
     for source_root in SOURCE_ROOTS:
         command.extend(["--paths", str(source_root)])

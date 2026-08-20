@@ -167,6 +167,7 @@ fn start_backend(app: &AppHandle) -> Result<RuntimeProcess, String> {
     command
         .env("EEA_RUNTIME_HOST", "127.0.0.1")
         .env("EEA_RUNTIME_PORT", port.to_string())
+        .env("EEA_DESKTOP_AUTO_MIGRATE", "1")
         // The token is child-scoped environment state. It is never put in
         // argv, renderer URL state, browser storage, or application logs.
         .env("EEA_SESSION_TOKEN", &token)
