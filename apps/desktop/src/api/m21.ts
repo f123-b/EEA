@@ -150,6 +150,12 @@ export function createM21Api(client: BackendClient) {
     getMcuConfig: (projectId: string) => get<JsonRecord>(pathForProject(projectId, "/mcu-config")),
     validateMcuConfig: (projectId: string, configId: string) =>
       post<JsonRecord>(pathForProject(projectId, "/mcu-config/validate"), { config_id: configId }),
+    resolveDependencies: (projectId: string, payload: JsonRecord) =>
+      post<JsonRecord>(pathForProject(projectId, "/dependencies/resolve"), payload),
+    getDependencies: (projectId: string) =>
+      get<JsonRecord>(pathForProject(projectId, "/dependencies")),
+    materializeDependencies: (projectId: string, lockId: string) =>
+      post<JsonRecord[]>(pathForProject(projectId, "/dependencies/materialize"), { lock_id: lockId }),
     generateFirmware: (projectId: string, payload: JsonRecord) =>
       post<JsonRecord>(pathForProject(projectId, "/firmware/generate"), payload),
     getFirmware: (projectId: string) => get<JsonRecord>(pathForProject(projectId, "/firmware")),
