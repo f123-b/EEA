@@ -22,16 +22,22 @@ the frozen documentation changelogs under `docs/`.
   `67c7e3ea42d00f67cc473b2041929555764a3daf` on `2026-08-18T04:21:20Z`. Post-merge main CI
   `32098839155` is green. M21 is now implemented on `codex/m21-desktop-ui-vertical-slice`.
 
-- M21 Desktop UI Vertical Slice is implemented from green main
-  `67c7e3ea42d00f67cc473b2041929555764a3daf` at implementation HEAD
-  `1430645d476388dd0b3494ff568fc1b1eae6defb`. Added the metadata-driven engineering workbench,
+- M21 Desktop UI Vertical Slice final gates are closed from green main
+  `67c7e3ea42d00f67cc473b2041929555764a3daf` at final implementation HEAD
+  `a47d2d3efee866f14791a28e26d92640b86671e5`. Added the metadata-driven engineering workbench,
   M20 generic benchmark renderer workflow, dynamic Domain UI activation/deactivation, controlled
   AI surface, authenticated Tauri sidecar bootstrap, PyInstaller packaging, renderer/unit E2E,
-  and `desktop-ui-test` / `desktop-package-smoke` CI jobs. Local verification reports 4 UI unit
-  tests and 2 Playwright E2E tests passed; the package smoke authenticated the bundled backend
-  and rejected an unauthenticated request. `M21=IMPLEMENTED`,
-  `READY_FOR_M21_FINAL_REVIEW=YES`, and `M22=NOT_STARTED`. The final deliverable is a Draft PR;
-  M21 is not merged.
+  and `desktop-ui-test` / `desktop-package-smoke` CI jobs. Final push CI `32329951312` and final
+  Draft PR CI `32329955310` are green across backend, desktop-web, desktop-tauri,
+  desktop-ui-test, desktop-package-smoke, m19-release, m20-release, and m21-ui-release. The
+  real DEVICE workflow reports Build/Static/ERC/TestRun/traceability/Review PASS with a 9/9
+  TestRun; the packaged AppImage auto-started its bundled sidecar, passed authenticated and
+  unauthenticated boundary checks, reached renderer/workbench ready, passed token leak scanning,
+  and terminated with the backend closed. Backend regression is 510 passed, 27 skipped, with
+  83.04% coverage; desktop unit tests are 6 passed and the UI/domain Playwright gates passed.
+  `M21=IMPLEMENTED_AND_FINAL_GATE_CLOSED`, `P0=0`, `P1=0`,
+  `READY_FOR_M21_FINAL_REVIEW=YES`, `APPROVED_TO_MERGE=NO`, and `M22=NOT_STARTED`. PR #15
+  remains Draft/Open and M21 is not merged.
 
 - M19A FOC Minimal E2E was accepted and merged. Its final pre-acceptance implementation HEAD
   was
