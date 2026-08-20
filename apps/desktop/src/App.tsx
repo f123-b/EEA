@@ -27,13 +27,13 @@ export function App() {
     });
     const workbenchReady = document.querySelector(".workspace-shell") instanceof HTMLElement
       && (document.querySelector(".start-panel") instanceof HTMLElement || document.querySelector(".page-frame") instanceof HTMLElement);
-    await reportDesktopSmokeReady({
-      renderer_ready: document.readyState === "complete",
-      workbench_ready: workbenchReady,
-      url_clean: !credentialPattern.test(window.location.href),
-      storage_clean: storageClean,
-      dom_clean: !credentialPattern.test(document.documentElement.textContent ?? ""),
-    });
+    const rendererChecksPass = document.readyState === "complete"
+      && workbenchReady
+      && !credentialPattern.test(window.location.href)
+      && storageClean
+      && !credentialPattern.test(document.documentElement.textContent ?? "");
+    if (!rendererChecksPass) throw new Error("packaged renderer readiness or credential scan failed");
+    await reportDesktopSmokeReady();
   }, []);
 
   useEffect(() => {
