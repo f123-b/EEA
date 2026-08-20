@@ -7,6 +7,9 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
+
 use getrandom::fill as fill_random;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
@@ -53,14 +56,53 @@ pub struct RuntimeBoundary {
     process: Mutex<Option<RuntimeProcess>>,
 }
 
+#[cfg(unix)]
+extern "C" {
+    fn kill(pid: i32, signal: i32) -> i32;
+}
+
+fn stop_backend_child(child: &mut Child) {
+    #[cfg(unix)]
+    {
+        const SIGTERM: i32 = 15;
+        const SIGKILL: i32 = 9;
+        let process_group = -(child.id() as i32);
+        // The packaged PyInstaller executable has a supervisor and worker.
+        // Both inherit this dedicated process group, so terminating the group
+        // prevents the worker from surviving its desktop owner.
+        unsafe {
+            let _ = kill(process_group, SIGTERM);
+        }
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < deadline {
+            if matches!(child.try_wait(), Ok(Some(_))) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        unsafe {
+            let _ = kill(process_group, SIGKILL);
+        }
+        let _ = child.wait();
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+}
+
+fn stop_runtime_process(process: &Mutex<Option<RuntimeProcess>>) {
+    if let Ok(mut process) = process.lock() {
+        if let Some(mut running) = process.take() {
+            stop_backend_child(&mut running.child);
+        }
+    }
+}
+
 impl Drop for RuntimeBoundary {
     fn drop(&mut self) {
-        if let Ok(mut process) = self.process.lock() {
-            if let Some(mut running) = process.take() {
-                let _ = running.child.kill();
-                let _ = running.child.wait();
-            }
-        }
+        stop_runtime_process(&self.process);
     }
 }
 
@@ -164,6 +206,8 @@ fn start_backend(app: &AppHandle) -> Result<RuntimeProcess, String> {
     let url = format!("http://127.0.0.1:{port}");
     let executable = backend_executable(app)?;
     let mut command = Command::new(&executable.path);
+    #[cfg(unix)]
+    command.process_group(0);
     command
         .env("EEA_RUNTIME_HOST", "127.0.0.1")
         .env("EEA_RUNTIME_PORT", port.to_string())
@@ -201,8 +245,7 @@ fn start_backend(app: &AppHandle) -> Result<RuntimeProcess, String> {
             });
         }
         if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
+            stop_backend_child(&mut child);
             return Err("runtime backend readiness handshake timed out".to_owned());
         }
         std::thread::sleep(Duration::from_millis(50));
@@ -312,6 +355,9 @@ fn record_desktop_smoke_ready(
     let smoke_app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(2));
+        if let Some(boundary) = smoke_app.try_state::<RuntimeBoundary>() {
+            stop_runtime_process(&boundary.process);
+        }
         smoke_app.exit(0);
     });
     Ok(true)
