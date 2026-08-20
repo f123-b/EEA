@@ -50,8 +50,9 @@ def main() -> None:
             cwd=executable.parent,
             env=env,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
         base_url = f"http://127.0.0.1:{port}"
         try:
@@ -59,7 +60,12 @@ def main() -> None:
             response_body: bytes | None = None
             while time.monotonic() < deadline:
                 if process.poll() is not None:
-                    raise SystemExit(f"sidecar exited early with code {process.returncode}")
+                    stdout, stderr = process.communicate()
+                    diagnostic = "\n".join((stdout, stderr)).strip()
+                    raise SystemExit(
+                        f"sidecar exited early with code {process.returncode}"
+                        + (f"\n{diagnostic[-4000:]}" if diagnostic else "")
+                    )
                 try:
                     request = Request(
                         f"{base_url}/api/v1/meta/version",

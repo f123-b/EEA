@@ -53,7 +53,7 @@ test("@release drives the M20 benchmark through the real DEVICE release gate", a
     release_gate: (await page.getByTestId("release-gate-status").textContent())?.trim(),
   };
 
-  await page.getByRole("button", { name: "Firmware / Source", exact: true }).click();
+  await page.getByRole("button", { name: "Firmware", exact: true }).click();
   await expect(page.getByTestId("build-profile")).toHaveAttribute("data-value", "DEVICE");
   await expect(page.getByTestId("build-status")).toHaveAttribute("data-value", "PASS");
   await expect(page.getByTestId("build-target")).toHaveAttribute("data-value", "arm-none-eabi");
