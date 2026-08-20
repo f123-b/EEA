@@ -15,13 +15,11 @@ def _migration_directory() -> Path:
     """Locate migrations in either a PyInstaller bundle or the source tree."""
 
     bundle_root = getattr(sys, "_MEIPASS", None)
-    candidates = [
-        Path(bundle_root) / "migrations" if bundle_root else None,
-        Path(__file__).resolve().parents[4] / "migrations",
-        Path.cwd() / "migrations",
-    ]
-    for candidate in candidates:
-        if candidate is not None and (candidate / "env.py").is_file():
+    roots = ([Path(bundle_root)] if bundle_root else []) + list(Path(__file__).resolve().parents)
+    roots.append(Path.cwd())
+    for root in roots:
+        candidate = root / "migrations"
+        if (candidate / "env.py").is_file():
             return candidate
     raise RuntimeError("EEA desktop runtime migrations are unavailable")
 
