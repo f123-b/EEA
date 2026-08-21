@@ -106,8 +106,7 @@ def main() -> None:
         "baseline": str(args.baseline) if args.baseline else None,
         "growth_warnings": growth_warnings,
         "growth_policy": (
-            "Review frontend/backend/package growth against the previous release "
-            "before publishing."
+            "Review frontend/backend/package growth against the previous release before publishing."
         ),
     }
     (output_dir / "release-size-report.json").write_text(
