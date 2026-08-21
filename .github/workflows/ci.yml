@@ -351,3 +351,85 @@ jobs:
           name: desktop-package-evidence
           path: desktop-package-evidence
           if-no-files-found: error
+
+  desktop-release-artifact-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-latest
+            bundle: appimage
+            sidecar: eea-api
+          - platform: windows-x64
+            runner: windows-latest
+            bundle: nsis
+            sidecar: eea-api.exe
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pip install pyinstaller
+      - run: python scripts/build_backend_sidecar.py --output apps/desktop/src-tauri/resources/${{ matrix.sidecar }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/desktop/src-tauri -> target"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install Tauri Linux dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @eea/desktop build
+      - run: pnpm --filter @eea/desktop exec tauri icon src-tauri/icons/icon.svg
+      - run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - run: pnpm --filter @eea/desktop exec tauri build --ci --bundles ${{ matrix.bundle }}
+      - name: Collect normalized desktop release artifact
+        run: python scripts/collect_release_artifact.py --platform ${{ matrix.platform }} --output desktop-release-staging
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-release-${{ matrix.platform }}
+          path: desktop-release-staging
+          if-no-files-found: error
+
+  desktop-release-artifact:
+    needs: [desktop-release-artifact-build, desktop-package-smoke, m21-ui-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-release-*
+          path: release-input
+          merge-multiple: true
+      - name: Assemble release manifest and SHA256SUMS
+        run: python scripts/create_release_manifest.py --input-dir release-input --output-dir release --version 1.3.1 --commit "${{ github.sha }}"
+      - name: release-secret-scan
+        run: python scripts/scan_release_secrets.py --release-dir release
+      - name: Validate release artifacts
+        run: python scripts/validate_release_artifact.py --release-dir release --version 1.3.1 --commit "${{ github.sha }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-release-artifact
+          path: release
+          if-no-files-found: error

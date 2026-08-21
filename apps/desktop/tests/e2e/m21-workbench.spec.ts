@@ -7,31 +7,30 @@ import { expect, test } from "@playwright/test";
 test("@release drives the M20 benchmark through the real DEVICE release gate", async ({ page }) => {
   test.setTimeout(900_000);
   await page.goto("/");
-  await expect(page.getByText("M21 · DESKTOP ENGINEERING WORKBENCH")).toBeVisible();
-  await page.getByRole("button", { name: "Projects" }).click();
-  await page.getByRole("button", { name: "Create project" }).click();
-  await page.getByLabel("Name").fill(`M20 UI E2E ${Date.now()}`);
-  await page.getByLabel("Description").fill("M21 renderer benchmark");
-  await page.getByRole("dialog").getByRole("button", { name: "Create project" }).click();
+  await expect(page.getByTestId("start-create-project")).toBeVisible();
+  await page.getByTestId("nav-projects").click();
+  await page.getByTestId("new-project").click();
+  await page.locator("#project-name").fill(`M20 UI E2E ${Date.now()}`);
+  await page.locator("#project-description").fill("M21 renderer benchmark");
+  await page.getByTestId("confirm-create-project").click();
   await expect(page.locator("h1").filter({ hasText: /M20 UI E2E/ })).toBeVisible();
 
-  await page.getByRole("button", { name: "Review", exact: true }).click();
+  await page.getByTestId("nav-review").click();
   await expect(page.getByTestId("release-gate-status")).toHaveText("BLOCKED");
 
-  await page.getByRole("button", { name: "Requirements", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Requirements" })).toBeVisible();
-  await page.getByRole("button", { name: "Analyze M20 profile" }).click();
-  await expect(page.getByText("Analysis result")).toBeVisible({ timeout: 60_000 });
+  await page.getByTestId("nav-requirements").click();
+  await expect(page.getByTestId("page-title")).toBeVisible();
+  await page.getByTestId("analyze-m20-profile").click();
+  await expect(page.getByText("embedded-controller-benchmark")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("embedded-controller-benchmark")).toBeVisible();
 
-  await page.getByRole("button", { name: "Run M20 UI workflow" }).click();
-  await expect(page.getByText("Run M20 generic UI workflow · deterministic backend operation running")).toBeVisible();
-  await expect(page.getByText("Run M20 generic UI workflow · deterministic backend operation running")).toBeHidden({ timeout: 900_000 });
+  await page.getByTestId("run-m20-workflow").click();
+  await expect(page.getByTestId("run-m20-workflow")).toBeEnabled({ timeout: 900_000 });
   const workflowError = page.locator(".feedback-error");
   if (await workflowError.count()) {
     throw new Error(`M21 DEVICE UI workflow failed: ${(await workflowError.innerText()).trim()}`);
   }
-  await expect(page.getByRole("heading", { name: "Review" })).toBeVisible({ timeout: 900_000 });
+  await expect(page.getByTestId("page-title")).toBeVisible({ timeout: 900_000 });
   await expect(page.getByTestId("release-gate-status")).toHaveText("PASS");
   await expect(page.getByTestId("build-status")).toHaveAttribute("data-value", "PASS");
   await expect(page.getByTestId("static-status")).toHaveAttribute("data-value", "PASS");
@@ -53,7 +52,7 @@ test("@release drives the M20 benchmark through the real DEVICE release gate", a
     release_gate: (await page.getByTestId("release-gate-status").textContent())?.trim(),
   };
 
-  await page.getByRole("button", { name: "Firmware", exact: true }).click();
+  await page.getByTestId("nav-firmware").click();
   await expect(page.getByTestId("build-profile")).toHaveAttribute("data-value", "DEVICE");
   await expect(page.getByTestId("build-status")).toHaveAttribute("data-value", "PASS");
   await expect(page.getByTestId("build-target")).toHaveAttribute("data-value", "arm-none-eabi");
@@ -102,19 +101,37 @@ test("@release drives the M20 benchmark through the real DEVICE release gate", a
 
 test("@ui activates and deactivates domain UI from backend metadata", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Projects" }).click();
-  await page.getByRole("button", { name: "Create project" }).click();
-  await page.getByLabel("Name").fill(`M21 Domain UI E2E ${Date.now()}`);
-  await page.getByRole("dialog").getByRole("button", { name: "Create project" }).click();
-  await page.getByRole("button", { name: "Domains", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Domain Extensions" })).toBeVisible();
+  await page.getByTestId("nav-projects").click();
+  await page.getByTestId("new-project").click();
+  await page.locator("#project-name").fill(`M21 Domain UI E2E ${Date.now()}`);
+  await page.getByTestId("confirm-create-project").click();
+  await page.getByTestId("nav-domains").click();
+  await expect(page.getByTestId("page-title")).toBeVisible();
 
   const motorCard = page.locator(".domain-card").filter({ hasText: /MotorControl|Motor Control/i }).first();
   await expect(motorCard).toBeVisible();
   const motorNav = page.locator(".sidebar .nav-item").filter({ hasText: /MotorControl|Motor Control/i });
   await expect(motorNav).toHaveCount(0);
-  await motorCard.getByRole("button", { name: "Activate" }).click();
+  await motorCard.locator("button").click();
   await expect(motorNav.first()).toBeVisible({ timeout: 60_000 });
-  await motorCard.getByRole("button", { name: "Deactivate" }).click();
+  await motorCard.locator("button").click();
   await expect(motorNav).toHaveCount(0, { timeout: 60_000 });
+});
+
+test("@ui defaults to Chinese and persists the Settings language switch", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await page.getByTestId("nav-projects").click();
+  await page.getByTestId("new-project").click();
+  await page.locator("#project-name").fill(`M21 I18n E2E ${Date.now()}`);
+  await page.getByTestId("confirm-create-project").click();
+  await page.getByTestId("nav-settings").click();
+  await expect(page.getByTestId("page-title")).toHaveText("设置");
+  await page.getByTestId("locale-select").selectOption("en-US");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
+  await expect(page.getByTestId("page-title")).toHaveText("Settings");
+  const storedLocale = await page.evaluate(() => window.localStorage.getItem("eea.locale"));
+  expect(storedLocale).toBe("en-US");
+  await page.getByTestId("locale-select").selectOption("zh-CN");
+  await expect(page.getByTestId("page-title")).toHaveText("设置");
 });
