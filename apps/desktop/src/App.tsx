@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { bootstrapConfiguredWebRuntime, bootstrapRuntime, reportDesktopSmokeReady, type RuntimeBootstrap } from "./api/runtime";
 import { createM21Api } from "./api/m21";
+import { useI18n } from "./i18n";
 import { M21Workspace } from "./m21/M21Workspace";
 
 type RuntimeState = "starting" | "ready" | "error" | "web";
 
 export function App() {
+  const { locale, text } = useI18n();
   const [runtime, setRuntime] = useState<RuntimeState>("starting");
   const [bootstrap, setBootstrap] = useState<RuntimeBootstrap | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
@@ -37,6 +39,11 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    document.documentElement.lang = locale;
+    document.title = text("Embedded Engineering Agent");
+  }, [locale, text]);
+
+  useEffect(() => {
     let active = true;
     const load = async () => {
       try {
@@ -64,16 +71,18 @@ export function App() {
     };
   }, []);
 
-  if (runtime === "starting") return <RuntimeSplash label="Starting authenticated backend…" />;
-  if (runtime === "error") return <RuntimeSplash label={runtimeError ?? "Backend runtime unavailable"} error />;
+  if (runtime === "starting") return <RuntimeSplash label={text("Starting authenticated backend…")} />;
+  if (runtime === "error") return <RuntimeSplash label={runtimeError ?? text("Backend runtime unavailable")} error />;
   if (!bootstrap) return <WebRuntimeNotice />;
   return <M21Workspace api={createM21Api(bootstrap.client)} runtimeVersion={bootstrap.version} onReady={reportWorkbenchReady} />;
 }
 
 function RuntimeSplash({ label, error = false }: { label: string; error?: boolean }) {
-  return <main className="runtime-splash"><div className={`runtime-orb ${error ? "error" : ""}`}>EE</div><span className="eyebrow">EEA · M21 DESKTOP WORKBENCH</span><h1>{error ? "Backend session unavailable" : "Booting engineering workspace"}</h1><p>{label}</p>{error && <p className="muted">The Tauri runtime must start the loopback backend and complete the authenticated version handshake before the renderer can show project state.</p>}</main>;
+  const { text } = useI18n();
+  return <main className="runtime-splash"><div className={`runtime-orb ${error ? "error" : ""}`}>EE</div><span className="eyebrow">{text("EEA · M21 DESKTOP WORKBENCH")}</span><h1>{text(error ? "Backend session unavailable" : "Booting engineering workspace")}</h1><p>{label}</p>{error && <p className="muted">{text("The Tauri runtime must start the loopback backend and complete the authenticated version handshake before the renderer can show project state.")}</p>}</main>;
 }
 
 function WebRuntimeNotice() {
-  return <main className="runtime-splash"><div className="runtime-orb">EE</div><span className="eyebrow">EEA · RENDERER TEST MODE</span><h1>Desktop runtime is required for live project state.</h1><p>Launch the Tauri desktop package, or provide the explicit VITE_EEA_API_URL and VITE_EEA_SESSION_TOKEN values for a controlled renderer E2E session. No credential is persisted by the frontend.</p></main>;
+  const { text } = useI18n();
+  return <main className="runtime-splash"><div className="runtime-orb">EE</div><span className="eyebrow">{text("EEA · RENDERER TEST MODE")}</span><h1>{text("Desktop runtime is required for live project state.")}</h1><p>{text("Launch the Tauri desktop package, or provide the explicit VITE_EEA_API_URL and VITE_EEA_SESSION_TOKEN values for a controlled renderer E2E session. No credential is persisted by the frontend.")}</p></main>;
 }
