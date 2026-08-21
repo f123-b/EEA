@@ -1,7 +1,7 @@
 # M21 Next Phase
 
 M21 final gates are closed on `codex/m21-desktop-ui-vertical-slice` at
-`a47d2d3efee866f14791a28e26d92640b86671e5`.
+`ea0a0a8d0d33581ea30f01e83739ec3857c8443a`.
 
 - `M21=IMPLEMENTED_AND_FINAL_GATE_CLOSED`
 - `P0=0`
@@ -9,6 +9,13 @@ M21 final gates are closed on `codex/m21-desktop-ui-vertical-slice` at
 - `READY_FOR_M21_FINAL_REVIEW=YES`
 - `APPROVED_TO_MERGE=NO`
 - `M22=NOT_STARTED`
+
+The validated Desktop release download is the `desktop-release-artifact` Actions artifact from
+push CI [`32494597516`](https://github.com/f123-b/EEA/actions/runs/32494597516), with the matching
+Draft PR verification in [`32494602033`](https://github.com/f123-b/EEA/actions/runs/32494602033).
+It contains the normalized Windows NSIS installer, Linux AppImage, `SHA256SUMS.txt`,
+`release-manifest.json`, and `release-size-report.json`. Desktop defaults to Chinese (`zh-CN`)
+and Settings persists the Chinese/English choice.
 
 The branch must remain a **Draft PR** until human review is complete; PR #15 is Open and not
 merged. Recommended review focus: launch the final AppImage, walk the M20 benchmark in the
