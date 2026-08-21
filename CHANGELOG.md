@@ -7,6 +7,17 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M21 Desktop release artifact upload and Chinese localization default are complete on
+  `codex/m21-desktop-ui-vertical-slice`. The green artifact-producing runs are push CI
+  `32494597516` and Draft PR CI `32494602033`. The uploaded `desktop-release-artifact` contains
+  `EEA-Desktop-v1.3.1-linux-x64.AppImage` (125,684,216 bytes;
+  `88aa802e5db93af2b363680b67a595b742a5b72d0936d69062e96d308810f499`) and
+  `EEA-Desktop-v1.3.1-windows-x64.exe` (27,148,126 bytes;
+  `af8a33065f62b2367c55031ea8ee0c3aee3f1d04418b70bbac057104b4fab9ea`), plus
+  `SHA256SUMS.txt`, `release/release-manifest.json`, and `release/release-size-report.json`.
+  Artifact validation and secret scanning passed. Desktop now defaults to `zh-CN`; Settings
+  persists the Chinese/English selection in `eea.locale`.
+
 - M20 Core Neutrality Smoke Gate is implemented from green main
   `7573e1f3525c54cd5fb1155f634b77034d74b255` on `codex/m20-core-neutrality-smoke` at implementation
   HEAD `59477be150d7a37bdbc1f00102e341c68c407079`. Added the generic embedded-controller

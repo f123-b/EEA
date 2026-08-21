@@ -5,7 +5,7 @@
 - Repository: `f123-b/EEA`
 - Branch: `codex/m21-desktop-ui-vertical-slice`
 - Base SHA: `67c7e3ea42d00f67cc473b2041929555764a3daf` (green post-M20 main)
-- Final implementation HEAD: `a47d2d3efee866f14791a28e26d92640b86671e5`
+- Final implementation HEAD: `ea0a0a8d0d33581ea30f01e83739ec3857c8443a`
 - M21 state: `IMPLEMENTED_AND_FINAL_GATE_CLOSED`
 - `P0=0`
 - `P1=0`
@@ -68,12 +68,12 @@ The final package job built and launched the actual AppImage with an isolated PA
 smoke evidence confirms:
 
 - Tauri package: `Embedded Engineering Agent_1.3.1-dev.6_amd64.AppImage`
-- AppImage SHA-256: `74b0d8b79a6d2dc483ac215ab011da4f390919073840b4c50448e2f247b89166`
+- AppImage SHA-256: `cef4842b28e9b577563b945c1aa7dba3442d58a71a78c3cc17449df2253a0d44`
 - Bundled sidecar: `usr/lib/Embedded Engineering Agent/resources/eea-api/eea-api`
-- Bundled sidecar SHA-256: `8bf7c1b118afa94c8ae054527f4abbff3cb76de39659ee8c1a8062b757e951f6`
+- Bundled sidecar SHA-256: `cd9907de70b885a639194ca72f71443655745d9941f4f7f1696ca85c3e1e207e`
 - Packaged executable launch: `PASS`
 - Sidecar source: `BUNDLED_RESOURCE`; development-path executable: `null`
-- Sidecar auto-start: `PASS`; backend loopback endpoint: `http://127.0.0.1:38567`
+- Sidecar auto-start: `PASS`; backend loopback endpoint: `http://127.0.0.1:37171`
 - Authenticated request: `PASS`; unauthenticated request rejected: `PASS`
 - Renderer ready: `PASS`; workbench ready: `PASS`; runtime session source: `TAURI_IPC`
 - URL/storage/DOM clean: `PASS`; token leak scan: `PASS`
@@ -82,15 +82,42 @@ smoke evidence confirms:
 The Tauri runtime starts the bundled backend in a dedicated Unix process group and cleans the
 group before smoke exit, covering the PyInstaller supervisor/worker lifecycle.
 
+## P1-3 — Desktop release artifact upload and Chinese default
+
+The final `desktop-release-artifact` job assembled and uploaded one unified Actions artifact named
+`desktop-release-artifact`. The artifact-producing push CI is
+[`32494597516`](https://github.com/f123-b/EEA/actions/runs/32494597516); the matching Draft PR
+verification is [`32494602033`](https://github.com/f123-b/EEA/actions/runs/32494602033). The
+download contains only the normalized release directory:
+
+- `release/EEA-Desktop-v1.3.1-linux-x64.AppImage`: 125,684,216 bytes;
+  SHA-256 `88aa802e5db93af2b363680b67a595b742a5b72d0936d69062e96d308810f499`
+- `release/EEA-Desktop-v1.3.1-windows-x64.exe`: 27,148,126 bytes;
+  SHA-256 `af8a33065f62b2367c55031ea8ee0c3aee3f1d04418b70bbac057104b4fab9ea`
+- `release/SHA256SUMS.txt`
+- `release/release-manifest.json`
+- `release/release-size-report.json`
+
+The manifest records product `Embedded Engineering Agent`, version `1.3.1`, source commit
+`ea0a0a8d0d33581ea30f01e83739ec3857c8443a`, both platforms, real package hashes/sizes, and
+`backend.bundled=true` with source `BUNDLED_RESOURCE`. Artifact validation and the release secret
+scan both passed. The size report records 306,651 frontend bytes, 47,482,616 backend bytes, and
+152,832,342 total package bytes; it also emits the intentional manual-review warning that no
+previous-release baseline was supplied.
+
+The Desktop default locale is `zh-CN`. Settings switches between Chinese and English and persists
+the choice in `localStorage` under `eea.locale`; the UI E2E verifies the default, switch, and
+persistence path.
+
 ## Regression and final CI
 
-- Backend: `510 passed, 27 skipped`, coverage `83.04%`
+- Backend: `512 passed, 27 skipped`, coverage `83.04%`
 - Ruff check/format: `PASS`; mypy: `PASS`
 - Alembic upgrade/check: `PASS`
 - OpenAPI export and TypeScript contract checks: `PASS`
 - Desktop lint/typecheck/build: `PASS`
-- Desktop unit tests: `6 passed`
-- Desktop Playwright: release workflow `1 passed`; domain UI workflow `1 passed`
+- Desktop unit tests: `8 passed`
+- Desktop Playwright: release workflow `1 passed`; UI workflow `2 passed`
 - Rust `cargo check`: `PASS`
 - Rust `cargo test`: `PASS` (`3 passed`)
 - Tauri build: `PASS`
@@ -99,10 +126,11 @@ group before smoke exit, covering the PyInstaller supervisor/worker lifecycle.
 
 ## CI evidence
 
-Final push CI is run [`32329951312`](https://github.com/f123-b/EEA/actions/runs/32329951312).
-Final Draft PR CI is run [`32329955310`](https://github.com/f123-b/EEA/actions/runs/32329955310).
+Final artifact-producing push CI is run [`32494597516`](https://github.com/f123-b/EEA/actions/runs/32494597516).
+Final artifact-producing Draft PR CI is run [`32494602033`](https://github.com/f123-b/EEA/actions/runs/32494602033).
 Both runs passed `backend`, `desktop-web`, `desktop-tauri`, `desktop-ui-test`,
-`desktop-package-smoke`, `m19-release`, `m20-release`, and `m21-ui-release`.
+`desktop-package-smoke`, `m19-release`, `m20-release`, `m21-ui-release`, and
+`desktop-release-artifact`.
 
 M19 and M20 release coverage remains retained in the workflow. M20 was formally merged in PR
 #14 at merge SHA `67c7e3ea42d00f67cc473b2041929555764a3daf`; post-merge main CI run
