@@ -35,7 +35,7 @@ test("@release drives the M20 benchmark through the real DEVICE release gate", a
   await expect(page.getByTestId("build-status")).toHaveAttribute("data-value", "PASS");
   await expect(page.getByTestId("static-status")).toHaveAttribute("data-value", "PASS");
   await expect(page.getByTestId("erc-status")).toHaveAttribute("data-value", "PASS");
-  await expect(page.getByTestId("erc-status")).toContainText("Executed");
+  await expect(page.getByTestId("erc-status")).toContainText(/Executed|已执行/u);
   await expect(page.getByTestId("test-run-status")).toHaveAttribute("data-value", "PASS");
   await expect(page.getByTestId("review-status")).toHaveText("PASS");
   await expect(page.getByTestId("traceability-status")).toHaveAttribute("data-value", "PASS");
