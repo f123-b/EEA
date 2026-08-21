@@ -68,12 +68,12 @@ The final package job built and launched the actual AppImage with an isolated PA
 smoke evidence confirms:
 
 - Tauri package: `Embedded Engineering Agent_1.3.1-dev.6_amd64.AppImage`
-- AppImage SHA-256: `cef4842b28e9b577563b945c1aa7dba3442d58a71a78c3cc17449df2253a0d44`
+- AppImage SHA-256: `cb11ecf681c4bff0be08b85db23167fcb5999ab3336906ee2b6100d92cb676a0`
 - Bundled sidecar: `usr/lib/Embedded Engineering Agent/resources/eea-api/eea-api`
-- Bundled sidecar SHA-256: `cd9907de70b885a639194ca72f71443655745d9941f4f7f1696ca85c3e1e207e`
+- Bundled sidecar SHA-256: `9e4bccf9734861e61ea916af1ab6aa36e2bdd2784c3cfdaf7727f623754d6251`
 - Packaged executable launch: `PASS`
 - Sidecar source: `BUNDLED_RESOURCE`; development-path executable: `null`
-- Sidecar auto-start: `PASS`; backend loopback endpoint: `http://127.0.0.1:37171`
+- Sidecar auto-start: `PASS`; backend loopback endpoint: `http://127.0.0.1:36967`
 - Authenticated request: `PASS`; unauthenticated request rejected: `PASS`
 - Renderer ready: `PASS`; workbench ready: `PASS`; runtime session source: `TAURI_IPC`
 - URL/storage/DOM clean: `PASS`; token leak scan: `PASS`
@@ -85,24 +85,24 @@ group before smoke exit, covering the PyInstaller supervisor/worker lifecycle.
 ## P1-3 — Desktop release artifact upload and Chinese default
 
 The final `desktop-release-artifact` job assembled and uploaded one unified Actions artifact named
-`desktop-release-artifact`. The artifact-producing push CI is
-[`32494597516`](https://github.com/f123-b/EEA/actions/runs/32494597516); the matching Draft PR
-verification is [`32494602033`](https://github.com/f123-b/EEA/actions/runs/32494602033). The
+`desktop-release-artifact`. The artifact-producing push CI rerun is
+[`32496409227`](https://github.com/f123-b/EEA/actions/runs/32496409227); the matching Draft PR
+verification is [`32496414796`](https://github.com/f123-b/EEA/actions/runs/32496414796). The
 download contains only the normalized release directory:
 
 - `release/EEA-Desktop-v1.3.1-linux-x64.AppImage`: 125,684,216 bytes;
-  SHA-256 `88aa802e5db93af2b363680b67a595b742a5b72d0936d69062e96d308810f499`
-- `release/EEA-Desktop-v1.3.1-windows-x64.exe`: 27,148,126 bytes;
-  SHA-256 `af8a33065f62b2367c55031ea8ee0c3aee3f1d04418b70bbac057104b4fab9ea`
+  SHA-256 `6c2f6752a17ee867293c6960fc725781ac6c0a731767e82d209461c2f4d5aa40`
+- `release/EEA-Desktop-v1.3.1-windows-x64.exe`: 27,147,136 bytes;
+  SHA-256 `e9a620be56d5585c9c65011c90f9a8e548648684d5fb171cd06a4d94e5f534e9`
 - `release/SHA256SUMS.txt`
 - `release/release-manifest.json`
 - `release/release-size-report.json`
 
 The manifest records product `Embedded Engineering Agent`, version `1.3.1`, source commit
-`ea0a0a8d0d33581ea30f01e83739ec3857c8443a`, both platforms, real package hashes/sizes, and
+`1b82e332babfea0da84e95a39a3b33c6d01ecd2a`, both platforms, real package hashes/sizes, and
 `backend.bundled=true` with source `BUNDLED_RESOURCE`. Artifact validation and the release secret
-scan both passed. The size report records 306,651 frontend bytes, 47,482,616 backend bytes, and
-152,832,342 total package bytes; it also emits the intentional manual-review warning that no
+scan both passed. The size report records 306,651 frontend bytes, 47,481,256 backend bytes, and
+152,831,352 total package bytes; it also emits the intentional manual-review warning that no
 previous-release baseline was supplied.
 
 The Desktop default locale is `zh-CN`. Settings switches between Chinese and English and persists
@@ -126,8 +126,8 @@ persistence path.
 
 ## CI evidence
 
-Final artifact-producing push CI is run [`32494597516`](https://github.com/f123-b/EEA/actions/runs/32494597516).
-Final artifact-producing Draft PR CI is run [`32494602033`](https://github.com/f123-b/EEA/actions/runs/32494602033).
+Final artifact-producing push CI rerun is [`32496409227`](https://github.com/f123-b/EEA/actions/runs/32496409227).
+Final artifact-producing Draft PR CI is [`32496414796`](https://github.com/f123-b/EEA/actions/runs/32496414796).
 Both runs passed `backend`, `desktop-web`, `desktop-tauri`, `desktop-ui-test`,
 `desktop-package-smoke`, `m19-release`, `m20-release`, `m21-ui-release`, and
 `desktop-release-artifact`.

@@ -11,8 +11,8 @@ M21 final gates are closed on `codex/m21-desktop-ui-vertical-slice` at
 - `M22=NOT_STARTED`
 
 The validated Desktop release download is the `desktop-release-artifact` Actions artifact from
-push CI [`32494597516`](https://github.com/f123-b/EEA/actions/runs/32494597516), with the matching
-Draft PR verification in [`32494602033`](https://github.com/f123-b/EEA/actions/runs/32494602033).
+push CI rerun [`32496409227`](https://github.com/f123-b/EEA/actions/runs/32496409227), with the
+matching Draft PR verification in [`32496414796`](https://github.com/f123-b/EEA/actions/runs/32496414796).
 It contains the normalized Windows NSIS installer, Linux AppImage, `SHA256SUMS.txt`,
 `release-manifest.json`, and `release-size-report.json`. Desktop defaults to Chinese (`zh-CN`)
 and Settings persists the Chinese/English choice.
