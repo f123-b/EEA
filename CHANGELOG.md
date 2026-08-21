@@ -9,11 +9,11 @@ the frozen documentation changelogs under `docs/`.
 
 - M21 Desktop release artifact upload and Chinese localization default are complete on
   `codex/m21-desktop-ui-vertical-slice`. The green artifact-producing runs are push CI
-  `32494597516` and Draft PR CI `32494602033`. The uploaded `desktop-release-artifact` contains
+  `32496409227` and Draft PR CI `32496414796`. The uploaded `desktop-release-artifact` contains
   `EEA-Desktop-v1.3.1-linux-x64.AppImage` (125,684,216 bytes;
-  `88aa802e5db93af2b363680b67a595b742a5b72d0936d69062e96d308810f499`) and
-  `EEA-Desktop-v1.3.1-windows-x64.exe` (27,148,126 bytes;
-  `af8a33065f62b2367c55031ea8ee0c3aee3f1d04418b70bbac057104b4fab9ea`), plus
+  `6c2f6752a17ee867293c6960fc725781ac6c0a731767e82d209461c2f4d5aa40`) and
+  `EEA-Desktop-v1.3.1-windows-x64.exe` (27,147,136 bytes;
+  `e9a620be56d5585c9c65011c90f9a8e548648684d5fb171cd06a4d94e5f534e9`), plus
   `SHA256SUMS.txt`, `release/release-manifest.json`, and `release/release-size-report.json`.
   Artifact validation and secret scanning passed. Desktop now defaults to `zh-CN`; Settings
   persists the Chinese/English selection in `eea.locale`.
