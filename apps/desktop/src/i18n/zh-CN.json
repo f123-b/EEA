@@ -174,5 +174,18 @@
   "Tests & TestRun": "测试与 TestRun",
   "Domain Extensions": "领域扩展",
   "A dense, answer-first view of the current engineering workflow and deterministic release health.": "以答案优先方式展示当前工程工作流和确定性发布健康度。",
-  "One closeout surface for DEVICE Build, Static Analysis, ERC, Tests, Traceability, Impact, and deterministic findings.": "在一个收口界面中展示 DEVICE 构建、静态分析、ERC、测试、追踪、影响分析和确定性发现。"
+  "One closeout surface for DEVICE Build, Static Analysis, ERC, Tests, Traceability, Impact, and deterministic findings.": "在一个收口界面中展示 DEVICE 构建、静态分析、ERC、测试、追踪、影响分析和确定性发现。",
+  "M23 MEMORY": "M23 知识记忆",
+  "Knowledge & Memory": "知识与记忆",
+  "Recall reviewed project knowledge without creating a second source of truth.": "召回经过审阅的项目知识，不创建第二事实源。",
+  "Memory query": "记忆查询",
+  "Search project memory": "搜索项目记忆",
+  "Recalling…": "正在召回…",
+  "Recall": "召回",
+  "Memory recall failed": "记忆召回失败",
+  "No memory recalled yet.": "尚未召回记忆。",
+  "Untitled memory": "未命名记忆",
+  "No summary": "暂无摘要",
+  "score": "评分",
+  "Recall audit": "召回审计"
 }

@@ -30,6 +30,7 @@ import {
   type NavigationItem,
 } from "./uiModel";
 import { ImportWizard } from "./ImportWizard";
+import { MemoryPanel } from "./MemoryPanel";
 
 type WorkflowState = {
   analysis: JsonRecord | null;
@@ -823,6 +824,7 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
           <p className="muted">{text("Backend state is authoritative. This panel explains state and suggests next actions; it never overrides deterministic gates.")}</p>
           {selectedProject && <div className="context-stack"><ContextRow label={text("Project ID")} value={shortId(selectedProject.id)} /><ContextRow label="SourceRevision" value={shortId(context.source?.source_revision_id ?? workflow.firmware?.source_revision_id)} /><ContextRow label={text("Active domains")} value={`${context.domains.filter((item) => item.status === "ACTIVE").length}`} /><ContextRow label={text("Open issues")} value={displayCount(context.issues.filter((item) => item.status === "OPEN").length)} /></div>}
           <div className="ai-card"><div className="ai-card-title">{text("AI Panel · controlled")}</div><p>{text("Ask for a requirement interpretation or an explanation of a rule. Deterministic Build/ERC/Review states cannot be changed here.")}</p><button className="ghost-button full-width" onClick={() => navigate("ai")}>{text("Open AI Panel")}</button></div>
+          {selectedProject && <MemoryPanel api={api} projectId={selectedProject.id} />}
           {selectedProject && <div className="context-actions"><button className="ghost-button full-width" onClick={() => navigate("review")}>{text("Inspect release gate")}</button><button className="ghost-button full-width" onClick={() => setRawContext((value) => !value)}>{text(rawContext ? "Hide raw context" : "Show raw context")}</button></div>}
           {rawContext && <pre className="raw-json">{JSON.stringify({ project: selectedProject, context, workflow }, null, 2)}</pre>}
         </aside>
