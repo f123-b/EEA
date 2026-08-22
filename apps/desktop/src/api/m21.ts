@@ -102,6 +102,14 @@ export function createM21Api(client: BackendClient) {
     createImportWorkspace: (importId: string, payload: JsonRecord = {}) =>
       post<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/create-workspace`, payload),
     rescanImport: (importId: string) => post<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/rescan`, {}),
+    createMemoryEntry: (payload: JsonRecord) => post<JsonRecord>("/api/v1/memory/entries", payload),
+    getMemoryEntry: (entryId: string, projectId: string) =>
+      get<JsonRecord>(`/api/v1/memory/entries/${encodeURIComponent(entryId)}?project_id=${encodeURIComponent(projectId)}`),
+    recallMemory: (payload: JsonRecord) => post<JsonRecord>("/api/v1/memory/recall", payload),
+    reviewMemoryEntry: (entryId: string, payload: JsonRecord) =>
+      post<JsonRecord>(`/api/v1/memory/entries/${encodeURIComponent(entryId)}/review`, payload),
+    createImportMemoryEntry: (importId: string, payload: JsonRecord) =>
+      post<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/memory-entry`, payload),
     registerEvidence: (projectId: string, payload: JsonRecord) =>
       post<JsonRecord>(`${pathForProject(projectId)}/evidence`, payload),
     getProject: (projectId: string) => get<ProjectData>(pathForProject(projectId)),

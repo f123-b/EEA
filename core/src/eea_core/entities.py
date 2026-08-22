@@ -15,15 +15,21 @@ from pydantic import (
 
 from eea_core.enums import (
     ArtifactStatus,
+    AuthorityLevel,
     DecisionStatus,
     EngineeringErrorCode,
     EvidenceType,
     IssueSeverity,
     IssueStatus,
     JobStatus,
+    KnowledgeLifecycle,
+    KnowledgeScope,
+    KnowledgeType,
     Permission,
     ProjectStatus,
     TraceabilityRelation,
+    TrustLevel,
+    VerificationLevel,
 )
 
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
@@ -167,3 +173,57 @@ class TraceabilityEdge(EntityBase):
     target_id: UUID
     relation: TraceabilityRelation
     evidence_ids: list[UUID] = Field(default_factory=list)
+
+
+class KnowledgeEntry(EntityBase):
+    """Structured memory that references canonical claims and evidence."""
+
+    project_id: UUID | None = None
+    scope: KnowledgeScope = KnowledgeScope.PROJECT_PRIVATE
+    owner_ref: str | None = Field(default=None, max_length=200)
+    organization_ref: str | None = Field(default=None, max_length=200)
+    task_ref: str | None = Field(default=None, max_length=200)
+    knowledge_type: KnowledgeType
+    title: str = Field(min_length=1, max_length=300)
+    summary: str = Field(default="", max_length=12000)
+    tags: list[str] = Field(default_factory=list, max_length=50)
+    applicability: dict[str, object] = Field(default_factory=dict)
+    claim_ids: list[UUID] = Field(default_factory=list)
+    evidence_ids: list[UUID] = Field(default_factory=list)
+    source_revision_id: UUID | None = None
+    source_ref: str | None = Field(default=None, max_length=2000)
+    source_version: str | None = Field(default=None, max_length=200)
+    authority_level: AuthorityLevel = AuthorityLevel.T6_AI_INFERENCE
+    verification_levels: list[VerificationLevel] = Field(default_factory=list)
+    trust_level: TrustLevel = TrustLevel.UNTRUSTED
+    lifecycle: KnowledgeLifecycle = KnowledgeLifecycle.CANDIDATE
+    confidence: float = Field(default=0, ge=0, le=1)
+    freshness_score: float = Field(default=1, ge=0, le=1)
+    last_verified_at: datetime | None = None
+    license_ref: str | None = Field(default=None, max_length=500)
+    usage_policy: str | None = Field(default=None, max_length=2000)
+    related_entry_ids: list[UUID] = Field(default_factory=list)
+    created_by: str = Field(default="eea:m23", min_length=1, max_length=200)
+    reviewed_by: str | None = Field(default=None, max_length=200)
+    reviewed_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_scope_context(self) -> "KnowledgeEntry":
+        if (
+            self.scope in {KnowledgeScope.PROJECT_PRIVATE, KnowledgeScope.TASK_ONLY}
+            and self.project_id is None
+        ):
+            raise ValueError("project and task memory require project_id")
+        if self.scope is KnowledgeScope.USER_PRIVATE and not self.owner_ref:
+            raise ValueError("user-private memory requires owner_ref")
+        if self.scope is KnowledgeScope.ORGANIZATION_PRIVATE and not self.organization_ref:
+            raise ValueError("organization-private memory requires organization_ref")
+        if self.scope is KnowledgeScope.TASK_ONLY and not self.task_ref:
+            raise ValueError("task memory requires task_ref")
+        if len(set(self.claim_ids)) != len(self.claim_ids):
+            raise ValueError("claim_ids must not contain duplicates")
+        if len(set(self.evidence_ids)) != len(self.evidence_ids):
+            raise ValueError("evidence_ids must not contain duplicates")
+        if len(set(self.verification_levels)) != len(self.verification_levels):
+            raise ValueError("verification levels must not contain duplicates")
+        return self

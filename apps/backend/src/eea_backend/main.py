@@ -52,6 +52,7 @@ from eea_backend.errors import engineering_error_handler, validation_error_handl
 from eea_backend.identity_repositories import IdentityRepository
 from eea_backend.m18e_api import router as m18e_router
 from eea_backend.m22_api import router as m22_router
+from eea_backend.m23_api import router as m23_router
 from eea_backend.models import ProjectRecord, SourceWorkspaceRecord
 from eea_backend.recovery import OutboxDispatcher, RecoveryService
 from eea_backend.reliability_repositories import SqlAlchemyOutboxRepository
@@ -336,6 +337,7 @@ def create_app(
     api.include_router(core_router)
     api.include_router(m18e_router)
     api.include_router(m22_router)
+    api.include_router(m23_router)
     application.include_router(api)
     return application
 

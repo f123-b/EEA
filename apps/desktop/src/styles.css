@@ -84,6 +84,17 @@ pre { max-width: 100%; overflow: auto; }
 .page-header p { max-width: 48rem; margin: 0; color: var(--muted); font-size: 0.87rem; line-height: 1.6; }
 .panel-card { min-width: 0; padding: 1rem; border: 1px solid var(--border); border-radius: 0.5rem; background: rgba(13, 24, 34, 0.74); box-shadow: var(--shadow); }
 .panel-card + .panel-card { margin-top: 1rem; }
+.memory-panel { margin-top: 1rem; }
+.memory-panel h3 { margin: 0.25rem 0 0.35rem; }
+.memory-search { display: flex; gap: 0.4rem; margin: 0.75rem 0; }
+.memory-search input { min-width: 0; flex: 1; }
+.memory-results { display: grid; gap: 0.45rem; margin-top: 0.7rem; }
+.memory-result { padding: 0.55rem 0.65rem; border: 1px solid var(--border); border-radius: 0.35rem; background: rgba(0, 0, 0, 0.14); }
+.memory-result p { margin: 0.3rem 0; color: var(--text-muted); font-size: 0.72rem; }
+.memory-result small { color: var(--text-muted); font-size: 0.62rem; }
+.memory-result-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.memory-empty { margin: 0.7rem 0 0; }
+.error-text { color: var(--danger); }
 .panel-title { justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .panel-title h2 { margin: 0.22rem 0 0; font-size: 1rem; }
 .panel-heading { justify-content: space-between; }
