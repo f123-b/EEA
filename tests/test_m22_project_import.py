@@ -92,8 +92,8 @@ def test_import_workspaces_are_project_isolated(client: TestClient, tmp_path: Pa
     second_source = tmp_path / "second"
     first_source.mkdir()
     second_source.mkdir()
-    (first_source / "first.c").write_text("const char *name = \"first\";", encoding="utf-8")
-    (second_source / "second.c").write_text("const char *name = \"second\";", encoding="utf-8")
+    (first_source / "first.c").write_text('const char *name = "first";', encoding="utf-8")
+    (second_source / "second.c").write_text('const char *name = "second";', encoding="utf-8")
 
     workspaces: list[dict[str, object]] = []
     for source in (first_source, second_source):
