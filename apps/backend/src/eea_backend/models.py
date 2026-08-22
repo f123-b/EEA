@@ -1079,6 +1079,43 @@ class SourceWorkspaceRecord(CoreRecordMixin, Base):
     active_mutation_expected_revision: Mapped[int | None] = mapped_column()
 
 
+class ImportSessionRecord(CoreRecordMixin, Base):
+    """Durable M22 import session; findings remain candidates until reviewed."""
+
+    __tablename__ = "import_sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "source_type IN ('LOCAL_FOLDER', 'GIT_REPOSITORY', 'ARCHIVE')",
+            name="source_type",
+        ),
+        CheckConstraint(
+            "status IN ('CREATED', 'SCANNED', 'REVIEWED', 'WORKSPACE_CREATED', 'FAILED')",
+            name="status",
+        ),
+        CheckConstraint("scan_revision >= 0", name="scan_revision_non_negative"),
+    )
+
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id"), nullable=True, index=True
+    )
+    source_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_locator: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    requested_ref: Mapped[str | None] = mapped_column(String(300))
+    resolved_commit: Mapped[str | None] = mapped_column(String(100))
+    staging_path: Mapped[str] = mapped_column(String(2000), nullable=False)
+    workspace_path: Mapped[str | None] = mapped_column(String(2000))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    scan_revision: Mapped[int] = mapped_column(nullable=False, default=0)
+    source_manifest_hash: Mapped[str | None] = mapped_column(String(64))
+    file_manifest: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    findings: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    issues: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    summary: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    scan_result: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class PatchProposalRecord(CoreRecordMixin, Base):
     """Review metadata for a proposed source mutation."""
 

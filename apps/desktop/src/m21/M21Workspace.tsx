@@ -29,6 +29,7 @@ import {
   workflowStages,
   type NavigationItem,
 } from "./uiModel";
+import { ImportWizard } from "./ImportWizard";
 
 type WorkflowState = {
   analysis: JsonRecord | null;
@@ -276,6 +277,7 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
   const [search, setSearch] = useState("");
   const [rawContext, setRawContext] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [projectName, setProjectName] = useState("M20 Generic Embedded Controller");
   const [projectDescription, setProjectDescription] = useState(
     "STM32G431 + UART + CAN + SPI Sensor + FreeRTOS",
@@ -812,7 +814,7 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
           {error && <div className="feedback-banner feedback-error" role="alert"><strong>{text("Backend action failed")}</strong><span>{error}</span><button className="icon-button" onClick={() => setError(null)} aria-label={text("Dismiss error")}>×</button></div>}
           {notice && <div className="feedback-banner feedback-success" role="status"><strong>{text("Action complete")}</strong><span>{notice}</span><button className="icon-button" onClick={() => setNotice(null)} aria-label={text("Dismiss notice")}>×</button></div>}
           {busy && <div className="running-strip" role="status"><span className="spinner" aria-hidden="true" /> {text(busy)} · {text("deterministic backend operation running")}</div>}
-          {!selectedProject && route !== "projects" ? <StartPanel onCreate={() => setShowCreate(true)} onOpen={() => navigate("projects")} /> : <PageRouter route={route} selectedProject={selectedProject} workflow={workflow} context={context} busy={busy} rawContext={rawContext} setRawContext={setRawContext} onNavigate={navigate} onAnalyze={analyzeM20} onGeneratePins={generatePins} onLockPins={lockPins} onGenerateHardware={generateHardware} onGenerateSchematic={generateSchematic} onRunErc={runErc} onGenerateMcu={generateMcu} onGenerateFirmware={generateFirmware} onRunBuild={runBuild} onRunStatic={runStatic} onGenerateProtocol={generateProtocol} onRunTests={generateAndRunTests} onTraceability={runTraceability} onReview={runReview} onActivateDomain={activateDomain} onDeactivateDomain={deactivateDomain} onUploadDocument={uploadDocument} documentFile={documentFile} setDocumentFile={setDocumentFile} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} aiResult={aiResult} onAskAi={askAi} projects={projects} onSelectProject={setProjectId} onCreate={() => setShowCreate(true)} />}
+          {showImport ? <ImportWizard api={api} onClose={() => setShowImport(false)} onComplete={async (createdProjectId) => { await refreshProjects(); setProjectId(createdProjectId); navigate("projects"); }} /> : !selectedProject && route !== "projects" ? <StartPanel onCreate={() => setShowCreate(true)} onOpen={() => navigate("projects")} /> : <PageRouter route={route} selectedProject={selectedProject} workflow={workflow} context={context} busy={busy} rawContext={rawContext} setRawContext={setRawContext} onNavigate={navigate} onAnalyze={analyzeM20} onGeneratePins={generatePins} onLockPins={lockPins} onGenerateHardware={generateHardware} onGenerateSchematic={generateSchematic} onRunErc={runErc} onGenerateMcu={generateMcu} onGenerateFirmware={generateFirmware} onRunBuild={runBuild} onRunStatic={runStatic} onGenerateProtocol={generateProtocol} onRunTests={generateAndRunTests} onTraceability={runTraceability} onReview={runReview} onActivateDomain={activateDomain} onDeactivateDomain={deactivateDomain} onUploadDocument={uploadDocument} documentFile={documentFile} setDocumentFile={setDocumentFile} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} aiResult={aiResult} onAskAi={askAi} projects={projects} onSelectProject={setProjectId} onCreate={() => setShowCreate(true)} onImport={() => setShowImport(true)} />}
         </main>
 
         <aside className="context-panel" aria-label={text("Context and AI panel")}>
@@ -896,6 +898,7 @@ type PageProps = {
   projects: ProjectData[];
   onSelectProject: (projectId: string) => void;
   onCreate: () => void;
+  onImport: () => void;
 };
 
 function PageFrame({ eyebrow, title, description, actions, children }: { eyebrow: string; title: string; description: string; actions?: React.ReactNode; children: React.ReactNode }) {
@@ -914,9 +917,9 @@ function DashboardPage(props: PageProps) {
   </PageFrame>;
 }
 
-function ProjectsPage({ projects, selectedProject, onSelectProject, onCreate }: PageProps) {
+function ProjectsPage({ projects, selectedProject, onSelectProject, onCreate, onImport }: PageProps) {
   const { text } = useI18n();
-  return <PageFrame eyebrow="WORKSPACE" title="Projects" description="Create, open, and resume engineering projects from backend state." actions={<button className="primary-button" onClick={onCreate}>{text("Create project")}</button>}><div className="project-grid">{projects.map((project) => <button className={`project-card ${selectedProject?.id === project.id ? "selected" : ""}`} key={project.id} onClick={() => onSelectProject(project.id)}><div className="project-card-top"><span className="project-status">{project.status}</span><span className="chevron">›</span></div><h2>{project.name}</h2><p>{project.description || text("No description")}</p><div className="project-meta"><span>{shortId(project.id)}</span><span>rev {project.revision}</span></div></button>)}</div>{projects.length === 0 && <EmptyState text="No projects yet. Create the M20 benchmark project to start the vertical slice." />}</PageFrame>;
+  return <PageFrame eyebrow="WORKSPACE" title="Projects" description="Create, open, and resume engineering projects from backend state." actions={<><button className="ghost-button" onClick={onImport}>{text("Import existing project")}</button><button className="primary-button" onClick={onCreate}>{text("Create project")}</button></>}><div className="project-grid">{projects.map((project) => <button className={`project-card ${selectedProject?.id === project.id ? "selected" : ""}`} key={project.id} onClick={() => onSelectProject(project.id)}><div className="project-card-top"><span className="project-status">{project.status}</span><span className="chevron">›</span></div><h2>{project.name}</h2><p>{project.description || text("No description")}</p><div className="project-meta"><span>{shortId(project.id)}</span><span>rev {project.revision}</span></div></button>)}</div>{projects.length === 0 && <EmptyState text="No projects yet. Create or import an existing project to start." />}</PageFrame>;
 }
 
 function RequirementsPage({ workflow, onAnalyze, onNavigate, busy }: PageProps) {

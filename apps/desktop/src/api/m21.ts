@@ -92,6 +92,16 @@ export function createM21Api(client: BackendClient) {
     listProjects: () => get<ProjectListData>("/api/v1/projects"),
     createProject: (payload: { name: string; description: string; metadata?: JsonRecord }) =>
       post<ProjectData>("/api/v1/projects", payload),
+    createImport: (payload: JsonRecord) => post<JsonRecord>("/api/v1/imports", payload),
+    getImport: (importId: string) => get<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}`),
+    scanImport: (importId: string) => post<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/scan`, {}),
+    reviewImportFinding: (importId: string, findingId: string, payload: JsonRecord) =>
+      patch<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/findings/${encodeURIComponent(findingId)}`, payload),
+    reviewImport: (importId: string, payload: JsonRecord) =>
+      post<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/review`, payload),
+    createImportWorkspace: (importId: string, payload: JsonRecord = {}) =>
+      post<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/create-workspace`, payload),
+    rescanImport: (importId: string) => post<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/rescan`, {}),
     registerEvidence: (projectId: string, payload: JsonRecord) =>
       post<JsonRecord>(`${pathForProject(projectId)}/evidence`, payload),
     getProject: (projectId: string) => get<ProjectData>(pathForProject(projectId)),

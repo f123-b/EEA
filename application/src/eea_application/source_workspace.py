@@ -484,7 +484,12 @@ class SourceWorkspaceService:
             state = self.repository.ensure_workspace(self.project_id, str(self.workspace.root))
         return current
 
-    def _reconcile(self, *, created_by: str = "eea:source-reconcile") -> SourceRevision:
+    def _reconcile(
+        self,
+        *,
+        created_by: str = "eea:source-reconcile",
+        force_new_revision: bool = False,
+    ) -> SourceRevision:
         self.workspace.cleanup_temporary()
         self.workspace.ensure_exists()
         state = self.repository.ensure_workspace(self.project_id, str(self.workspace.root))
@@ -515,7 +520,7 @@ class SourceWorkspaceService:
         )
         if current is None:
             result = self._persist_snapshot(None, candidate, emit_event=False)
-        elif (
+        elif force_new_revision or (
             current.file_manifest != candidate.file_manifest
             or current.commit_sha != candidate.commit_sha
             or current.dirty != candidate.dirty
@@ -526,10 +531,18 @@ class SourceWorkspaceService:
             result = current
         return result
 
-    def reconcile(self, *, created_by: str = "eea:source-reconcile") -> SourceRevision:
+    def reconcile(
+        self,
+        *,
+        created_by: str = "eea:source-reconcile",
+        force_new_revision: bool = False,
+    ) -> SourceRevision:
         """Reconcile real workspace bytes after an interrupted FS/SQL boundary."""
 
-        return self._reconcile(created_by=created_by)
+        return self._reconcile(
+            created_by=created_by,
+            force_new_revision=force_new_revision,
+        )
 
     def current_revision(self) -> SourceRevision:
         return self._reconcile()
