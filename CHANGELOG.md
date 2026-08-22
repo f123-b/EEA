@@ -7,6 +7,14 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M22 Existing Project Import vertical slice is implemented on the M21 desktop branch. Added durable
+  import sessions and migration `0034_m22_existing_project_import`, isolated Local Folder/Git/Archive
+  materialization, non-executing scan stages, confidence/source/evidence findings, `.ioc` mismatch
+  issues, candidate HardwareIR/ProtocolIR outputs, Accept/Edit/Reject/Unknown review, project-scoped
+  Workspace creation, exact Git commit binding, and immutable SourceRevision rescan behavior. The
+  Desktop Projects page now opens a five-step Source → Scan → Understand → Review → Create Workspace
+  wizard. M22 remains `IMPLEMENTED_VERTICAL_SLICE`; final CI and deep parser/impact follow-up remain.
+
 - M21 Desktop release artifact upload and Chinese localization default are complete on
   `codex/m21-desktop-ui-vertical-slice`. The green artifact-producing runs are push CI
   `32496409227` and Draft PR CI `32496414796`. The uploaded `desktop-release-artifact` contains
