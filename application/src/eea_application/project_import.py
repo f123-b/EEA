@@ -61,9 +61,7 @@ class ModuleNode(TypedDict):
     dependencies: list[str]
 
 
-_MCU_PATTERN = re.compile(
-    r"\b(STM32[A-Z]\d{3,6}[A-Z0-9]*|ATSAMD\w+|ESP32\w*|NRF52\w*)\b", re.I
-)
+_MCU_PATTERN = re.compile(r"\b(STM32[A-Z]\d{3,6}[A-Z0-9]*|ATSAMD\w+|ESP32\w*|NRF52\w*)\b", re.I)
 _PIN_PATTERN = re.compile(r"\bP[A-Z]\d{1,2}\b")
 _INCLUDE_PATTERN = re.compile(r"^\s*#\s*include\s*[<\"]([^>\"]+)[>\"]", re.M)
 _REF_PATTERN = re.compile(r"^[A-Za-z0-9._/@+:-]+$")
@@ -446,9 +444,7 @@ def scan_import(
                     dependency_edges.add((current_module, target_module))
     for node in module_graph:
         node["dependencies"] = sorted(
-            target
-            for source, target in dependency_edges
-            if source == node["name"]
+            target for source, target in dependency_edges if source == node["name"]
         )
 
     resources: Counter[str] = Counter()
@@ -575,9 +571,7 @@ def scan_import(
     )
     if not entry_points:
         entry_points = sorted(
-            path
-            for path, text in text_files.items()
-            if re.search(r"\bint\s+main\s*\(", text)
+            path for path, text in text_files.items() if re.search(r"\bint\s+main\s*\(", text)
         )
     if not entry_points:
         add(
@@ -598,7 +592,8 @@ def scan_import(
         "rtos": sorted(
             finding["value"]
             for finding in findings
-            if finding["category"] == "platform" and finding["title"] == "Framework / RTOS detected"
+            if finding["category"] == "platform"
+            and finding["title"] == "Framework / RTOS detected"
             and finding["value"] in {"FreeRTOS", "Zephyr"}
         ),
         "hardware": bool(hardware_paths),
@@ -637,8 +632,7 @@ def scan_import(
         "classifications": classifications,
         "modules": module_graph,
         "dependency_edges": [
-            {"source": source, "target": target}
-            for source, target in sorted(dependency_edges)
+            {"source": source, "target": target} for source, target in sorted(dependency_edges)
         ],
         "stages": stages,
         "unknown_count": unknown_count + sum(finding["state"] == "UNKNOWN" for finding in findings),

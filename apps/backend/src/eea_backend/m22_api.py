@@ -343,9 +343,7 @@ def review_import(
 
 def _workspace_root(request: Request, project_id: UUID) -> Path:
     data_dir = cast(Path, request.app.state.settings.data_dir)
-    root = (
-        data_dir / "projects" / str(project_id) / "workspace"
-    ).resolve()
+    root = (data_dir / "projects" / str(project_id) / "workspace").resolve()
     allowed = (data_dir / "projects").resolve()
     try:
         root.relative_to(allowed)
