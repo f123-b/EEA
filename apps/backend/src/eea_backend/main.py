@@ -41,6 +41,7 @@ from fastapi.responses import JSONResponse
 from pydantic import SecretStr
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
+from starlette.middleware.cors import CORSMiddleware
 
 from eea_backend.api import router as core_router
 from eea_backend.claim_repositories import SqlAlchemyClaimPredicateRepository
@@ -50,6 +51,8 @@ from eea_backend.dependency_bootstrap import reconcile_project_dependencies
 from eea_backend.errors import engineering_error_handler, validation_error_handler
 from eea_backend.identity_repositories import IdentityRepository
 from eea_backend.m18e_api import router as m18e_router
+from eea_backend.m22_api import router as m22_router
+from eea_backend.m23_api import router as m23_router
 from eea_backend.models import ProjectRecord, SourceWorkspaceRecord
 from eea_backend.recovery import OutboxDispatcher, RecoveryService
 from eea_backend.reliability_repositories import SqlAlchemyOutboxRepository
@@ -221,6 +224,18 @@ def create_app(
         description="Versioned API for the Embedded Engineering Agent platform.",
         lifespan=lifespan,
     )
+    desktop_origins = [
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+    ]
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=desktop_origins,
+        allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID"],
+    )
     application.state.settings = resolved_settings
     application.state.local_session_token = SecretStr(token_urlsafe(32))
     application.state.engine = engine
@@ -281,7 +296,11 @@ def create_app(
         request_id = request.headers.get("X-Request-ID", f"req_{uuid4().hex}")
         request.state.request_id = request_id
         origin = request.headers.get("Origin")
-        allowed_origins = {"http://127.0.0.1", "http://localhost", "tauri://localhost"}
+        allowed_origins = {
+            "http://127.0.0.1",
+            "http://localhost",
+            *desktop_origins,
+        }
         if origin is not None and origin not in allowed_origins:
             return JSONResponse(
                 status_code=403,
@@ -317,6 +336,8 @@ def create_app(
 
     api.include_router(core_router)
     api.include_router(m18e_router)
+    api.include_router(m22_router)
+    api.include_router(m23_router)
     application.include_router(api)
     return application
 

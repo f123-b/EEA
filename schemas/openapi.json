@@ -2150,6 +2150,19 @@
         "title": "ArtifactStatus",
         "type": "string"
       },
+      "AuthorityLevel": {
+        "enum": [
+          "T0_OFFICIAL",
+          "T1_VENDOR",
+          "T2_MAINTAINER",
+          "T3_REVIEWED",
+          "T4_PROJECT",
+          "T5_USER",
+          "T6_AI_INFERENCE"
+        ],
+        "title": "AuthorityLevel",
+        "type": "string"
+      },
       "AutomationLevel": {
         "enum": [
           "AUTOMATED",
@@ -9052,6 +9065,240 @@
         "title": "ImpactPlanStep",
         "type": "object"
       },
+      "ImportCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "default": "desktop:m22",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "branch_tag_commit": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Tag Commit"
+          },
+          "project_description": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Project Description",
+            "type": "string"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          },
+          "repository_url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository Url"
+          },
+          "source_path": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Path"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/ImportSourceType"
+          }
+        },
+        "required": [
+          "source_type"
+        ],
+        "title": "ImportCreateRequest",
+        "type": "object"
+      },
+      "ImportMemoryEntryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_ref": {
+            "default": "desktop:m23",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor Ref",
+            "type": "string"
+          },
+          "finding_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Finding Ids",
+            "type": "array"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "maxLength": 12000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "ImportMemoryEntryRequest",
+        "type": "object"
+      },
+      "ImportReviewAction": {
+        "enum": [
+          "ACCEPT",
+          "EDIT",
+          "REJECT",
+          "UNKNOWN"
+        ],
+        "title": "ImportReviewAction",
+        "type": "string"
+      },
+      "ImportReviewBulkRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "decisions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ImportReviewRequest"
+            },
+            "title": "Decisions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "decisions"
+        ],
+        "title": "ImportReviewBulkRequest",
+        "type": "object"
+      },
+      "ImportReviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ImportReviewAction"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ImportReviewRequest",
+        "type": "object"
+      },
+      "ImportSourceType": {
+        "enum": [
+          "LOCAL_FOLDER",
+          "GIT_REPOSITORY",
+          "ARCHIVE"
+        ],
+        "title": "ImportSourceType",
+        "type": "string"
+      },
+      "ImportWorkspaceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "project_description": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Project Description",
+            "type": "string"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          }
+        },
+        "title": "ImportWorkspaceRequest",
+        "type": "object"
+      },
       "InterruptConfigIR": {
         "additionalProperties": false,
         "properties": {
@@ -9417,6 +9664,32 @@
           "CANCELLED"
         ],
         "title": "JobStatus",
+        "type": "string"
+      },
+      "KnowledgeScope": {
+        "enum": [
+          "GLOBAL_PUBLIC",
+          "USER_PRIVATE",
+          "PROJECT_PRIVATE",
+          "ORGANIZATION_PRIVATE",
+          "TASK_ONLY"
+        ],
+        "title": "KnowledgeScope",
+        "type": "string"
+      },
+      "KnowledgeType": {
+        "enum": [
+          "CLAIM_SET",
+          "REFERENCE_ARCHITECTURE",
+          "PATTERN",
+          "ANTI_PATTERN",
+          "DEBUG_CASE",
+          "ADR",
+          "PROJECT_EXPERIENCE",
+          "NOTE",
+          "TASK_WORKING"
+        ],
+        "title": "KnowledgeType",
         "type": "string"
       },
       "LocalIdentityData": {
@@ -9859,6 +10132,213 @@
         "title": "MemoryConfigIR",
         "type": "object"
       },
+      "MemoryEntryCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_ref": {
+            "default": "desktop:m23",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor Ref",
+            "type": "string"
+          },
+          "applicability": {
+            "additionalProperties": true,
+            "title": "Applicability",
+            "type": "object"
+          },
+          "authority_level": {
+            "$ref": "#/components/schemas/AuthorityLevel",
+            "default": "T6_AI_INFERENCE"
+          },
+          "claim_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Claim Ids",
+            "type": "array"
+          },
+          "confidence": {
+            "default": 0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "freshness_score": {
+            "default": 1,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Freshness Score",
+            "type": "number"
+          },
+          "knowledge_type": {
+            "$ref": "#/components/schemas/KnowledgeType"
+          },
+          "license_ref": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Ref"
+          },
+          "organization_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Ref"
+          },
+          "owner_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Ref"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "related_entry_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Related Entry Ids",
+            "type": "array"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/KnowledgeScope",
+            "default": "PROJECT_PRIVATE"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref"
+          },
+          "source_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Revision Id"
+          },
+          "source_version": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Version"
+          },
+          "summary": {
+            "default": "",
+            "maxLength": 12000,
+            "title": "Summary",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Tags",
+            "type": "array"
+          },
+          "task_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Ref"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "usage_policy": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage Policy"
+          },
+          "verification_levels": {
+            "items": {
+              "$ref": "#/components/schemas/VerificationLevel"
+            },
+            "title": "Verification Levels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "knowledge_type",
+          "title"
+        ],
+        "title": "MemoryEntryCreateRequest",
+        "type": "object"
+      },
       "MemoryLayout": {
         "additionalProperties": false,
         "properties": {
@@ -9880,6 +10360,159 @@
           }
         },
         "title": "MemoryLayout",
+        "type": "object"
+      },
+      "MemoryRecallRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor_ref": {
+            "default": "desktop:m23",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor Ref",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "organization_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Ref"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "query": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Query",
+            "type": "string"
+          },
+          "scope_context": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeScope"
+            },
+            "title": "Scope Context",
+            "type": "array"
+          },
+          "task_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Ref"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "MemoryRecallRequest",
+        "type": "object"
+      },
+      "MemoryReviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "ACCEPT",
+              "VERIFY",
+              "REJECT",
+              "ARCHIVE",
+              "DEPRECATE",
+              "RESOLVE_CONFLICT"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "actor_ref": {
+            "default": "desktop:m23",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor Ref",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "organization_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Ref"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "task_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Ref"
+          },
+          "verification_level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerificationLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "project_id",
+          "expected_revision",
+          "action"
+        ],
+        "title": "MemoryReviewRequest",
         "type": "object"
       },
       "OutboxStatusData": {
@@ -16787,6 +17420,444 @@
         ]
       }
     },
+    "/api/v1/imports": {
+      "post": {
+        "operationId": "create_import_api_v1_imports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Import",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}": {
+      "get": {
+        "operationId": "get_import_api_v1_imports__import_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Import",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/create-workspace": {
+      "post": {
+        "operationId": "create_import_workspace_api_v1_imports__import_id__create_workspace_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ImportWorkspaceRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Import Workspace",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/findings/{finding_id}": {
+      "patch": {
+        "operationId": "review_import_finding_api_v1_imports__import_id__findings__finding_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Review Import Finding",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/memory-entry": {
+      "post": {
+        "operationId": "create_import_memory_entry_api_v1_imports__import_id__memory_entry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportMemoryEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Import Memory Entry",
+        "tags": [
+          "knowledge-memory"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/rescan": {
+      "post": {
+        "operationId": "rescan_import_api_v1_imports__import_id__rescan_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Rescan Import",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/review": {
+      "post": {
+        "operationId": "review_import_api_v1_imports__import_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportReviewBulkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Review Import",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/scan": {
+      "post": {
+        "operationId": "scan_existing_import_api_v1_imports__import_id__scan_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Scan Existing Import",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
     "/api/v1/issues/{issue_id}": {
       "get": {
         "operationId": "get_issue_api_v1_issues__issue_id__get",
@@ -16958,6 +18029,260 @@
         "summary": "Resolve Issue",
         "tags": [
           "issues"
+        ]
+      }
+    },
+    "/api/v1/memory/entries": {
+      "post": {
+        "operationId": "create_memory_entry_api_v1_memory_entries_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryEntryCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Memory Entry",
+        "tags": [
+          "knowledge-memory"
+        ]
+      }
+    },
+    "/api/v1/memory/entries/{entry_id}": {
+      "get": {
+        "operationId": "get_memory_entry_api_v1_memory_entries__entry_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_ref",
+            "required": false,
+            "schema": {
+              "default": "desktop:m23",
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Actor Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "task_ref",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task Ref"
+            }
+          },
+          {
+            "in": "query",
+            "name": "organization_ref",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Organization Ref"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Memory Entry",
+        "tags": [
+          "knowledge-memory"
+        ]
+      }
+    },
+    "/api/v1/memory/entries/{entry_id}/review": {
+      "post": {
+        "operationId": "review_memory_entry_api_v1_memory_entries__entry_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Review Memory Entry",
+        "tags": [
+          "knowledge-memory"
+        ]
+      }
+    },
+    "/api/v1/memory/recall": {
+      "post": {
+        "operationId": "recall_memory_api_v1_memory_recall_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryRecallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Recall Memory",
+        "tags": [
+          "knowledge-memory"
         ]
       }
     },

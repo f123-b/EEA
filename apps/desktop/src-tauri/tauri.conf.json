@@ -15,7 +15,7 @@
     },
     "windows": [
       {
-        "title": "Embedded Engineering Agent",
+        "title": "嵌入式工程智能助手",
         "width": 1200,
         "height": 760,
         "minWidth": 800,
@@ -26,6 +26,7 @@
   "bundle": {
     "active": true,
     "icon": ["icons/icon.png"],
+    "resources": ["resources/eea-api*"],
     "targets": "all"
   }
 }
