@@ -33,7 +33,8 @@
 - OpenAPI export/check: regenerated after adding the M22 routes; TypeScript contract remains current.
 - `git diff --check`: passed.
 - Git smoke: exact commit binding and rescan revision change passed.
+- Remote CI run `32548432274`: all backend, desktop, package-smoke, UI, release-evidence, and artifact-manifest jobs passed.
 
 ## Acceptance status
 
-The vertical slice covers the core M22 import safety and review flow. Final M22 closure still requires the full backend/desktop CI matrix, a deeper parser-backed KiCad/.ioc/resource candidate review, a production-native Tauri folder/archive picker, and explicit diff/impact presentation for rescan changes.
+The vertical slice covers the core M22 import safety and review flow. Final M22 closure still requires a deeper parser-backed KiCad/.ioc/resource candidate review, a production-native Tauri folder/archive picker, and explicit diff/impact presentation for rescan changes.

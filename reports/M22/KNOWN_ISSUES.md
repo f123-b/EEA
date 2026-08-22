@@ -4,4 +4,4 @@
 - KiCad and protocol analysis is evidence detection with unresolved fields, not a complete schematic/netlist/DBC semantic parser.
 - The Desktop wizard accepts a local path string. Native Tauri folder/archive chooser integration and Git credential-provider UX remain follow-up work; credentials embedded in Git URLs are rejected.
 - Rescan creates a new SourceRevision but the Desktop surface does not yet render a structured `+ / ~ / -` diff or affected-node impact list.
-- Full CI release acceptance has not yet been run for this M22 change. M21 PR #15 remains Draft/Open and unmerged.
+- Remote CI release acceptance for commit `f7f7d24` passed in run `32548432274`; M21 PR #15 remains Draft/Open and unmerged pending the project landing decision.
