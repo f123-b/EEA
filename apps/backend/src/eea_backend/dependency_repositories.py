@@ -13,7 +13,6 @@ from eea_core.entities import utc_now
 from eea_core.enums import DependencyKind, DependencyNodeStatus, EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from sqlalchemy import select, update
-from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -342,24 +341,21 @@ class SqlAlchemyDependencyGraphRepository:
         merged_status = max(
             DependencyNodeStatus(current.status), state.status, key=precedence.__getitem__
         )
-        result = cast(
-            CursorResult[Any],
-            self.session.execute(
-                update(EngineeringDependencyNodeStateRecord)
-                .where(*identity, EngineeringDependencyNodeStateRecord.revision == current.revision)
-                .values(
-                    schema_version=state.schema_version,
-                    revision=current.revision + 1,
-                    updated_at=utc_now(),
-                    entity_metadata=state.metadata,
-                    observed_revision=state.observed_revision,
-                    observed_semantic_hash=state.observed_semantic_hash,
-                    status=merged_status.value,
-                    invalidated_by=sorted(set(current.invalidated_by) | set(state.invalidated_by)),
-                    reason_codes=sorted(set(current.reason_codes) | set(state.reason_codes)),
-                    stale_since=current.stale_since or state.stale_since,
-                ),
-            ),
+        result = self.session.execute(
+            update(EngineeringDependencyNodeStateRecord)
+            .where(*identity, EngineeringDependencyNodeStateRecord.revision == current.revision)
+            .values(
+                schema_version=state.schema_version,
+                revision=current.revision + 1,
+                updated_at=utc_now(),
+                entity_metadata=state.metadata,
+                observed_revision=state.observed_revision,
+                observed_semantic_hash=state.observed_semantic_hash,
+                status=merged_status.value,
+                invalidated_by=sorted(set(current.invalidated_by) | set(state.invalidated_by)),
+                reason_codes=sorted(set(current.reason_codes) | set(state.reason_codes)),
+                stale_since=current.stale_since or state.stale_since,
+            )
         )
         if result.rowcount != 1:
             raise EngineeringError(
@@ -406,24 +402,21 @@ class SqlAlchemyDependencyGraphRepository:
                 "Dependency node state changed during revalidation",
                 details={"entity_type": state.entity_type, "entity_id": state.entity_id},
             )
-        result = cast(
-            CursorResult[Any],
-            self.session.execute(
-                update(EngineeringDependencyNodeStateRecord)
-                .where(*identity, EngineeringDependencyNodeStateRecord.revision == current.revision)
-                .values(
-                    schema_version=state.schema_version,
-                    revision=current.revision + 1,
-                    updated_at=utc_now(),
-                    entity_metadata=state.metadata,
-                    observed_revision=state.observed_revision,
-                    observed_semantic_hash=state.observed_semantic_hash,
-                    status=state.status.value,
-                    invalidated_by=sorted(set(state.invalidated_by)),
-                    reason_codes=sorted(set(state.reason_codes)),
-                    stale_since=state.stale_since,
-                ),
-            ),
+        result = self.session.execute(
+            update(EngineeringDependencyNodeStateRecord)
+            .where(*identity, EngineeringDependencyNodeStateRecord.revision == current.revision)
+            .values(
+                schema_version=state.schema_version,
+                revision=current.revision + 1,
+                updated_at=utc_now(),
+                entity_metadata=state.metadata,
+                observed_revision=state.observed_revision,
+                observed_semantic_hash=state.observed_semantic_hash,
+                status=state.status.value,
+                invalidated_by=sorted(set(state.invalidated_by)),
+                reason_codes=sorted(set(state.reason_codes)),
+                stale_since=state.stale_since,
+            )
         )
         if result.rowcount != 1:
             raise EngineeringError(

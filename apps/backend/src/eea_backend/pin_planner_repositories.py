@@ -6,7 +6,6 @@ from uuid import UUID
 from eea_core.entities import utc_now
 from eea_core.pin_planner import PinAssignment, PinLock, PinPlan, RuleResult
 from sqlalchemy import desc, select, update
-from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from eea_backend.models import (
@@ -174,7 +173,7 @@ class SqlAlchemyPinPlanRepository:
                 evidence_ids=[str(value) for value in assignment.evidence_ids],
             )
         )
-        result = cast(CursorResult[Any], self._session.execute(statement))
+        result = self._session.execute(statement)
         if result.rowcount != 1:
             if commit:
                 self._session.rollback()
@@ -227,7 +226,7 @@ class SqlAlchemyPinPlanRepository:
                 released_at=utc_now(),
             )
         )
-        result = cast(CursorResult[Any], self._session.execute(statement))
+        result = self._session.execute(statement)
         if result.rowcount != 1:
             if commit:
                 self._session.rollback()

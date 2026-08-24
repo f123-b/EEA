@@ -9,7 +9,6 @@ from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from eea_core.requirements import Requirement, RequirementAnalysis, RequirementProfile
 from sqlalchemy import desc, select, update
-from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -199,7 +198,7 @@ class SqlAlchemyRequirementRepository:
                 status=requirement.status.value,
             )
         )
-        result = cast(CursorResult[Any], self._session.execute(statement))
+        result = self._session.execute(statement)
         if result.rowcount != 1:
             if commit:
                 self._session.rollback()

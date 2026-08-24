@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, timedelta
-from typing import Any, cast
 from uuid import UUID, uuid4
 
 from eea_application.reliability import EventOutboxService
@@ -30,7 +29,6 @@ from eea_core.security import (
     ValidatedPermissionGrant,
 )
 from sqlalchemy import select, update
-from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
@@ -387,43 +385,40 @@ class SqlAlchemyCommissioningRepository:
     def save_session(
         self, session: HardwareCommissioningSession, *, expected_revision: int, commit: bool
     ) -> bool:
-        result = cast(
-            CursorResult[Any],
-            self.session.execute(
-                update(CommissioningSessionRecord)
-                .where(
-                    CommissioningSessionRecord.id == str(session.id),
-                    CommissioningSessionRecord.revision == expected_revision,
-                )
-                .values(
-                    schema_version=session.schema_version,
-                    revision=session.revision,
-                    updated_at=session.updated_at,
-                    entity_metadata=session.metadata,
-                    state=session.state.value,
-                    current_step=session.current_step,
-                    approved_by=session.approved_by,
-                    preflight_results=session.preflight_results,
-                    evidence_ids=[str(item) for item in session.evidence_ids],
-                    emergency_stop_state=session.emergency_stop_state.value,
-                    watchdog_state=session.watchdog_state.model_dump(mode="json"),
-                    approval_snapshot=session.approval_snapshot,
-                    completed_at=session.completed_at,
-                    aborted_at=session.aborted_at,
-                    active_action_id=(
-                        str(session.active_action_id) if session.active_action_id else None
-                    ),
-                    active_action_kind=session.active_action_kind,
-                    active_action_started_at=session.active_action_started_at,
-                    active_action_expected_revision=session.active_action_expected_revision,
-                    active_action_request_hash=session.active_action_request_hash,
-                    active_action_journal_id=(
-                        str(session.active_action_journal_id)
-                        if session.active_action_journal_id
-                        else None
-                    ),
+        result = self.session.execute(
+            update(CommissioningSessionRecord)
+            .where(
+                CommissioningSessionRecord.id == str(session.id),
+                CommissioningSessionRecord.revision == expected_revision,
+            )
+            .values(
+                schema_version=session.schema_version,
+                revision=session.revision,
+                updated_at=session.updated_at,
+                entity_metadata=session.metadata,
+                state=session.state.value,
+                current_step=session.current_step,
+                approved_by=session.approved_by,
+                preflight_results=session.preflight_results,
+                evidence_ids=[str(item) for item in session.evidence_ids],
+                emergency_stop_state=session.emergency_stop_state.value,
+                watchdog_state=session.watchdog_state.model_dump(mode="json"),
+                approval_snapshot=session.approval_snapshot,
+                completed_at=session.completed_at,
+                aborted_at=session.aborted_at,
+                active_action_id=(
+                    str(session.active_action_id) if session.active_action_id else None
                 ),
-            ),
+                active_action_kind=session.active_action_kind,
+                active_action_started_at=session.active_action_started_at,
+                active_action_expected_revision=session.active_action_expected_revision,
+                active_action_request_hash=session.active_action_request_hash,
+                active_action_journal_id=(
+                    str(session.active_action_journal_id)
+                    if session.active_action_journal_id
+                    else None
+                ),
+            )
         )
         if result.rowcount != 1:
             self.session.rollback()
@@ -645,20 +640,17 @@ class SqlAlchemyCommissioningRepository:
             return True
         if existing.status != "ACTIVE":
             return False
-        result = cast(
-            CursorResult[Any],
-            self.session.execute(
-                update(ResourceLockRecord)
-                .where(
-                    ResourceLockRecord.id == str(lock_id),
-                    ResourceLockRecord.status == "ACTIVE",
-                )
-                .values(
-                    status="QUARANTINED",
-                    revision=ResourceLockRecord.revision + 1,
-                    updated_at=utc_now(),
-                )
-            ),
+        result = self.session.execute(
+            update(ResourceLockRecord)
+            .where(
+                ResourceLockRecord.id == str(lock_id),
+                ResourceLockRecord.status == "ACTIVE",
+            )
+            .values(
+                status="QUARANTINED",
+                revision=ResourceLockRecord.revision + 1,
+                updated_at=utc_now(),
+            )
         )
         if result.rowcount != 1:
             self.session.rollback()

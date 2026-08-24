@@ -8,7 +8,6 @@ from eea_core.ai import AIUsage, AIUsageRecord, PromptDefinition
 from eea_core.entities import Artifact, Evidence, Project, utc_now
 from eea_core.enums import ArtifactStatus, EngineeringErrorCode, ProjectStatus
 from sqlalchemy import desc, or_, select, update
-from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -293,7 +292,7 @@ class SqlAlchemyProjectRepository:
                 deleted_at=project.deleted_at,
             )
         )
-        result = cast(CursorResult[Any], self._session.execute(statement))
+        result = self._session.execute(statement)
         if result.rowcount != 1:
             self._session.rollback()
             return None
