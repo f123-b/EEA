@@ -22,6 +22,15 @@ export type M21DomainComposition = JsonRecord & {
 
 export type M21Status = "PASS" | "FAIL" | "BLOCKED" | "UNKNOWN" | "STALE" | "CURRENT" | "RUNNING";
 
+export type EngineeringDataState<T> =
+  | { state: "NOT_AVAILABLE" }
+  | { state: "LOADING" }
+  | { state: "CURRENT"; data: T }
+  | { state: "STALE"; data: T; reason: string }
+  | { state: "BLOCKED"; reason: string }
+  | { state: "UNKNOWN"; reason?: string }
+  | { state: "ERROR"; error: BackendRequestError };
+
 export class BackendRequestError extends Error {
   readonly status: number;
   readonly code: string | null;
@@ -90,6 +99,7 @@ export function createM21Api(client: BackendClient) {
 
   return {
     listProjects: () => get<ProjectListData>("/api/v1/projects"),
+    getWorkflowDescriptor: () => get<JsonRecord>("/api/v1/workflows/descriptor"),
     createProject: (payload: { name: string; description: string; metadata?: JsonRecord }) =>
       post<ProjectData>("/api/v1/projects", payload),
     createImport: (payload: JsonRecord) => post<JsonRecord>("/api/v1/imports", payload),

@@ -70,7 +70,10 @@ export function MemoryPanel({ api, projectId }: { api: M21Api; projectId: string
                   <span className="status-pill tone-neutral">{stringValue(entry.lifecycle)}</span>
                 </div>
                 <p>{stringValue(entry.summary, text("No summary"))}</p>
-                <small>{stringValue(entry.scope)} · {stringValue(entry.knowledge_type)} · {text("score")} {stringValue(item.score)}</small>
+                <small>
+                  {stringValue(entry.scope)} · {stringValue(entry.knowledge_type)} · {text("score")} {stringValue(item.score)} · {text("freshness")} {stringValue(item.freshness_status, "UNKNOWN")}
+                </small>
+                {stringValue(item.stale_reason) && <small className="error-text">{stringValue(item.stale_reason)}</small>}
               </article>
             );
           })}

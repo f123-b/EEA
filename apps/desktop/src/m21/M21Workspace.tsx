@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { DomainUIContribution, ProjectData } from "../api/generated";
-import { BackendRequestError, type JsonRecord, type M21Api } from "../api/m21";
+import type { DomainActivationData, DomainAvailableData, DomainUIContribution, ProjectData } from "../api/generated";
+import { BackendRequestError, type EngineeringDataState, type JsonRecord, type M21Api } from "../api/m21";
 import { useI18n } from "../i18n";
 import {
   M20_PROFILE_NAME,
@@ -152,6 +152,12 @@ function apiFailureMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected backend error";
 }
 
+function backendError(error: unknown): BackendRequestError {
+  return error instanceof BackendRequestError
+    ? error
+    : new BackendRequestError(apiFailureMessage(error), 0, "UNKNOWN_BACKEND_ERROR");
+}
+
 function requirementId(analysis: JsonRecord | null): string | undefined {
   const id = asArray(analysis?.requirement_ids)[0];
   return typeof id === "string" ? id : undefined;
@@ -271,6 +277,8 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
   const [projectId, setProjectId] = useState<string | null>(null);
   const [workflow, setWorkflow] = useState<WorkflowState>(emptyWorkflow);
   const [context, setContext] = useState<ProjectContext>(emptyContext);
+  const contextRef = useRef(context);
+  const workflowRef = useRef(workflow);
   const [route, setRoute] = useState(() => routeFromLocation(window.location.pathname));
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -286,7 +294,11 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiResult, setAiResult] = useState<JsonRecord | null>(null);
+  const [refreshStates, setRefreshStates] = useState<Record<string, EngineeringDataState<unknown>>>({});
+  const [workflowDescriptor, setWorkflowDescriptor] = useState<JsonRecord | null>(null);
   const readyReported = useRef(false);
+  contextRef.current = context;
+  workflowRef.current = workflow;
 
   const selectedProject = projects.find((project) => project.id === projectId) ?? null;
   const navItems = useMemo(() => buildNavigation(context.extensions).map((item) => ({
@@ -306,6 +318,17 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  useEffect(() => {
+    void api.getWorkflowDescriptor()
+      .then((descriptor) => setWorkflowDescriptor(descriptor))
+      .catch((loadError: unknown) => {
+        setRefreshStates((current) => ({
+          ...current,
+          workflow: { state: "ERROR", error: backendError(loadError) },
+        }));
+      });
+  }, [api]);
+
   const refreshProjects = useCallback(async () => {
     const result = await api.listProjects();
     setProjects(result.items);
@@ -313,23 +336,34 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
   }, [api]);
 
   const refreshProject = useCallback(async (nextProjectId: string) => {
-    const optional = async <T,>(operation: () => Promise<T>): Promise<T | null> => {
+    const optional = async <T,>(
+      key: string,
+      operation: () => Promise<T>,
+      previous: T | null,
+    ): Promise<T | null> => {
+      setRefreshStates((current) => ({ ...current, [key]: { state: "LOADING" } }));
       try {
-        return await operation();
-      } catch {
-        return null;
+        const data = await operation();
+        setRefreshStates((current) => ({ ...current, [key]: { state: "CURRENT", data } }));
+        return data;
+      } catch (loadError: unknown) {
+        const errorState: EngineeringDataState<T> = previous === null
+          ? { state: "ERROR", error: backendError(loadError) }
+          : { state: "STALE", data: previous, reason: apiFailureMessage(loadError) };
+        setRefreshStates((current) => ({ ...current, [key]: errorState }));
+        return previous;
       }
     };
     const [domains, availableDomains, extensions, consistency, issues, builds, results, reviews, source] = await Promise.all([
-      optional(() => api.getDomains(nextProjectId)),
-      optional(() => api.getAvailableDomains(nextProjectId)),
-      optional(() => api.getDomainExtensions(nextProjectId)),
-      optional(() => api.getConsistency(nextProjectId)),
-      optional(() => api.listIssues(nextProjectId)),
-      optional(() => api.listBuilds(nextProjectId)),
-      optional(() => api.listTestResults(nextProjectId)),
-      optional(() => api.listReviews(nextProjectId)),
-      optional(() => api.sourceStatus(nextProjectId)),
+      optional("domains", () => api.getDomains(nextProjectId), contextRef.current.domains.length ? { items: contextRef.current.domains as unknown as DomainActivationData[] } : null),
+      optional("available-domains", () => api.getAvailableDomains(nextProjectId), contextRef.current.availableDomains.length ? { items: contextRef.current.availableDomains as unknown as DomainAvailableData[] } : null),
+      optional("extensions", () => api.getDomainExtensions(nextProjectId), contextRef.current.extensions.length ? { items: contextRef.current.extensions } : null),
+      optional("consistency", () => api.getConsistency(nextProjectId), contextRef.current.consistency),
+      optional("issues", () => api.listIssues(nextProjectId), contextRef.current.issues.length ? { items: contextRef.current.issues } : null),
+      optional("builds", () => api.listBuilds(nextProjectId), contextRef.current.latestBuild ? { builds: [contextRef.current.latestBuild] } : null),
+      optional("test-results", () => api.listTestResults(nextProjectId), contextRef.current.latestTestRun ? { items: [contextRef.current.latestTestRun] } : null),
+      optional("reviews", () => api.listReviews(nextProjectId), contextRef.current.latestReview ? { items: [contextRef.current.latestReview] } : null),
+      optional("source", () => api.sourceStatus(nextProjectId), contextRef.current.source),
     ]);
     const projectDomains = asArray(domains?.items).map(asRecord);
     const projectAvailableDomains = asArray(availableDomains?.items).map(asRecord);
@@ -355,16 +389,16 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
       source: source ? asRecord(source) : null,
     });
     const [pinPlan, architecture, circuit, schematic, mcuConfig, dependencies, firmware, protocol, tests, traceability] = await Promise.all([
-      optional(() => api.getPinMap(nextProjectId)),
-      optional(() => api.getArchitecture(nextProjectId)),
-      optional(() => api.getCircuit(nextProjectId)),
-      optional(() => api.getSchematic(nextProjectId)),
-      optional(() => api.getMcuConfig(nextProjectId)),
-      optional(() => api.getDependencies(nextProjectId)),
-      optional(() => api.getFirmware(nextProjectId)),
-      optional(() => api.getProtocol(nextProjectId)),
-      optional(() => api.listTests(nextProjectId)),
-      optional(() => api.getTraceability(nextProjectId)),
+      optional("pin-plan", () => api.getPinMap(nextProjectId), workflowRef.current.pinPlan),
+      optional("architecture", () => api.getArchitecture(nextProjectId), workflowRef.current.architecture),
+      optional("circuit", () => api.getCircuit(nextProjectId), workflowRef.current.circuit),
+      optional("schematic", () => api.getSchematic(nextProjectId), workflowRef.current.schematic),
+      optional("mcu-config", () => api.getMcuConfig(nextProjectId), workflowRef.current.mcuConfig),
+      optional("dependencies", () => api.getDependencies(nextProjectId), workflowRef.current.dependencyLock),
+      optional("firmware", () => api.getFirmware(nextProjectId), workflowRef.current.firmware ? { firmware: workflowRef.current.firmware } : null),
+      optional("protocol", () => api.getProtocol(nextProjectId), workflowRef.current.protocol),
+      optional("tests", () => api.listTests(nextProjectId), workflowRef.current.tests),
+      optional("traceability", () => api.getTraceability(nextProjectId), workflowRef.current.traceability),
     ]);
     setWorkflow((current) => ({
       ...current,
@@ -772,6 +806,7 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
   };
 
   const filteredNav = navItems.filter((item) => !search || item.label.toLowerCase().includes(search.toLowerCase()));
+  const nonCurrentStates = Object.entries(refreshStates).filter(([, state]) => state.state !== "CURRENT");
 
   return (
     <div className="workspace-shell">
@@ -780,7 +815,7 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
           <div className="brand-mark" aria-hidden="true">EE</div>
           <div>
             <p className="brand-name">{text("Embedded Engineering Agent")}</p>
-            <p className="brand-subtitle">{text("Architecture Freeze · M21 Workbench")}</p>
+            <p className="brand-subtitle">{text("Architecture Freeze · Generic Workbench")} · {stringValue(workflowDescriptor?.workflow_id, "descriptor unavailable")}</p>
           </div>
         </div>
         <div className="topbar-context">
@@ -812,7 +847,8 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
             <label className="search-box"><span aria-hidden="true">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={text("Search workspace")} aria-label={text("Search workspace")} /></label>
             <div className="toolbar-actions"><button className="ghost-button" data-testid="refresh-state" onClick={() => projectId && void refreshProject(projectId)}>{text("Refresh state")}</button><button className="primary-button" data-testid="run-m20-workflow" disabled={!projectId || Boolean(busy)} onClick={() => void runFullBenchmark()}>{text("Run M20 UI workflow")}</button></div>
           </div>
-          {error && <div className="feedback-banner feedback-error" role="alert"><strong>{text("Backend action failed")}</strong><span>{error}</span><button className="icon-button" onClick={() => setError(null)} aria-label={text("Dismiss error")}>×</button></div>}
+           {error && <div className="feedback-banner feedback-error" role="alert"><strong>{text("Backend action failed")}</strong><span>{error}</span><button className="icon-button" onClick={() => setError(null)} aria-label={text("Dismiss error")}>×</button></div>}
+           {nonCurrentStates.length > 0 && <div className="feedback-banner feedback-warning" role="status"><strong>{text("Engineering data state")}</strong><span>{nonCurrentStates.map(([key, state]) => `${key}: ${state.state}`).join(" · ")}</span></div>}
           {notice && <div className="feedback-banner feedback-success" role="status"><strong>{text("Action complete")}</strong><span>{notice}</span><button className="icon-button" onClick={() => setNotice(null)} aria-label={text("Dismiss notice")}>×</button></div>}
           {busy && <div className="running-strip" role="status"><span className="spinner" aria-hidden="true" /> {text(busy)} · {text("deterministic backend operation running")}</div>}
           {showImport ? <ImportWizard api={api} onClose={() => setShowImport(false)} onComplete={async (createdProjectId) => { await refreshProjects(); setProjectId(createdProjectId); navigate("projects"); }} /> : !selectedProject && route !== "projects" ? <StartPanel onCreate={() => setShowCreate(true)} onOpen={() => navigate("projects")} /> : <PageRouter route={route} selectedProject={selectedProject} workflow={workflow} context={context} busy={busy} rawContext={rawContext} setRawContext={setRawContext} onNavigate={navigate} onAnalyze={analyzeM20} onGeneratePins={generatePins} onLockPins={lockPins} onGenerateHardware={generateHardware} onGenerateSchematic={generateSchematic} onRunErc={runErc} onGenerateMcu={generateMcu} onGenerateFirmware={generateFirmware} onRunBuild={runBuild} onRunStatic={runStatic} onGenerateProtocol={generateProtocol} onRunTests={generateAndRunTests} onTraceability={runTraceability} onReview={runReview} onActivateDomain={activateDomain} onDeactivateDomain={deactivateDomain} onUploadDocument={uploadDocument} documentFile={documentFile} setDocumentFile={setDocumentFile} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} aiResult={aiResult} onAskAi={askAi} projects={projects} onSelectProject={setProjectId} onCreate={() => setShowCreate(true)} onImport={() => setShowImport(true)} />}
