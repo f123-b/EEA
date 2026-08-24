@@ -33,11 +33,13 @@ from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from fastapi import APIRouter, Depends, Request, status
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from eea_backend.models import ImportSessionRecord
+from eea_backend.models import ImportSessionRecord, KnowledgeEntryRecord
 from eea_backend.repositories import SqlAlchemyProjectRepository
 from eea_backend.schemas import ApiEnvelope
+from eea_backend.security import authenticated_principal
 from eea_backend.source_repositories import SqlAlchemySourceRepository
 
 router = APIRouter()
@@ -61,6 +63,75 @@ def _record(value: object) -> dict[str, object]:
 
 def _list(value: object) -> list[object]:
     return list(value) if isinstance(value, list) else []
+
+
+def _finding_key(item: dict[str, object]) -> tuple[str, str, str]:
+    return (
+        str(item.get("category", "")),
+        str(item.get("title", "")),
+        str(item.get("source_path", item.get("path", ""))),
+    )
+
+
+def _rescan_diff(
+    previous_findings: list[dict[str, object]],
+    next_findings: list[dict[str, object]],
+    previous_manifest: dict[str, str],
+    next_manifest: dict[str, str],
+) -> dict[str, object]:
+    """Compare immutable scan projections without mutating old SourceRevision data."""
+
+    old = {_finding_key(item): item for item in previous_findings}
+    new = {_finding_key(item): item for item in next_findings}
+    changes: list[dict[str, object]] = []
+    for key in sorted(set(old) | set(new)):
+        before, after = old.get(key), new.get(key)
+        if before is None:
+            kind = "ADDED"
+        elif after is None:
+            kind = "REMOVED"
+        elif before != after:
+            kind = "MODIFIED"
+        else:
+            kind = "UNCHANGED"
+        changes.append(
+            {
+                "kind": kind,
+                "finding_id": (after or before or {}).get("id"),
+                "finding": after or before,
+                "previous": before,
+            }
+        )
+    for path in sorted(set(previous_manifest) | set(next_manifest)):
+        before_hash, after_hash = previous_manifest.get(path), next_manifest.get(path)
+        if before_hash == after_hash:
+            continue
+        changes.append(
+            {
+                "kind": "ADDED"
+                if before_hash is None
+                else "REMOVED"
+                if after_hash is None
+                else "MODIFIED",
+                "file": path,
+                "previous_hash": before_hash,
+                "hash": after_hash,
+            }
+        )
+    return {
+        "changes": changes,
+        "summary": {
+            "ADDED": sum(item["kind"] == "ADDED" for item in changes),
+            "MODIFIED": sum(item["kind"] == "MODIFIED" for item in changes),
+            "REMOVED": sum(item["kind"] == "REMOVED" for item in changes),
+            "UNCHANGED": sum(item["kind"] == "UNCHANGED" for item in changes),
+        },
+        "affected_artifact_ids": [
+            str(item["finding_id"])
+            for item in changes
+            if item.get("finding_id") and item["kind"] != "UNCHANGED"
+        ],
+    }
 
 
 class ImportCreateRequest(BaseModel):
@@ -150,6 +221,7 @@ def _as_data(row: ImportSessionRecord) -> dict[str, object]:
         "classifications": _record(scan.get("classifications")),
         "modules": _list(scan.get("modules")),
         "dependency_edges": _list(scan.get("dependency_edges")),
+        "rescan_diff": _record(scan.get("rescan_diff")),
         "stages": _list(scan.get("stages")),
         "unknown_count": scan.get("unknown_count", 0),
         "build_executed": bool(scan.get("build_executed", False)),
@@ -213,6 +285,7 @@ def create_import(
     request: Request,
     session: SessionDependency,
 ) -> ApiEnvelope[dict[str, object]]:
+    principal = authenticated_principal(request)
     import_id = uuid4()
     staging = _staging_path(request, import_id, 1)
     now = utc_now()
@@ -234,7 +307,7 @@ def create_import(
         issues=[],
         summary={},
         scan_result={"stages": [], "build_executed": False},
-        created_by=payload.actor,
+        created_by=principal.actor_id,
     )
     session.add(row)
     session.commit()
@@ -468,6 +541,8 @@ def rescan_import(
     session: SessionDependency,
 ) -> ApiEnvelope[dict[str, object]]:
     row = _get_import(session, import_id)
+    previous_findings = list(row.findings)
+    previous_manifest = dict(row.file_manifest)
     previous_project_id = UUID(row.project_id) if row.project_id else None
     next_revision = row.scan_revision + 1
     staging = _staging_path(request, import_id, next_revision)
@@ -484,6 +559,32 @@ def rescan_import(
         resolved_commit=materialized.resolved_commit,
         scan_revision=next_revision,
     )
+    diff = _rescan_diff(
+        previous_findings,
+        cast(list[dict[str, object]], result["findings"]),
+        previous_manifest,
+        cast(dict[str, str], result["file_manifest"]),
+    )
+    raw_affected = diff.get("affected_artifact_ids", [])
+    affected_finding_ids = (
+        {str(value) for value in raw_affected if isinstance(value, str)}
+        if isinstance(raw_affected, list)
+        else set()
+    )
+    affected_knowledge_ids = [
+        record.id
+        for record in session.scalars(select(KnowledgeEntryRecord))
+        if isinstance(record.applicability, dict)
+        and record.applicability.get("import_session_id") == str(import_id)
+        and isinstance(record.applicability.get("finding_ids"), list)
+        and affected_finding_ids.intersection(
+            str(value)
+            for value in record.applicability["finding_ids"]
+            if isinstance(value, (str, int))
+        )
+    ]
+    diff["affected_knowledge_ids"] = affected_knowledge_ids
+    result["rescan_diff"] = diff
     _save_scan(row, result, resolved_commit=materialized.resolved_commit, staging_path=staging)
     source_revision_data: dict[str, object] | None = None
     if previous_project_id is not None and row.workspace_path:
@@ -519,7 +620,11 @@ def rescan_import(
         source_revision_data = source_revision.model_dump(mode="json")
     session.commit()
     return ApiEnvelope(
-        data={"import": _as_data(row), "source_revision": source_revision_data},
+        data={
+            "import": _as_data(row),
+            "source_revision": source_revision_data,
+            "rescan_diff": diff,
+        },
         request_id=_request_id(request),
     )
 
