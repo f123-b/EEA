@@ -5,6 +5,7 @@ from pathlib import Path
 from eea_cli.main import app
 from sqlalchemy import create_engine, inspect
 from typer.testing import CliRunner
+from eea_backend.version import __version__
 
 runner = CliRunner()
 
@@ -13,7 +14,7 @@ def test_version_command() -> None:
     result = runner.invoke(app, ["version"])
 
     assert result.exit_code == 0
-    assert result.stdout.strip() == "1.3.1.dev15"
+    assert result.stdout.strip() == __version__
 
 
 def test_openapi_check_detects_stale_file(tmp_path: Path) -> None:

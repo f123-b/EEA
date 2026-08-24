@@ -5,7 +5,17 @@ the frozen documentation changelogs under `docs/`.
 
 ## [Unreleased]
 
+Current development milestone: `M23R` (Knowledge / Release / Milestone Hardening), product
+development version `1.3.1.dev23`. M24 is not started.
+
 ### Added
+
+- M23R hardening establishes the milestone metadata SSOT in
+  `apps/backend/src/eea_backend/version.py`, records explicit M21/M22/M23 boundaries, exposes a
+  backend-owned `WorkflowDescriptor`, and adds the authority/freshness/promotion closure work.
+- Knowledge review ignores caller-supplied actor, owner, organization, authority, and verification
+  fields for authorization; verification levels are derived from current backend evidence, and
+  source/claim/evidence changes reconcile projections to `STALE` or `CONFLICTED` fail-closed.
 
 - M22 Existing Project Import vertical slice is implemented on the M21 desktop branch. Added durable
   import sessions and migration `0034_m22_existing_project_import`, isolated Local Folder/Git/Archive

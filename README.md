@@ -9,8 +9,18 @@ Implementation advances one milestone at a time using the required sequence:
 
 ## Current milestone
 
-M15 MotorControl Built-in Domain Plugin is implemented on top of the accepted M14 Domain
-Extension Infrastructure (development version `1.3.1.dev15`):
+The repository is currently in `M23R` Knowledge / Release / Milestone Hardening
+(development version `1.3.1.dev23`). The milestone metadata SSOT is
+[`apps/backend/src/eea_backend/version.py`](apps/backend/src/eea_backend/version.py); the API
+returns the same milestone from `/api/v1/meta/version`.
+
+### Stable main
+
+M20 is accepted and merged. M21 is accepted on the development branch with its desktop release
+gate closed. M22 is an implemented vertical slice, and M23 Core is implemented pending the M23R
+hardening gate.
+
+### Implemented capabilities
 
 - FastAPI backend with health and version endpoints;
 - SQLAlchemy 2.x and Alembic migration foundation;
@@ -58,6 +68,18 @@ Extension Infrastructure (development version `1.3.1.dev15`):
 - Bundled MotorControl Domain Plugin with plugin-owned MotorControlIR requirements/references,
   deterministic additive rules, declarative generators, context/UI metadata, and MCUConfigIR
   cross-validation.
+- M21 desktop engineering workbench with authenticated backend sidecar and release artifacts.
+- M22 existing-project import with guarded folder/Git/archive materialization, candidate findings,
+  immutable SourceRevision history, and review workflow.
+- M23 knowledge and memory projection over canonical claims/evidence with scope filtering,
+  optimistic review, audit records, backend-derived verification authority, and freshness status.
+
+### Known boundaries
+
+Knowledge and Memory are projections, indexes, context, and recall surfaces—not canonical facts.
+User claims, UI state, and AI output never create tool- or hardware-verified facts. M22 parser depth,
+native import pickers, and full generic workflow rendering remain bounded follow-up work in this
+milestone; M24 has not started.
 
 ## Development
 
