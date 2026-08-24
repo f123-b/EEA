@@ -66,6 +66,10 @@ def test_local_import_review_workspace_and_rescan(client: TestClient, tmp_path: 
     assert source_revision.status_code == 200
     assert source_revision.json()["data"]["id"] == first_revision
 
+    (source / "main.c").write_text(
+        '#include "board.h"\nint main(void) { HAL_GPIO_Init(GPIOB, 1); return 0; }\n',
+        encoding="utf-8",
+    )
     rescanned = client.post(f"/api/v1/imports/{import_id}/rescan")
     assert rescanned.status_code == 200
     rescan_data = rescanned.json()["data"]

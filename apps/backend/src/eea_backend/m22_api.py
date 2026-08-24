@@ -459,6 +459,7 @@ def _as_data(row: ImportSessionRecord, session: Session | None = None) -> dict[s
         "classifications": _record(scan.get("classifications")),
         "modules": _list(scan.get("modules")),
         "dependency_edges": _list(scan.get("dependency_edges")),
+        "rescan_diff": _record(scan.get("rescan_diff")),
         "stages": _list(scan.get("stages")),
         "unknown_count": scan.get("unknown_count", 0),
         "build_executed": bool(scan.get("build_executed", False)),
@@ -522,6 +523,7 @@ def create_import(
     request: Request,
     session: SessionDependency,
 ) -> ApiEnvelope[dict[str, object]]:
+    principal = authenticated_principal(request)
     import_id = uuid4()
     staging = _staging_path(request, import_id, 1)
     now = utc_now()
@@ -543,7 +545,7 @@ def create_import(
         issues=[],
         summary={},
         scan_result={"stages": [], "build_executed": False},
-        created_by=payload.actor,
+        created_by=principal.actor_id,
     )
     session.add(row)
     session.commit()
