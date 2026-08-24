@@ -6,7 +6,6 @@ from uuid import UUID
 from eea_core.entities import utc_now
 from eea_core.pin_planner import PinAssignment, PinLock, PinPlan, RuleResult
 from sqlalchemy import desc, select, update
-from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from eea_backend.models import (
