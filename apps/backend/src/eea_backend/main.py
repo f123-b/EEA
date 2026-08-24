@@ -63,7 +63,8 @@ from eea_backend.schemas import ApiEnvelope, HealthResponse, VersionData
 from eea_backend.security import require_session_token
 from eea_backend.settings import Settings
 from eea_backend.source_repositories import SqlAlchemySourceRepository
-from eea_backend.version import __version__
+from eea_backend.version import CURRENT_MILESTONE, __version__
+from eea_backend.workflow_api import router as workflow_router
 from plugins.builtin.motor_control import build_motor_control_plugin
 
 
@@ -330,7 +331,7 @@ def create_app(
             product="Embedded Engineering Agent",
             version=__version__,
             api_version="v1",
-            milestone="M15",
+            milestone=CURRENT_MILESTONE,
         )
         return ApiEnvelope(data=data, request_id=request.state.request_id)
 
@@ -338,6 +339,7 @@ def create_app(
     api.include_router(m18e_router)
     api.include_router(m22_router)
     api.include_router(m23_router)
+    api.include_router(workflow_router)
     application.include_router(api)
     return application
 
