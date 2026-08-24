@@ -15,6 +15,7 @@ M23R implementation boundary: `42bc9e4`.
 | Check | Result |
 |---|---|
 | `py -3.12 -m pytest -q --no-cov` | **517 passed, 31 skipped, 13 warnings** |
+| Coverage report | **81% total**, above the configured 80% gate |
 | Focused M23/M22/API/version suite | **20 passed**; the full suite above also covers the final rescan assertion |
 | `py -3.12 -m mypy` | **Passed**, 155 source files |
 | Ruff check on changed backend/application/tests | **Passed** |
