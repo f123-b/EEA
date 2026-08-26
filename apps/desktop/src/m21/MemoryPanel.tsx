@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import type { JsonRecord, M21Api } from "../api/m21";
 import { useI18n } from "../i18n";
-import { asArray, asRecord, stringValue } from "./uiModel";
+import { asArray, asRecord, shortId, statusTone, stringValue } from "./uiModel";
 
 function memoryItems(value: unknown): JsonRecord[] {
   return asArray(value).map(asRecord);
@@ -13,6 +13,7 @@ export function MemoryPanel({ api, projectId }: { api: M21Api; projectId: string
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<JsonRecord[]>([]);
   const [auditId, setAuditId] = useState<string | null>(null);
+  const [includeNonActive, setIncludeNonActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,6 +27,7 @@ export function MemoryPanel({ api, projectId }: { api: M21Api; projectId: string
         scope_context: ["GLOBAL_PUBLIC", "PROJECT_PRIVATE"],
         query,
         limit: 8,
+        include_non_active: includeNonActive,
       });
       setItems(memoryItems(result.items));
       setAuditId(stringValue(result.audit_id) || null);
@@ -52,10 +54,19 @@ export function MemoryPanel({ api, projectId }: { api: M21Api; projectId: string
           onKeyDown={(event) => { if (event.key === "Enter") void recall(); }}
           placeholder={text("Search project memory")}
         />
-        <button className="ghost-button" disabled={busy} onClick={() => void recall()}>
+        <button className="ghost-button" data-testid="memory-recall" disabled={busy} onClick={() => void recall()}>
           {busy ? text("Recalling…") : text("Recall")}
         </button>
       </div>
+      <label className="memory-history-toggle">
+        <input
+          type="checkbox"
+          data-testid="memory-include-history"
+          checked={includeNonActive}
+          onChange={(event) => setIncludeNonActive(event.target.checked)}
+        />
+        {text("Include stale and conflicted history")}
+      </label>
       {error && <p className="feedback-inline error-text">{error}</p>}
       {items.length === 0 ? (
         <p className="muted memory-empty">{text("No memory recalled yet.")}</p>
@@ -63,17 +74,28 @@ export function MemoryPanel({ api, projectId }: { api: M21Api; projectId: string
         <div className="memory-results">
           {items.map((item, index) => {
             const entry = asRecord(item.entry);
+            const lifecycle = stringValue(entry.lifecycle, "UNKNOWN");
+            const provenance = asRecord(entry.provenance);
+            const freshness = asRecord(entry.freshness);
+            const claimIds = asArray(provenance.canonical_claim_ids);
+            const evidenceIds = asArray(provenance.evidence_ids);
             return (
               <article className="memory-result" key={stringValue(entry.id, String(index))}>
                 <div className="memory-result-header">
                   <strong>{stringValue(entry.title, text("Untitled memory"))}</strong>
-                  <span className="status-pill tone-neutral">{stringValue(entry.lifecycle)}</span>
+                  <span className={`status-pill tone-${statusTone(lifecycle)}`}>{lifecycle}</span>
                 </div>
                 <p>{stringValue(entry.summary, text("No summary"))}</p>
                 <small>
-                  {stringValue(entry.scope)} · {stringValue(entry.knowledge_type)} · {text("score")} {stringValue(item.score)} · {text("freshness")} {stringValue(item.freshness_status, "UNKNOWN")}
+                  {stringValue(entry.scope)} · {stringValue(entry.knowledge_type)} · {text("score")} {stringValue(item.score)} · {text("freshness")} {stringValue(freshness.status, stringValue(item.freshness_status, "UNKNOWN"))}
                 </small>
                 {stringValue(item.stale_reason) && <small className="error-text">{stringValue(item.stale_reason)}</small>}
+                <div className="memory-provenance" data-testid="memory-provenance">
+                  <small>{text("Canonical claims")}: {claimIds.length ? claimIds.map((value) => shortId(value)).join(", ") : text("none")}</small>
+                  <small>{text("Evidence")}: {evidenceIds.length ? evidenceIds.map((value) => shortId(value)).join(", ") : text("none")}</small>
+                  <small>{text("Source revision")}: {shortId(provenance.source_revision_id, 16)}</small>
+                  <small>{text("Origin")}: {stringValue(provenance.origin, "manual")}</small>
+                </div>
               </article>
             );
           })}
