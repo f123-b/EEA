@@ -20,6 +20,7 @@ from eea_core.source import (
     SourceRevision,
 )
 from sqlalchemy import desc, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from eea_backend.models import (
@@ -242,7 +243,7 @@ class SqlAlchemySourceRepository:
                 revision=SourceWorkspaceRecord.revision + 1,
             )
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise EngineeringError(
                 EngineeringErrorCode.SOURCE_REVISION_CONFLICT,
                 "Source workspace changed during mutation",
@@ -283,7 +284,7 @@ class SqlAlchemySourceRepository:
                 revision=SourceWorkspaceRecord.revision + 1,
             )
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             # A failed conditional UPDATE still opens a transaction on
             # SQLite. Roll it back before the diagnostic read so a losing
             # session cannot retain a database lock.
@@ -327,7 +328,7 @@ class SqlAlchemySourceRepository:
                 revision=SourceWorkspaceRecord.revision + 1,
             )
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise EngineeringError(
                 EngineeringErrorCode.RECOVERY_REQUIRED,
                 "Source mutation ownership could not be released safely",
@@ -380,7 +381,7 @@ class SqlAlchemySourceRepository:
                 revision=SourceWorkspaceRecord.revision + 1,
             )
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise EngineeringError(
                 EngineeringErrorCode.RECOVERY_REQUIRED,
                 "Source mutation finalization lost its database ownership",
@@ -444,7 +445,7 @@ class SqlAlchemySourceRepository:
                 failure_reason=proposal.failure_reason,
             )
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise ValueError("patch proposal disappeared during update")
         if commit:
             self.session.commit()

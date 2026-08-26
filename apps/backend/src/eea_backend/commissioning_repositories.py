@@ -29,6 +29,7 @@ from eea_core.security import (
     ValidatedPermissionGrant,
 )
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
@@ -420,7 +421,7 @@ class SqlAlchemyCommissioningRepository:
                 ),
             )
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             self.session.rollback()
             return False
         if commit:
@@ -652,7 +653,7 @@ class SqlAlchemyCommissioningRepository:
                 updated_at=utc_now(),
             )
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             self.session.rollback()
             return False
         self.session.flush()
