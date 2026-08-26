@@ -361,7 +361,7 @@ class SqlAlchemyDependencyGraphRepository:
                 ),
             ),
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise EngineeringError(
                 EngineeringErrorCode.REVISION_CONFLICT,
                 "Dependency node state changed concurrently",
@@ -425,7 +425,7 @@ class SqlAlchemyDependencyGraphRepository:
                 ),
             ),
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise EngineeringError(
                 EngineeringErrorCode.REVISION_CONFLICT,
                 "Dependency node state changed during revalidation",

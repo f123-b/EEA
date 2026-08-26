@@ -293,8 +293,8 @@ class SqlAlchemyProjectRepository:
                 deleted_at=project.deleted_at,
             )
         )
-        result = cast(CursorResult[Any], self._session.execute(statement))
-        if result.rowcount != 1:
+        result = self._session.execute(statement)
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             self._session.rollback()
             return None
         self._session.commit()

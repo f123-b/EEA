@@ -199,8 +199,8 @@ class SqlAlchemyRequirementRepository:
                 status=requirement.status.value,
             )
         )
-        result = cast(CursorResult[Any], self._session.execute(statement))
-        if result.rowcount != 1:
+        result = self._session.execute(statement)
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             if commit:
                 self._session.rollback()
             return None

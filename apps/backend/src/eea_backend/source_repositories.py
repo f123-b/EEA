@@ -246,7 +246,7 @@ class SqlAlchemySourceRepository:
                 )
             ),
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise EngineeringError(
                 EngineeringErrorCode.SOURCE_REVISION_CONFLICT,
                 "Source workspace changed during mutation",
@@ -290,7 +290,7 @@ class SqlAlchemySourceRepository:
                 )
             ),
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             # A failed conditional UPDATE still opens a transaction on
             # SQLite. Roll it back before the diagnostic read so a losing
             # session cannot retain a database lock.
@@ -337,7 +337,7 @@ class SqlAlchemySourceRepository:
                 )
             ),
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise EngineeringError(
                 EngineeringErrorCode.RECOVERY_REQUIRED,
                 "Source mutation ownership could not be released safely",
@@ -393,7 +393,7 @@ class SqlAlchemySourceRepository:
                 )
             ),
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise EngineeringError(
                 EngineeringErrorCode.RECOVERY_REQUIRED,
                 "Source mutation finalization lost its database ownership",
@@ -460,7 +460,7 @@ class SqlAlchemySourceRepository:
                 )
             ),
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise ValueError("patch proposal disappeared during update")
         if commit:
             self.session.commit()
