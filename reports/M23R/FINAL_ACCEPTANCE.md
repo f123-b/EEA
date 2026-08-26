@@ -15,6 +15,7 @@ commit SHA.
 | Full pytest and coverage | PASS: 527 passed, 31 skipped, 82.41% |
 | Ruff / mypy / Alembic / OpenAPI / TypeScript | PASS locally |
 | Desktop / Playwright / Tauri | PASS locally: desktop checks, 3 UI tests, cargo check/test, NSIS |
-| Exact-head CI | Pending push |
+| Landing-chain migration strategy | PASS: additive `0038` -> `0039` -> `0040` chain |
+| Exact-head CI | Pending landing PR final heads |
 
 M23R is not accepted yet. M24 is not started. PR #15 is not merged.

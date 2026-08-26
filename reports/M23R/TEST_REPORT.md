@@ -31,7 +31,7 @@ warning; they do not fail the configured suite.
 
 ## Migration and contract result
 
-- Latest migration is `0037_m23r_memory_trust_closure`.
+- Landing migration chain ends at `0040_m23l_m23r_memory_trust_closure`.
 - No historical migration was modified.
 - M23R adds the append-only `knowledge_audits` table and synchronizes the persisted error catalog.
 - `schemas/openapi.json` is synchronized with the backend routes and response fields.
