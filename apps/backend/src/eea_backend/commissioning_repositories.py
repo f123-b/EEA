@@ -29,6 +29,7 @@ from eea_core.security import (
     ValidatedPermissionGrant,
 )
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 

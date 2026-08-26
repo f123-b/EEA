@@ -9,6 +9,7 @@ from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from eea_core.requirements import Requirement, RequirementAnalysis, RequirementProfile
 from sqlalchemy import desc, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 

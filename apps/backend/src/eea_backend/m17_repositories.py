@@ -11,6 +11,7 @@ from eea_core.enums import IssueStatus
 from eea_core.review import ReviewFinding, ReviewRun
 from eea_core.testing import TestIR, TestRun
 from sqlalchemy import case, desc, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 

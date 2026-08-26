@@ -13,6 +13,7 @@ from eea_core.entities import utc_now
 from eea_core.enums import DependencyKind, DependencyNodeStatus, EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 

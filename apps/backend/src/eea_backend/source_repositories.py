@@ -20,6 +20,7 @@ from eea_core.source import (
     SourceRevision,
 )
 from sqlalchemy import desc, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from eea_backend.models import (
