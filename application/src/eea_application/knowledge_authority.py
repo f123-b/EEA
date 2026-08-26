@@ -31,6 +31,9 @@ class EvidenceContext:
     evidence_type: EvidenceType
     locator: dict[str, object]
     source_revision_id: UUID | None = None
+    producer: str | None = None
+    producer_version: str | None = None
+    recorded_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +58,7 @@ class VerificationAuthorityResolver:
         *,
         current_source_revision_id: UUID | None = None,
         conflict_open: bool = False,
+        strict_provenance: bool = False,
     ) -> VerificationDecision:
         if requested_action == "ACCEPT":
             return VerificationDecision(
@@ -96,6 +100,7 @@ class VerificationAuthorityResolver:
             for evidence in evidence_context
             if self._evidence_is_project_scoped(entry, evidence)
             and self._evidence_is_current(entry, evidence, current_source_revision_id)
+            and self._evidence_has_provenance(evidence, strict=strict_provenance)
             and self._supports(requested_level, evidence)
         )
         if not eligible:
@@ -180,10 +185,104 @@ class VerificationAuthorityResolver:
             )
         return False
 
+    @staticmethod
+    def _evidence_has_provenance(evidence: EvidenceContext, *, strict: bool) -> bool:
+        """Require an auditable producer chain for trust-bearing verification.
+
+        The non-strict mode keeps the pure resolver compatible with historical
+        in-memory callers.  HTTP/application write paths always use strict
+        mode, so persisted trust cannot be created from a partial assertion.
+        """
+
+        if not strict:
+            return True
+        locator = evidence.locator
+        producer = evidence.producer or locator.get("producer")
+        producer_version = evidence.producer_version or locator.get("producer_version")
+        timestamp = evidence.recorded_at or locator.get("timestamp")
+        source_revision = evidence.source_revision_id or _uuid_from_value(
+            locator.get("source_revision_id")
+        )
+        if not producer or not producer_version or not timestamp or source_revision is None:
+            return False
+        if evidence.evidence_type is EvidenceType.HARDWARE_TEST:
+            return bool(
+                locator.get("hardware_identity")
+                and locator.get("probe_identity")
+                and locator.get("commissioning_session_id")
+                and locator.get("hardware_configuration")
+                and locator.get("measurement")
+            )
+        return True
+
+
+def _uuid_from_value(value: object) -> UUID | None:
+    if value is None:
+        return None
+    try:
+        return UUID(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+@dataclass(frozen=True, slots=True)
+class TrustDecision:
+    """Backend-derived trust projection for one memory entry."""
+
+    authority_level: AuthorityLevel
+    trust_level: TrustLevel
+    verification_levels: tuple[VerificationLevel, ...]
+    freshness_score: float
+    freshness_status: Literal["CURRENT", "STALE", "CONFLICTED", "UNKNOWN"]
+
+
+class TrustDerivationService:
+    """Derive trust from canonical state, verification evidence and freshness."""
+
+    def derive(
+        self,
+        entry: KnowledgeEntry,
+        evidence_context: tuple[EvidenceContext, ...],
+        *,
+        freshness_status: Literal["CURRENT", "STALE", "CONFLICTED", "UNKNOWN"],
+        conflict_open: bool = False,
+    ) -> TrustDecision:
+        if conflict_open or freshness_status == "CONFLICTED":
+            return TrustDecision(
+                authority_level=AuthorityLevel.T6_AI_INFERENCE,
+                trust_level=TrustLevel.UNTRUSTED,
+                verification_levels=(),
+                freshness_score=0.0,
+                freshness_status="CONFLICTED",
+            )
+        if freshness_status == "STALE":
+            return TrustDecision(
+                authority_level=AuthorityLevel.T6_AI_INFERENCE,
+                trust_level=TrustLevel.UNTRUSTED,
+                verification_levels=tuple(entry.verification_levels),
+                freshness_score=0.0,
+                freshness_status="STALE",
+            )
+        if not evidence_context and not entry.verification_levels:
+            return TrustDecision(
+                authority_level=entry.authority_level,
+                trust_level=TrustLevel.UNTRUSTED,
+                verification_levels=(),
+                freshness_score=0.0,
+                freshness_status="UNKNOWN",
+            )
+        return TrustDecision(
+            authority_level=entry.authority_level,
+            trust_level=entry.trust_level,
+            verification_levels=tuple(entry.verification_levels),
+            freshness_score=entry.freshness_score,
+            freshness_status=freshness_status,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class FreshnessDecision:
-    status: Literal["CURRENT", "STALE", "CONFLICTED"]
+    status: Literal["CURRENT", "STALE", "CONFLICTED", "UNKNOWN"]
     reason: str | None
 
 
@@ -203,7 +302,6 @@ class KnowledgeFreshnessService:
             status = KnowledgeLifecycle.CONFLICTED
         elif stale_evidence_ids or (
             entry.source_revision_id is not None
-            and current_source_revision_id is not None
             and entry.source_revision_id != current_source_revision_id
         ):
             reason = (
@@ -213,8 +311,17 @@ class KnowledgeFreshnessService:
             )
             decision = FreshnessDecision("STALE", reason)
             status = KnowledgeLifecycle.STALE
+        elif entry.source_revision_id is None and not entry.evidence_ids:
+            return entry, FreshnessDecision("UNKNOWN", "no canonical freshness anchor is attached")
         else:
             decision = FreshnessDecision("CURRENT", None)
+            return entry, decision
+
+        if (
+            entry.lifecycle is status
+            and entry.trust_level is TrustLevel.UNTRUSTED
+            and entry.freshness_score == 0.0
+        ):
             return entry, decision
 
         updated = entry.model_copy(
@@ -233,6 +340,8 @@ __all__ = [
     "EvidenceContext",
     "FreshnessDecision",
     "KnowledgeFreshnessService",
+    "TrustDecision",
+    "TrustDerivationService",
     "VerificationAuthorityResolver",
     "VerificationDecision",
 ]

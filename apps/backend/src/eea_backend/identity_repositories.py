@@ -5,12 +5,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
+from eea_application.knowledge_identity import IdentityContext
 from eea_core.identity import IdentityMode, ProjectRole, UserIdentity, local_single_user
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from eea_backend.models import (
     IdentityUserRecord,
+    MembershipRecord,
     ProjectRecord,
     ProjectRoleAssignmentRecord,
 )
@@ -82,6 +84,66 @@ class IdentityRepository:
             if commit:
                 self.session.commit()
         return ProjectRole(assignment.role)
+
+    def load_context(
+        self,
+        *,
+        principal_id: str,
+        user_id: str,
+        session_id: str,
+        authentication_source: str,
+        task_id: str | None = None,
+    ) -> IdentityContext:
+        """Resolve organization and project permissions from server-owned rows."""
+
+        user = self.session.scalar(
+            select(IdentityUserRecord).where(IdentityUserRecord.stable_actor_id == user_id)
+        )
+        if user is None and user_id == "local:single-user":
+            self.ensure_local_user(commit=False)
+            user = self.session.scalar(
+                select(IdentityUserRecord).where(
+                    IdentityUserRecord.stable_actor_id == "local:single-user"
+                )
+            )
+        if user is None:
+            return IdentityContext(
+                principal_id=principal_id,
+                user_id=user_id,
+                session_id=session_id,
+                authentication_source=authentication_source,
+                task_id=task_id,
+            )
+        organizations = list(
+            self.session.scalars(
+                select(MembershipRecord.organization_id)
+                .where(MembershipRecord.user_id == user.id)
+                .order_by(MembershipRecord.created_at, MembershipRecord.id)
+            )
+        )
+        assignments = self.session.scalars(
+            select(ProjectRoleAssignmentRecord).where(
+                ProjectRoleAssignmentRecord.user_id == user.id
+            )
+        )
+        permissions: dict[str, frozenset[str]] = {}
+        for assignment in assignments:
+            role = assignment.role.lower()
+            granted = {"read", role}
+            if role in {"owner", "maintainer", "engineer"}:
+                granted.update({"write", "review", "publish"})
+            permissions[assignment.project_id] = frozenset(granted)
+        organization_ids = frozenset(str(value) for value in organizations)
+        return IdentityContext(
+            principal_id=principal_id,
+            user_id=user_id,
+            organization_ids=organization_ids,
+            active_organization_id=(str(organizations[0]) if organizations else None),
+            task_id=task_id,
+            project_permissions=permissions,
+            session_id=session_id,
+            authentication_source=authentication_source,
+        )
 
 
 __all__ = ["IdentityRepository"]

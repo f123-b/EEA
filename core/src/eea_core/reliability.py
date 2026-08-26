@@ -68,7 +68,10 @@ class OutboxEvent(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     schema_version: str = "1.0"
     project_id: UUID | None = None
-    event_type: str = Field(min_length=1, max_length=200, pattern=r"^[a-z][a-z0-9_.-]*$")
+    # M23R semantic events intentionally use the canonical PascalCase names
+    # defined by the trust propagation contract; legacy events remain
+    # lower-case and continue to validate under this broader identifier rule.
+    event_type: str = Field(min_length=1, max_length=200, pattern=r"^[A-Za-z][A-Za-z0-9_.-]*$")
     event_version: int = Field(default=1, ge=1)
     aggregate_type: str = Field(min_length=1, max_length=100)
     aggregate_id: str = Field(min_length=1, max_length=500)

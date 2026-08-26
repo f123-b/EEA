@@ -4,6 +4,7 @@ import hmac
 from dataclasses import dataclass
 from typing import Annotated
 
+from eea_application.knowledge_identity import IdentityContext
 from eea_core.enums import EngineeringErrorCode
 from eea_core.errors import EngineeringError
 from fastapi import Depends, Request
@@ -21,6 +22,11 @@ class AuthenticatedPrincipal:
     organization_id: str | None
     session_id: str
     permissions: frozenset[str]
+    organization_ids: frozenset[str] = frozenset()
+    active_organization_id: str | None = None
+    task_id: str | None = None
+    project_permissions: tuple[tuple[str, frozenset[str]], ...] = ()
+    authentication_source: str = "local-principal"
 
 
 def _local_principal(request: Request) -> AuthenticatedPrincipal:
@@ -29,7 +35,8 @@ def _local_principal(request: Request) -> AuthenticatedPrincipal:
         user_id="local:single-user",
         organization_id=None,
         session_id=str(request.state.request_id),
-        permissions=frozenset({"memory:read", "memory:write", "memory:review"}),
+        permissions=frozenset({"memory:read", "memory:write", "memory:review", "memory:publish"}),
+        authentication_source="local-principal",
     )
 
 
@@ -77,9 +84,26 @@ def authenticated_principal(request: Request) -> AuthenticatedPrincipal:
     return principal
 
 
+def identity_context(request: Request) -> IdentityContext:
+    """Build the memory identity from authenticated session state only."""
+
+    principal = authenticated_principal(request)
+    return IdentityContext(
+        principal_id=principal.actor_id,
+        user_id=principal.user_id,
+        organization_ids=principal.organization_ids,
+        active_organization_id=principal.active_organization_id,
+        task_id=principal.task_id,
+        project_permissions=dict(principal.project_permissions),
+        session_id=principal.session_id,
+        authentication_source=principal.authentication_source,
+    )
+
+
 __all__ = [
     "AuthenticatedPrincipal",
     "authenticated_actor_id",
     "authenticated_principal",
+    "identity_context",
     "require_session_token",
 ]

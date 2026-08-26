@@ -19,7 +19,11 @@ from sqlalchemy import select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
-from eea_backend.models import KnowledgeEntryRecord, KnowledgeRecallAuditRecord
+from eea_backend.models import (
+    KnowledgeAuditRecord,
+    KnowledgeEntryRecord,
+    KnowledgeRecallAuditRecord,
+)
 
 
 def _to_entry(record: KnowledgeEntryRecord) -> KnowledgeEntry:
@@ -178,6 +182,7 @@ class SqlAlchemyKnowledgeRecallAuditRepository:
         scope_context: list[KnowledgeScope],
         result_ids: list[UUID],
         request_id: str,
+        commit: bool = True,
     ) -> UUID:
         from eea_core.entities import utc_now
 
@@ -200,11 +205,63 @@ class SqlAlchemyKnowledgeRecallAuditRepository:
                 request_id=request_id,
             )
         )
-        self._session.commit()
+        if commit:
+            self._session.commit()
+        return audit_id
+
+
+class SqlAlchemyKnowledgeAuditRepository:
+    """Append-only audit persistence shared by API and propagation workers."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(
+        self,
+        *,
+        entry_id: UUID | None,
+        project_id: UUID | None,
+        principal_id: str,
+        user_id: str,
+        session_id: str,
+        request_id: str,
+        action: str,
+        before: dict[str, object],
+        after: dict[str, object],
+        reason: str,
+        commit: bool = False,
+    ) -> UUID:
+        from eea_core.entities import utc_now
+
+        audit_id = uuid4()
+        now = utc_now()
+        self._session.add(
+            KnowledgeAuditRecord(
+                id=str(audit_id),
+                schema_version="1.0",
+                revision=1,
+                created_at=now,
+                updated_at=now,
+                entity_metadata={},
+                project_id=str(project_id) if project_id else None,
+                entry_id=str(entry_id) if entry_id else None,
+                principal_id=principal_id,
+                user_id=user_id,
+                session_id=session_id,
+                request_id=request_id,
+                action=action,
+                before=before,
+                after=after,
+                reason=reason,
+            )
+        )
+        if commit:
+            self._session.commit()
         return audit_id
 
 
 __all__ = [
+    "SqlAlchemyKnowledgeAuditRepository",
     "SqlAlchemyKnowledgeEntryRepository",
     "SqlAlchemyKnowledgeRecallAuditRepository",
     "_to_entry",

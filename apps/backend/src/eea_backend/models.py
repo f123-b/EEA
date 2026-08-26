@@ -1300,6 +1300,30 @@ class KnowledgeRecallAuditRecord(CoreRecordMixin, Base):
     request_id: Mapped[str] = mapped_column(String(200), nullable=False)
 
 
+class KnowledgeAuditRecord(CoreRecordMixin, Base):
+    """Append-only audit trail for memory mutations and derived transitions."""
+
+    __tablename__ = "knowledge_audits"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        Index("ix_knowledge_audits_entry_created", "entry_id", "created_at"),
+        Index("ix_knowledge_audits_project_created", "project_id", "created_at"),
+    )
+
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    entry_id: Mapped[str | None] = mapped_column(
+        ForeignKey("knowledge_entries.id"), nullable=True, index=True
+    )
+    principal_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    session_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    action: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    before: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    after: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class PatchProposalRecord(CoreRecordMixin, Base):
     """Review metadata for a proposed source mutation."""
 
