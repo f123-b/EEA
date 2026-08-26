@@ -523,7 +523,6 @@ def create_import(
     request: Request,
     session: SessionDependency,
 ) -> ApiEnvelope[dict[str, object]]:
-    principal = authenticated_principal(request)
     import_id = uuid4()
     staging = _staging_path(request, import_id, 1)
     now = utc_now()
@@ -545,7 +544,7 @@ def create_import(
         issues=[],
         summary={},
         scan_result={"stages": [], "build_executed": False},
-        created_by=principal.actor_id,
+        created_by=authenticated_actor_id(request),
     )
     session.add(row)
     session.commit()
