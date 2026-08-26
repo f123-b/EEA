@@ -5,18 +5,27 @@ the frozen documentation changelogs under `docs/`.
 
 ## [Unreleased]
 
-Current development milestone: `M23R` (Knowledge / Release / Milestone Hardening), product
-development version `1.3.1.dev23`. M24 is not started.
+Current closeout milestone: `M22R` (final CI and milestone landing preparation), product
+development version `1.3.1.dev23`. M23R follow-up and M24 are not started in this closeout.
 
 ### Added
+
+- M22R final implementation CI is green at `0dee9bbebea61bcc79b6a5e4534d6a5d0c5554f8`.
+  Push CI `32952283021` and Draft PR CI `32952288652` passed backend, desktop web/Tauri,
+  Playwright/UI, package smoke, M19/M20/M21 release gates, Windows NSIS, Linux AppImage, release
+  manifest validation, and secret scanning. Final backend evidence is **527 passed, 27 skipped**,
+  with **82.09%** coverage. The push-run release manifest contains the required artifacts and
+  SHA256 checksums: AppImage `0ca065d4b900932ac45d97f2df3e8e257d2e126cf84664ccd652a0ec47bd078e`
+  and NSIS `f7b3d78b6f4829a0e822676bb09a8674728346dda32d7889e9ed8609c493ef10`. PR #15 remains
+  Draft/Open; no merge was performed.
 
 - M22R closes the existing-project import follow-up with deterministic STM32CubeMX `.ioc`, KiCad
   S-expression, and CAN DBC parser candidates; durable evidence-linked candidate/review/conflict
   rows in migration `0036_m22r_import_candidates`; CAS-protected candidate review, preview, and
   candidate-only Claim/HardwareIR/MCUConfigIR/ProtocolIR apply; structured rescan added/modified/
   removed/unchanged buckets; DependencyGraph Changed/Affected/Stale/Blocked impact output; and
-  native Tauri folder/archive dialogs with deny-by-default dialog permission. M22R remains local
-  until the final branch/PR delivery action is explicitly authorized.
+  native Tauri folder/archive dialogs with deny-by-default dialog permission. M22R final CI is
+  closed; delivery remains subject to human review and explicit landing action.
 
 - M23R hardening establishes the milestone metadata SSOT in
   `apps/backend/src/eea_backend/version.py`, records explicit M21/M22/M23 boundaries, exposes a
