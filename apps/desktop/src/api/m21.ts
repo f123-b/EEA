@@ -105,6 +105,23 @@ export function createM21Api(client: BackendClient) {
     createImport: (payload: JsonRecord) => post<JsonRecord>("/api/v1/imports", payload),
     getImport: (importId: string) => get<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}`),
     scanImport: (importId: string) => post<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/scan`, {}),
+    listImportCandidates: (importId: string) =>
+      get<JsonRecord[]>(`/api/v1/imports/${encodeURIComponent(importId)}/candidates`),
+    reviewImportCandidate: (importId: string, candidateId: string, payload: JsonRecord) =>
+      patch<JsonRecord>(
+        `/api/v1/imports/${encodeURIComponent(importId)}/candidates/${encodeURIComponent(candidateId)}`,
+        payload,
+      ),
+    previewImportCandidates: (importId: string, payload: JsonRecord) =>
+      post<JsonRecord[]>(
+        `/api/v1/imports/${encodeURIComponent(importId)}/candidates/apply/preview`,
+        payload,
+      ),
+    applyImportCandidates: (importId: string, payload: JsonRecord) =>
+      post<JsonRecord>(
+        `/api/v1/imports/${encodeURIComponent(importId)}/candidates/apply`,
+        payload,
+      ),
     reviewImportFinding: (importId: string, findingId: string, payload: JsonRecord) =>
       patch<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/findings/${encodeURIComponent(findingId)}`, payload),
     reviewImport: (importId: string, payload: JsonRecord) =>
