@@ -26,6 +26,8 @@ from eea_core.errors import EngineeringError
 from eea_core.sandbox import SafePath, SandboxPolicy
 from eea_core.source import source_file_manifest, source_manifest_hash
 
+from eea_application.import_parsers import parse_dbc, parse_ioc, parse_kicad
+
 
 class ImportSourceType(StrEnum):
     LOCAL_FOLDER = "LOCAL_FOLDER"
@@ -309,6 +311,42 @@ def scan_import(
         raise _error(EngineeringErrorCode.RESOURCE_LIMIT_EXCEEDED, "Import contains too many files")
     text_files = _text_files(files)
     names = set(files)
+    parser_candidates: list[dict[str, object]] = []
+    parser_stages: list[dict[str, object]] = []
+    for path, text in sorted(text_files.items()):
+        lower_path = path.lower()
+        if lower_path.endswith(".ioc"):
+            parsed = parse_ioc(text, source_file=path)
+        elif lower_path.endswith((".kicad_sch", ".kicad_pcb")):
+            parsed = parse_kicad(text, source_file=path)
+        elif lower_path.endswith(".dbc"):
+            parsed = parse_dbc(text, source_file=path)
+        else:
+            continue
+        parser_stages.append(
+            {
+                "parser_name": parsed.parser_name,
+                "parser_version": parsed.parser_version,
+                "source_file": path,
+                "status": parsed.status,
+                "candidate_count": len(parsed.candidates),
+                "warnings": list(parsed.warnings),
+            }
+        )
+        for item in parsed.candidates:
+            parsed_candidate = item.as_dict()
+            parser_candidates.append(parsed_candidate)
+            parser_candidates.append(
+                {
+                    **parsed_candidate,
+                    "candidate_type": "CLAIM",
+                    "semantic_key": f"claim:{item.candidate_type}:{item.semantic_key}",
+                    "proposed_value": {
+                        "claim_type": item.candidate_type,
+                        "value": item.proposed_value,
+                    },
+                }
+            )
     findings: list[dict[str, object]] = []
     seen: set[str] = set()
 
@@ -629,6 +667,8 @@ def scan_import(
         "findings": findings,
         "issues": issues,
         "candidates": {"hardware": hardware_candidates, "protocol": protocol_candidates},
+        "normalized_candidates": parser_candidates,
+        "parser_stages": parser_stages,
         "classifications": classifications,
         "modules": module_graph,
         "dependency_edges": [
