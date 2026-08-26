@@ -72,7 +72,7 @@ from eea_backend.models import (
 )
 from eea_backend.repositories import SqlAlchemyProjectRepository
 from eea_backend.schemas import ApiEnvelope
-from eea_backend.security import authenticated_principal
+from eea_backend.security import authenticated_actor_id
 from eea_backend.source_repositories import SqlAlchemySourceRepository
 
 router = APIRouter()
@@ -596,7 +596,7 @@ def scan_existing_import(
         scan_revision=scan_revision,
         file_manifest=cast(dict[str, str], result["file_manifest"]),
         candidates=cast(list[dict[str, object]], result.get("normalized_candidates", [])),
-        actor_id=authenticated_principal(request).actor_id,
+        actor_id=authenticated_actor_id(request),
     )
     _save_scan(row, result, resolved_commit=materialized.resolved_commit, staging_path=staging)
     session.commit()
@@ -727,7 +727,7 @@ def review_import_candidate(
         candidate_id=candidate_id,
         expected_revision=payload.expected_revision,
         action=payload.action.value,
-        actor_id=authenticated_principal(request).actor_id,
+        actor_id=authenticated_actor_id(request),
         value=payload.value,
         note=payload.note,
     )
@@ -1003,7 +1003,7 @@ def rescan_import(
         scan_revision=next_revision,
         file_manifest=cast(dict[str, str], result["file_manifest"]),
         candidates=cast(list[dict[str, object]], result.get("normalized_candidates", [])),
-        actor_id=authenticated_principal(request).actor_id,
+        actor_id=authenticated_actor_id(request),
     )
     result["normalized_candidates"] = next_candidates
     diff = _rescan_diff(
