@@ -75,6 +75,73 @@ def test_local_import_review_workspace_and_rescan(client: TestClient, tmp_path: 
     rescan_data = rescanned.json()["data"]
     assert rescan_data["source_revision"]["id"] != first_revision
     assert rescan_data["rescan_diff"]["summary"]["MODIFIED"] >= 1
+    assert {
+        "added",
+        "modified",
+        "removed",
+        "unchanged",
+    }.issubset(rescan_data["rescan_diff"])
+    assert {
+        "changed",
+        "affected",
+        "stale",
+        "blocked",
+    }.issubset(rescan_data["rescan_diff"]["dependency_impact"])
+
+
+def test_m22r_candidates_are_evidenced_reviewed_and_applied_with_cas(
+    client: TestClient, tmp_path: Path
+) -> None:
+    source = tmp_path / "m22r-candidate"
+    source.mkdir()
+    (source / "board.ioc").write_text(
+        "Mcu.Name=STM32G431CBUx\nMcu.Package=LQFP48\n", encoding="utf-8"
+    )
+    created = client.post(
+        "/api/v1/imports",
+        json={"source_type": "LOCAL_FOLDER", "source_path": str(source)},
+    )
+    assert created.status_code == 201
+    import_id = created.json()["data"]["id"]
+
+    scanned = client.post(f"/api/v1/imports/{import_id}/scan")
+    assert scanned.status_code == 200
+    candidates = scanned.json()["data"]["normalized_candidates"]
+    assert candidates
+    candidate = next(item for item in candidates if item["semantic_key"].endswith("ioc.mcu"))
+    assert candidate["status"] == "DETECTED"
+    assert candidate["evidence_ids"]
+
+    reviewed = client.patch(
+        f"/api/v1/imports/{import_id}/candidates/{candidate['id']}",
+        json={"expected_revision": candidate["revision"], "action": "ACCEPT"},
+    )
+    assert reviewed.status_code == 200
+    accepted = reviewed.json()["data"]
+    assert accepted["status"] == "ACCEPTED_CANDIDATE"
+
+    stale = client.patch(
+        f"/api/v1/imports/{import_id}/candidates/{candidate['id']}",
+        json={"expected_revision": candidate["revision"], "action": "REJECT"},
+    )
+    assert stale.status_code == 409
+
+    workspace = client.post(f"/api/v1/imports/{import_id}/create-workspace")
+    assert workspace.status_code == 201
+    current = next(
+        item
+        for item in client.get(f"/api/v1/imports/{import_id}/candidates").json()["data"]
+        if item["id"] == candidate["id"]
+    )
+    applied = client.post(
+        f"/api/v1/imports/{import_id}/candidates/apply",
+        json={
+            "candidate_ids": [candidate["id"]],
+            "expected_revisions": {candidate["id"]: current["revision"]},
+        },
+    )
+    assert applied.status_code == 200
+    assert applied.json()["data"]["results"][0]["status"] == "APPLIED"
 
 
 def test_archive_import_rejects_traversal(client: TestClient, tmp_path: Path) -> None:
@@ -91,6 +158,29 @@ def test_archive_import_rejects_traversal(client: TestClient, tmp_path: Path) ->
     scanned = client.post(f"/api/v1/imports/{import_id}/scan")
     assert scanned.status_code == 400
     assert scanned.json()["error"]["code"] == "ARCHIVE_UNSAFE"
+
+
+def test_import_scan_never_executes_imported_scripts(client: TestClient, tmp_path: Path) -> None:
+    source = tmp_path / "untrusted-build"
+    source.mkdir()
+    marker = tmp_path / "should-not-exist"
+    (source / "CMakeLists.txt").write_text(
+        f'execute_process(COMMAND python -c "open(\\"{marker}\\", \\"w\\").write(\\"bad\\")")',
+        encoding="utf-8",
+    )
+    (source / "build.py").write_text(
+        f'from pathlib import Path\nPath(r"{marker}").write_text("bad")',
+        encoding="utf-8",
+    )
+    created = client.post(
+        "/api/v1/imports",
+        json={"source_type": "LOCAL_FOLDER", "source_path": str(source)},
+    )
+    import_id = created.json()["data"]["id"]
+    scanned = client.post(f"/api/v1/imports/{import_id}/scan")
+    assert scanned.status_code == 200
+    assert scanned.json()["data"]["build_executed"] is False
+    assert not marker.exists()
 
 
 def test_import_workspaces_are_project_isolated(client: TestClient, tmp_path: Path) -> None:

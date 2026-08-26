@@ -38,3 +38,9 @@
 ## Acceptance status
 
 The vertical slice covers the core M22 import safety and review flow. Final M22 closure still requires a deeper parser-backed KiCad/.ioc/resource candidate review, a production-native Tauri folder/archive picker, and explicit diff/impact presentation for rescan changes.
+
+## M22R follow-up
+
+The former follow-up items are implemented locally by M22R. The parser-backed candidate, review,
+apply, conflict, rescan-impact, and native folder/archive-picker contracts are covered in
+`reports/M22R/TEST_REPORT.md`; the original vertical-slice counts above remain historical.

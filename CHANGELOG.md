@@ -10,6 +10,14 @@ development version `1.3.1.dev23`. M24 is not started.
 
 ### Added
 
+- M22R closes the existing-project import follow-up with deterministic STM32CubeMX `.ioc`, KiCad
+  S-expression, and CAN DBC parser candidates; durable evidence-linked candidate/review/conflict
+  rows in migration `0036_m22r_import_candidates`; CAS-protected candidate review, preview, and
+  candidate-only Claim/HardwareIR/MCUConfigIR/ProtocolIR apply; structured rescan added/modified/
+  removed/unchanged buckets; DependencyGraph Changed/Affected/Stale/Blocked impact output; and
+  native Tauri folder/archive dialogs with deny-by-default dialog permission. M22R remains local
+  until the final branch/PR delivery action is explicitly authorized.
+
 - M23R hardening establishes the milestone metadata SSOT in
   `apps/backend/src/eea_backend/version.py`, records explicit M21/M22/M23 boundaries, exposes a
   backend-owned `WorkflowDescriptor`, and adds the authority/freshness/promotion closure work.

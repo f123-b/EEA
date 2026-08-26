@@ -4,8 +4,8 @@ from pathlib import Path
 
 from eea_backend.main import create_app
 from eea_backend.settings import Settings
-from fastapi.testclient import TestClient
 from eea_backend.version import CURRENT_MILESTONE, __version__
+from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 
