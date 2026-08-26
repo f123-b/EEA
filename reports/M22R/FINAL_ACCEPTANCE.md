@@ -2,9 +2,11 @@
 
 IDENTITY
 
-- Starting HEAD: `988ef4d530ed1e1e8b5786e1bd7095fab87b6f6e`
+- Final implementation verification HEAD: `0dee9bbebea61bcc79b6a5e4534d6a5d0c5554f8`
 - Branch: `codex/m21-desktop-ui-vertical-slice`
 - PR #15: Draft/Open, not merged
+- Push CI: `32952283021` (green)
+- Draft PR CI: `32952288652` (green)
 
 M22R IMPLEMENTATION
 
@@ -21,11 +23,13 @@ M22R IMPLEMENTATION
 
 MILESTONE STATE
 
-- M21: implemented; PR #15 remains open/draft
-- M22: implemented vertical slice
-- M22R: implemented locally; final remote CI and delivery review pending
-- M23: existing implementation retained and regression-tested
-- M24: not started
+- M21: `67c7e3e` -> `92758c1`, implemented development boundary; PR #15 remains open/draft
+- M22: `92758c1` -> `fe1254d`, implemented vertical slice
+- M23: `fe1254d` -> `7726a32`, `IMPLEMENTED_CORE` only
+- M22R: `dfdaf8d` -> `0dee9bb`, final required CI green
+- M23R: not processed in this closeout; M24: not started
 
-READY_FOR_M22_FINAL_REVIEW: YES (local gates)
-APPROVED_TO_MERGE: NO (requires explicit delivery action and final remote CI)
+M22R_FINAL_CI_GATE: PASS
+READY_FOR_HUMAN_REVIEW: YES
+PR15_DIRECT_MERGE_RECOMMENDED: NO
+APPROVED_TO_MERGE: NO

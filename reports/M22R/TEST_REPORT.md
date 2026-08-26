@@ -3,8 +3,8 @@
 ## Scope
 
 M22R closes the parser-backed Existing Project Import boundary without executing imported build,
-test, install, or code-generation scripts. The implementation is based on local HEAD
-`988ef4d530ed1e1e8b5786e1bd7095fab87b6f6e` and adds migration `0036_m22r_import_candidates`.
+test, install, or code-generation scripts. The final implementation code was verified at
+`0dee9bbebea61bcc79b6a5e4534d6a5d0c5554f8` and adds migration `0036_m22r_import_candidates`.
 
 ## Verified contracts
 
@@ -27,15 +27,29 @@ test, install, or code-generation scripts. The implementation is based on local 
 | Check | Result |
 |---|---|
 | M22/M22R/M23 focused tests | **15 passed**, 1 warning |
-| Full pytest | **523 passed, 31 skipped, 13 warnings** |
-| Coverage | **82.30%**, above the configured 80% gate |
+| Final CI pytest | **527 passed, 27 skipped, 13 warnings** |
+| Final CI coverage | **82.09%**, above the configured 80% gate |
 | Mypy | **161 source files passed** |
 | Ruff / format | **Passed** repository check and format check |
 | Alembic clean upgrade/check | **Passed** on a temporary clean database |
 | OpenAPI export/check | **Passed** |
 | Desktop typecheck/lint/unit tests | **Passed**, 8 unit tests |
 | Desktop production build | **Passed** |
-| Targeted Playwright M22R flow | **1 passed** |
-| Tauri cargo check/test | **Passed**, 3 Rust tests |
-| Tauri MSI bundle | **Passed** with CI-only numeric version/icon override; default all-target build still has the pre-existing dev-version/NSIS packaging limitation |
-| Remote CI on final local HEAD | Not run; final commits are not pushed |
+| Playwright UI release flow | **2 passed** in `desktop-ui-test`; **1 passed** in `m21-ui-release` |
+| Tauri cargo check/test/build | **Passed**, 3 Rust tests |
+| Desktop package smoke | **Passed**, bundled backend and renderer reached ready |
+| Release packaging | **Passed**, Windows NSIS and Linux AppImage |
+
+## Final CI evidence
+
+- Push CI `32952283021` and Draft PR CI `32952288652` both completed successfully at the final
+  implementation HEAD above.
+- Required jobs passed: `backend`, `desktop-web`, `desktop-tauri`, `desktop-ui-test`,
+  `desktop-package-smoke`, `m19-release`, `m20-release`, `m21-ui-release`, both release build
+  matrix entries, and `desktop-release-artifact`.
+- The push-run release manifest is bound to `0dee9bb` and reports:
+  - Linux AppImage: `125946360` bytes,
+    `0ca065d4b900932ac45d97f2df3e8e257d2e126cf84664ccd652a0ec47bd078e`
+  - Windows NSIS: `27366034` bytes,
+    `f7b3d78b6f4829a0e822676bb09a8674728346dda32d7889e9ed8609c493ef10`
+- The release-size report has no previous baseline; this is a manual-review warning only.
