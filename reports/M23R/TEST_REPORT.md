@@ -1,47 +1,43 @@
-# M23R Test Report
+# M23R Test Report (implementation closeout)
 
 ## Scope
 
-M23R closes the M23 Knowledge / Memory hardening boundary: backend-owned identity and verification
-authority, freshness and conflict reconciliation, M22 rescan diffs and reviewed-finding promotion,
-explicit desktop data states, workflow descriptor exposure, milestone SSOT, and generated contract
-alignment.
+M23R closes the M23 Knowledge / Memory trust boundary: backend-owned identity and verification
+authority, freshness and conflict reconciliation, canonical change propagation, append-only audit,
+revision CAS, explicit desktop provenance/history states, and generated contract alignment.
 
-Base implementation: `7726a328c8a991840bff00a337c97e8f28da4e9c`.
-M23R implementation boundary: `42bc9e4`.
+Base implementation: `36ae9eb364fa499f9a227cb31f6d8e9dcb6f6924`.
+M23R implementation boundary: the final commit containing this report.
 
 ## Local evidence
 
 | Check | Result |
 |---|---|
-| `py -3.12 -m pytest -q --no-cov` | **517 passed, 31 skipped, 13 warnings** |
-| Coverage report | **81% total**, above the configured 80% gate |
-| Focused M23/M22/API/version suite | **20 passed**; the full suite above also covers the final rescan assertion |
-| `py -3.12 -m mypy` | **Passed**, 155 source files |
-| Ruff check on changed backend/application/tests | **Passed** |
-| Ruff format check on changed Python files | **Passed** |
-| Desktop typecheck | **Passed** |
-| Desktop lint | **Passed** |
-| Desktop unit tests | **Passed**, 8 tests |
-| OpenAPI export check | **Passed** |
-| TypeScript contract export check | **Passed** |
-| Clean Alembic upgrade/downgrade/upgrade and `alembic check` | **Passed** on a temporary clean database |
+| Focused M23R suite | **10 passed** locally |
+| Full pytest | **527 passed, 31 skipped**, 13 non-failing warnings |
+| Coverage report | **82.41%** (80% threshold reached) |
+| `mypy` | **Passed**, 163 source files |
+| Ruff check / format | **Passed** (`ruff check .`, `ruff format --check .`) |
+| Desktop typecheck / lint / unit tests | **Passed**; 8 unit tests |
+| OpenAPI export and consistency | **Passed** |
+| TypeScript contract export and consistency | **Passed** |
+| Clean Alembic upgrade and `alembic check` | **Passed** on a temporary clean database |
 | Default `.eea/eea.db` Alembic check | **Environmental issue**: local DB references unknown historical revision `0028_m18d_hardware_commissioning_safety`; the DB was not modified |
-| Tauri native build | Not run in this closeout |
-| Remote CI / GitHub PR checks | Not run or mutated in this local closeout |
+| Tauri native build / Playwright UI | **Passed**: cargo check, 3 Rust tests, NSIS bundle, and 3 UI tests |
+| Remote CI / GitHub PR checks | Pending final push |
 
 The pytest warnings are existing collection/deprecation warnings plus the intentional archive test
 warning; they do not fail the configured suite.
 
 ## Migration and contract result
 
-- Latest migration remains `0035_m23_knowledge_memory`.
+- Latest migration is `0037_m23r_memory_trust_closure`.
 - No historical migration was modified.
-- No new M23R migration was required.
+- M23R adds the append-only `knowledge_audits` table and synchronizes the persisted error catalog.
 - `schemas/openapi.json` is synchronized with the backend routes and response fields.
 
 ## Acceptance decision
 
-- P0: none identified.
-- P1 in the requested M23R scope: cleared by the local gates above.
+- Current state: **IN_PROGRESS** until exact-head remote CI is recorded.
+- P0/P1: none identified in the focused M23R tests so far.
 - M24: not started.
