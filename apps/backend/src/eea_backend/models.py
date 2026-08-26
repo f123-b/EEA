@@ -1214,6 +1214,8 @@ class ImportConflictRecord(CoreRecordMixin, Base):
     )
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class KnowledgeEntryRecord(CoreRecordMixin, Base):
     """M23 structured memory; canonical claims and evidence stay referenced, not copied."""
 
