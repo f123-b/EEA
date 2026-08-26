@@ -7,6 +7,13 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M22R closes the existing-project import follow-up with deterministic STM32CubeMX `.ioc`, KiCad
+  S-expression, and CAN DBC parser candidates; durable evidence-linked candidate/review/conflict
+  rows in migration `0036_m22r_import_candidates`; CAS-protected candidate review, preview, and
+  candidate-only Claim/HardwareIR/MCUConfigIR/ProtocolIR apply; structured rescan added/modified/
+  removed/unchanged buckets; DependencyGraph Changed/Affected/Stale/Blocked impact output; and
+  native Tauri folder/archive dialogs with deny-by-default dialog permission. M22R remains local
+ until the final branch/PR delivery action is explicitly authorized.
 - M22 Existing Project Import vertical slice is implemented on the M21 desktop branch. Added durable
   import sessions and migration `0034_m22_existing_project_import`, isolated Local Folder/Git/Archive
   materialization, non-executing scan stages, confidence/source/evidence findings, `.ioc` mismatch
