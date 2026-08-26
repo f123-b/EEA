@@ -5,10 +5,18 @@ the frozen documentation changelogs under `docs/`.
 
 ## [Unreleased]
 
-Current closeout milestone: `M22R` (final CI and milestone landing preparation), product
-development version `1.3.1.dev23`. M23R follow-up and M24 are not started in this closeout.
+Current closeout milestone: `M23R` (Knowledge & Memory trust closure), product development
+version `1.3.1.dev23`. M24 is not started.
 
 ### Added
+
+- M23R adds a server-owned `IdentityContext`, fail-closed user/project/organization/task scope
+  authorization, backend-only verification provenance, conservative trust/freshness derivation,
+  lifecycle transition policy, append-only Knowledge audit records, revision CAS for memory and
+  evidence mutations, exact canonical propagation events (`ClaimChanged`, `ClaimConflictOpened`,
+  `ClaimConflictResolved`, `EvidenceInvalidated`, `EvidenceSuperseded`, and
+  `SourceRevisionChanged`), conflict/evidence lifecycle APIs, and desktop provenance/history
+  filtering. PR #15 remains Draft/Open and no merge is performed.
 
 - M22R final implementation CI is green at `0dee9bbebea61bcc79b6a5e4534d6a5d0c5554f8`.
   Push CI `32952283021` and Draft PR CI `32952288652` passed backend, desktop web/Tauri,
