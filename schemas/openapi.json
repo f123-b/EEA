@@ -3243,6 +3243,84 @@
         "title": "CircuitValidationData",
         "type": "object"
       },
+      "ClaimConflictCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "claim_a_id": {
+            "format": "uuid",
+            "title": "Claim A Id",
+            "type": "string"
+          },
+          "claim_b_id": {
+            "format": "uuid",
+            "title": "Claim B Id",
+            "type": "string"
+          },
+          "conflict_type": {
+            "$ref": "#/components/schemas/ClaimConflictType",
+            "default": "VALUE_MISMATCH"
+          },
+          "overlapping_applicability": {
+            "additionalProperties": true,
+            "title": "Overlapping Applicability",
+            "type": "object"
+          },
+          "reason": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "resolver": {
+            "default": "manual-review",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Resolver",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_a_id",
+          "claim_b_id",
+          "reason"
+        ],
+        "title": "ClaimConflictCreateRequest",
+        "type": "object"
+      },
+      "ClaimConflictResolveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "selected_claim_id": {
+            "format": "uuid",
+            "title": "Selected Claim Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "expected_revision",
+          "selected_claim_id",
+          "reason"
+        ],
+        "title": "ClaimConflictResolveRequest",
+        "type": "object"
+      },
       "ClaimConflictStatus": {
         "enum": [
           "OPEN",
@@ -6888,6 +6966,9 @@
           "RESOURCE_BUSY",
           "BUDGET_EXCEEDED",
           "KNOWLEDGE_SCOPE_DENIED",
+          "INVALID_MEMORY_TRANSITION",
+          "VERIFICATION_EVIDENCE_REQUIRED",
+          "ORGANIZATION_SCOPE_UNAVAILABLE",
           "REPOSITORY_UNTRUSTED",
           "JOB_CANCELLED",
           "SCHEMA_VERSION_UNSUPPORTED",
@@ -7788,6 +7869,46 @@
           "summary"
         ],
         "title": "EvidenceData",
+        "type": "object"
+      },
+      "EvidenceLifecycleRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "replacement_evidence_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replacement Evidence Id"
+          }
+        },
+        "required": [
+          "project_id",
+          "expected_revision",
+          "reason"
+        ],
+        "title": "EvidenceLifecycleRequest",
         "type": "object"
       },
       "EvidenceType": {
@@ -10444,6 +10565,137 @@
         "title": "MemoryEntryCreateRequest",
         "type": "object"
       },
+      "MemoryEntryUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "applicability": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applicability"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KnowledgeScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref"
+          },
+          "source_version": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Version"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "maxLength": 12000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "task_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Ref"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "project_id",
+          "expected_revision"
+        ],
+        "title": "MemoryEntryUpdateRequest",
+        "type": "object"
+      },
       "MemoryLayout": {
         "additionalProperties": false,
         "properties": {
@@ -10477,6 +10729,11 @@
             "minLength": 1,
             "title": "Actor Ref",
             "type": "string"
+          },
+          "include_non_active": {
+            "default": false,
+            "title": "Include Non Active",
+            "type": "boolean"
           },
           "limit": {
             "default": 20,
@@ -16384,6 +16641,65 @@
         ]
       }
     },
+    "/api/v1/claims/conflicts/{conflict_id}/resolve": {
+      "post": {
+        "operationId": "resolve_claim_conflict_api_v1_claims_conflicts__conflict_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conflict_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conflict Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimConflictResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Resolve Claim Conflict",
+        "tags": [
+          "claims",
+          "knowledge-memory"
+        ]
+      }
+    },
     "/api/v1/claims/{claim_id}/lifecycle": {
       "post": {
         "operationId": "mutate_claim_lifecycle_api_v1_claims__claim_id__lifecycle_post",
@@ -18522,6 +18838,62 @@
         "tags": [
           "knowledge-memory"
         ]
+      },
+      "patch": {
+        "operationId": "update_memory_entry_api_v1_memory_entries__entry_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryEntryUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Memory Entry",
+        "tags": [
+          "knowledge-memory"
+        ]
       }
     },
     "/api/v1/memory/entries/{entry_id}/review": {
@@ -19886,6 +20258,65 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/claims/conflicts": {
+      "post": {
+        "operationId": "open_claim_conflict_api_v1_projects__project_id__claims_conflicts_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimConflictCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Open Claim Conflict",
+        "tags": [
+          "claims",
+          "knowledge-memory"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/commissioning/profiles": {
       "get": {
         "operationId": "list_commissioning_profiles_api_v1_projects__project_id__commissioning_profiles_get",
@@ -21114,6 +21545,144 @@
         "summary": "Get Evidence",
         "tags": [
           "evidence"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/evidence/{evidence_id}/invalidate": {
+      "post": {
+        "operationId": "invalidate_evidence_api_v1_projects__project_id__evidence__evidence_id__invalidate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "evidence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Evidence Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceLifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Invalidate Evidence",
+        "tags": [
+          "evidence",
+          "knowledge-memory"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/evidence/{evidence_id}/supersede": {
+      "post": {
+        "operationId": "supersede_evidence_api_v1_projects__project_id__evidence__evidence_id__supersede_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "evidence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Evidence Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceLifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Supersede Evidence",
+        "tags": [
+          "evidence",
+          "knowledge-memory"
         ]
       }
     },

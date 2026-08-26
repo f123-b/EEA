@@ -94,6 +94,8 @@ pre { max-width: 100%; overflow: auto; }
 .memory-result small { color: var(--text-muted); font-size: 0.62rem; }
 .memory-result-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .memory-empty { margin: 0.7rem 0 0; }
+.memory-history-toggle { display: flex; align-items: center; gap: 0.4rem; color: var(--text-muted); font-size: 0.65rem; }
+.memory-provenance { display: grid; gap: 0.15rem; margin-top: 0.35rem; }
 .error-text { color: var(--danger); }
 .panel-title { justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .panel-title h2 { margin: 0.22rem 0 0; font-size: 1rem; }
