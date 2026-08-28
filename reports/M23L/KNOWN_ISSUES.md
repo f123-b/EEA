@@ -10,5 +10,8 @@
 - The local Windows MSI target rejects the existing nonnumeric `dev` prerelease
   segment; the required Windows NSIS and Linux AppImage CI artifacts remain the
   release contract.
+- GitHub's CI annotations report that Node.js 20-targeting actions are being
+  forced onto Node.js 24. This is a non-blocking warning; the final synchronized
+  PR #18 workflow completed successfully at the exact final head.
 
 No P0/P1 product or security issue is known after the landing repairs.

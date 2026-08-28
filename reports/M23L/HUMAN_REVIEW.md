@@ -44,3 +44,10 @@
 - [ ] CAS
 
 Human review and explicit per-PR landing confirmation remain required.
+
+Automated preflight is complete: PR #16 final-head CI passed at
+`d345b833f1d7db9879399724071b601a7a399b0a`, PR #17 final-head CI passed at
+`a09cd1ab9e4279dfa3c17bb391b643840df214c2`, and synchronized PR #18 final-head
+CI passed at `0766ae14c2f3debc17b4c4d9959eb72a29be9153`. This checklist is
+still intentionally unchecked because human review and explicit sequential
+landing approval are required.
