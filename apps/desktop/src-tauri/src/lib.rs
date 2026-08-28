@@ -13,6 +13,7 @@ use std::os::unix::process::CommandExt;
 use getrandom::fill as fill_random;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_dialog::DialogExt;
 
 #[derive(Clone, Serialize)]
 pub struct RuntimeSession {
@@ -363,12 +364,37 @@ fn record_desktop_smoke_ready(
     Ok(true)
 }
 
+#[tauri::command]
+fn pick_import_folder(app: AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .set_title("Choose existing project folder")
+        .blocking_pick_folder()
+        .map(|path| path.to_string())
+}
+
+#[tauri::command]
+fn pick_import_archive(app: AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .set_title("Choose project archive")
+        .add_filter("Archives", &["zip", "tar", "gz", "tgz", "tar.gz"])
+        .blocking_pick_file()
+        .map(|path| path.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(RuntimeBoundary::default())
-        .invoke_handler(tauri::generate_handler![get_runtime_session, record_desktop_smoke_ready])
+        .invoke_handler(tauri::generate_handler![
+            get_runtime_session,
+            record_desktop_smoke_ready,
+            pick_import_folder,
+            pick_import_archive
+        ])
         .run(tauri::generate_context!())
         .expect("error while running EEA desktop application");
 }

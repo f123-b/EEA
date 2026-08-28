@@ -296,7 +296,7 @@ class SqlAlchemyTraceabilityRepository:
                     )
                 ),
             )
-            if result.rowcount == 1:
+            if isinstance(result, CursorResult) and result.rowcount == 1:
                 if commit:
                     self.session.commit()
                 refreshed = self.session.scalar(
@@ -521,7 +521,7 @@ class SqlAlchemyIssueRepository:
                     .values(evidence_ids=merged_evidence, affected_refs=merged_refs)
                 ),
             )
-            if evidence_result.rowcount != 1:
+            if not isinstance(evidence_result, CursorResult) or evidence_result.rowcount != 1:
                 self.session.refresh(existing)
                 self.session.execute(
                     update(IssueRecord)
@@ -580,7 +580,7 @@ class SqlAlchemyIssueRepository:
                 )
             ),
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             self.session.rollback()
             return None
         self.session.commit()

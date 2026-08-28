@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "M18E deny-by-default capability set; no filesystem, shell, process, HTTP, clipboard, or environment permissions.",
+  "description": "M22R deny-by-default capability set; native import dialogs are the only user-mediated file selection capability.",
   "windows": ["main"],
-  "permissions": ["core:default", "opener:default"]
+  "permissions": ["core:default", "opener:default", "dialog:default"]
 }

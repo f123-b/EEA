@@ -5,7 +5,33 @@ the frozen documentation changelogs under `docs/`.
 
 ## [Unreleased]
 
+Current closeout milestone: `M22R` (final CI and milestone landing preparation), product
+development version `1.3.1.dev23`. M23R follow-up and M24 are not started in this closeout.
 ### Added
+
+- M22R final implementation CI is green at `0dee9bbebea61bcc79b6a5e4534d6a5d0c5554f8`.
+  Push CI `32952283021` and Draft PR CI `32952288652` passed backend, desktop web/Tauri,
+  Playwright/UI, package smoke, M19/M20/M21 release gates, Windows NSIS, Linux AppImage, release
+  manifest validation, and secret scanning. Final backend evidence is **527 passed, 27 skipped**,
+  with **82.09%** coverage. The push-run release manifest contains the required artifacts and
+  SHA256 checksums: AppImage `0ca065d4b900932ac45d97f2df3e8e257d2e126cf84664ccd652a0ec47bd078e`
+  and NSIS `f7b3d78b6f4829a0e822676bb09a8674728346dda32d7889e9ed8609c493ef10`. PR #15 remains
+  Draft/Open; no merge was performed.
+
+- M22R closes the existing-project import follow-up with deterministic STM32CubeMX `.ioc`, KiCad
+  S-expression, and CAN DBC parser candidates; durable evidence-linked candidate/review/conflict
+  rows in landing migration `0038_m23l_m22r_import_candidates`; CAS-protected candidate review, preview, and
+  candidate-only Claim/HardwareIR/MCUConfigIR/ProtocolIR apply; structured rescan added/modified/
+  removed/unchanged buckets; DependencyGraph Changed/Affected/Stale/Blocked impact output; and
+  native Tauri folder/archive dialogs with deny-by-default dialog permission. M22R remains local
+ until the final branch/PR delivery action is explicitly authorized.
+- M22 Existing Project Import vertical slice is implemented on the M21 desktop branch. Added durable
+  import sessions and migration `0034_m22_existing_project_import`, isolated Local Folder/Git/Archive
+  materialization, non-executing scan stages, confidence/source/evidence findings, `.ioc` mismatch
+  issues, candidate HardwareIR/ProtocolIR outputs, Accept/Edit/Reject/Unknown review, project-scoped
+  Workspace creation, exact Git commit binding, and immutable SourceRevision rescan behavior. The
+  Desktop Projects page now opens a five-step Source → Scan → Understand → Review → Create Workspace
+  wizard. M22 remains `IMPLEMENTED_VERTICAL_SLICE`; final CI and deep parser/impact follow-up remain.
 
 - M21 Desktop release artifact upload and Chinese localization default are complete on
   `codex/m21-desktop-ui-vertical-slice`. The green artifact-producing runs are push CI

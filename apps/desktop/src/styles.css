@@ -94,6 +94,24 @@ pre { max-width: 100%; overflow: auto; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(18rem, 0.72fr); gap: 1rem; margin-bottom: 1rem; }
 .metric-grid, .planner-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.7rem; margin-bottom: 1rem; }
 .metric-card { min-width: 0; padding: 0.8rem; border: 1px solid var(--border); border-radius: 0.42rem; background: rgba(14, 27, 38, 0.78); }
+.import-wizard { max-width: 1120px; }
+.wizard-steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.4rem; margin-bottom: 1rem; }
+.wizard-step { display: flex; align-items: center; gap: 0.4rem; padding: 0.55rem; border-bottom: 2px solid var(--border); color: var(--dim); font-size: 0.7rem; }
+.wizard-step b { display: grid; place-items: center; width: 1.35rem; height: 1.35rem; border: 1px solid var(--border); border-radius: 50%; font-size: 0.65rem; }
+.wizard-step.active { border-color: var(--accent); color: var(--text); }
+.wizard-step.complete { border-color: var(--pass); color: var(--pass); }
+.wizard-step.complete b { border-color: var(--pass); }
+.wizard-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.2rem; }
+.segmented-control { display: flex; gap: 0.45rem; margin: 0.8rem 0 1.1rem; }
+.segmented-control button { padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 0.3rem; background: transparent; color: var(--dim); cursor: pointer; }
+.segmented-control button.selected { border-color: var(--accent); color: var(--text); background: rgba(71, 169, 255, 0.12); }
+.scan-contract { display: grid; grid-template-columns: 1fr auto; gap: 0.65rem; max-width: 360px; padding: 0.9rem; border: 1px solid var(--border); border-radius: 0.35rem; color: var(--dim); }
+.scan-contract strong { color: var(--pass); }
+.row-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
+.danger-button { padding: 0.45rem 0.65rem; border: 1px solid rgba(255, 110, 110, 0.5); border-radius: 0.3rem; background: transparent; color: #ff9a9a; cursor: pointer; }
+.success-callout { display: grid; gap: 0.45rem; margin: 1rem 0; padding: 1rem; border: 1px solid rgba(74, 215, 145, 0.5); border-radius: 0.4rem; color: var(--dim); }
+.success-callout strong { color: var(--text); font-size: 1.1rem; }
+@media (max-width: 850px) { .wizard-steps { grid-template-columns: 1fr; } .wizard-step { border-bottom-width: 1px; } .segmented-control { flex-wrap: wrap; } }
 .metric-label, .metric-detail { display: block; color: var(--dim); font-size: 0.62rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .metric-value { display: block; overflow: hidden; margin: 0.42rem 0 0.25rem; color: var(--text); font-size: 1.04rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .metric-pass { color: var(--teal); }

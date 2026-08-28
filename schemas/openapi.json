@@ -1861,6 +1861,34 @@
         "title": "ApiEnvelope[list[ComponentMaterializationData]]",
         "type": "object"
       },
+      "ApiEnvelope_list_dict_str__object___": {
+        "properties": {
+          "data": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "title": "ApiEnvelope[list[dict[str, object]]]",
+        "type": "object"
+      },
       "ArchitectureBundleData": {
         "properties": {
           "hardware": {
@@ -2614,6 +2642,77 @@
           }
         },
         "title": "CANTransportConfig",
+        "type": "object"
+      },
+      "CandidateApplyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Candidate Ids",
+            "type": "array"
+          },
+          "expected_revisions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Expected Revisions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "candidate_ids",
+          "expected_revisions"
+        ],
+        "title": "CandidateApplyRequest",
+        "type": "object"
+      },
+      "CandidateReviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ImportReviewAction"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "action"
+        ],
+        "title": "CandidateReviewRequest",
         "type": "object"
       },
       "CapacityProfileData": {
@@ -9050,6 +9149,177 @@
           "reason"
         ],
         "title": "ImpactPlanStep",
+        "type": "object"
+      },
+      "ImportCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "default": "desktop:m22",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Actor",
+            "type": "string"
+          },
+          "branch_tag_commit": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Tag Commit"
+          },
+          "project_description": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Project Description",
+            "type": "string"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          },
+          "repository_url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository Url"
+          },
+          "source_path": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Path"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/ImportSourceType"
+          }
+        },
+        "required": [
+          "source_type"
+        ],
+        "title": "ImportCreateRequest",
+        "type": "object"
+      },
+      "ImportReviewAction": {
+        "enum": [
+          "ACCEPT",
+          "EDIT",
+          "REJECT",
+          "UNKNOWN"
+        ],
+        "title": "ImportReviewAction",
+        "type": "string"
+      },
+      "ImportReviewBulkRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "decisions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ImportReviewRequest"
+            },
+            "title": "Decisions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "decisions"
+        ],
+        "title": "ImportReviewBulkRequest",
+        "type": "object"
+      },
+      "ImportReviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ImportReviewAction"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ImportReviewRequest",
+        "type": "object"
+      },
+      "ImportSourceType": {
+        "enum": [
+          "LOCAL_FOLDER",
+          "GIT_REPOSITORY",
+          "ARCHIVE"
+        ],
+        "title": "ImportSourceType",
+        "type": "string"
+      },
+      "ImportWorkspaceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "project_description": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Project Description",
+            "type": "string"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          }
+        },
+        "title": "ImportWorkspaceRequest",
         "type": "object"
       },
       "InterruptConfigIR": {
@@ -16784,6 +17054,618 @@
         "summary": "Local Identity",
         "tags": [
           "m18e"
+        ]
+      }
+    },
+    "/api/v1/imports": {
+      "post": {
+        "operationId": "create_import_api_v1_imports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Import",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}": {
+      "get": {
+        "operationId": "get_import_api_v1_imports__import_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Import",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/candidates": {
+      "get": {
+        "operationId": "get_import_candidates_api_v1_imports__import_id__candidates_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_list_dict_str__object___"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Import Candidates",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/candidates/apply": {
+      "post": {
+        "operationId": "apply_import_candidates_api_v1_imports__import_id__candidates_apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Apply Import Candidates",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/candidates/apply/preview": {
+      "post": {
+        "operationId": "preview_import_candidates_api_v1_imports__import_id__candidates_apply_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_list_dict_str__object___"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Import Candidates",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/candidates/{candidate_id}": {
+      "patch": {
+        "operationId": "review_import_candidate_api_v1_imports__import_id__candidates__candidate_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Review Import Candidate",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/create-workspace": {
+      "post": {
+        "operationId": "create_import_workspace_api_v1_imports__import_id__create_workspace_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ImportWorkspaceRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Import Workspace",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/findings/{finding_id}": {
+      "patch": {
+        "operationId": "review_import_finding_api_v1_imports__import_id__findings__finding_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Review Import Finding",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/rescan": {
+      "post": {
+        "operationId": "rescan_import_api_v1_imports__import_id__rescan_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Rescan Import",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/review": {
+      "post": {
+        "operationId": "review_import_api_v1_imports__import_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportReviewBulkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Review Import",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/{import_id}/scan": {
+      "post": {
+        "operationId": "scan_existing_import_api_v1_imports__import_id__scan_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Scan Existing Import",
+        "tags": [
+          "imports"
         ]
       }
     },

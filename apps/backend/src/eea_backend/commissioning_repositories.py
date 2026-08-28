@@ -425,7 +425,7 @@ class SqlAlchemyCommissioningRepository:
                 ),
             ),
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             self.session.rollback()
             return False
         if commit:
@@ -660,7 +660,7 @@ class SqlAlchemyCommissioningRepository:
                 )
             ),
         )
-        if result.rowcount != 1:
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             self.session.rollback()
             return False
         self.session.flush()

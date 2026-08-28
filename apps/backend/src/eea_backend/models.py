@@ -1079,6 +1079,138 @@ class SourceWorkspaceRecord(CoreRecordMixin, Base):
     active_mutation_expected_revision: Mapped[int | None] = mapped_column()
 
 
+class ImportSessionRecord(CoreRecordMixin, Base):
+    """Durable M22 import session; findings remain candidates until reviewed."""
+
+    __tablename__ = "import_sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "source_type IN ('LOCAL_FOLDER', 'GIT_REPOSITORY', 'ARCHIVE')",
+            name="source_type",
+        ),
+        CheckConstraint(
+            "status IN ('CREATED', 'SCANNED', 'REVIEWED', 'WORKSPACE_CREATED', 'FAILED')",
+            name="status",
+        ),
+        CheckConstraint("scan_revision >= 0", name="scan_revision_non_negative"),
+    )
+
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id"), nullable=True, index=True
+    )
+    source_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_locator: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    requested_ref: Mapped[str | None] = mapped_column(String(300))
+    resolved_commit: Mapped[str | None] = mapped_column(String(100))
+    staging_path: Mapped[str] = mapped_column(String(2000), nullable=False)
+    workspace_path: Mapped[str | None] = mapped_column(String(2000))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    scan_revision: Mapped[int] = mapped_column(nullable=False, default=0)
+    source_manifest_hash: Mapped[str | None] = mapped_column(String(64))
+    file_manifest: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    findings: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    issues: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    summary: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    scan_result: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ImportCandidateRecord(CoreRecordMixin, Base):
+    """Durable parser proposal; never a trusted canonical engineering fact."""
+
+    __tablename__ = "import_candidates"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            "status IN ('DETECTED', 'UNKNOWN', 'CONFLICTED', 'ACCEPTED_CANDIDATE', "
+            "'EDITED_CANDIDATE', 'REJECTED', 'APPLIED', 'STALE')",
+            name="status",
+        ),
+        CheckConstraint("confidence >= 0 AND confidence <= 1", name="confidence_range"),
+        UniqueConstraint(
+            "import_id",
+            "source_scan_revision",
+            "semantic_key",
+            name="uq_import_candidate_scan_key",
+        ),
+    )
+
+    import_id: Mapped[str] = mapped_column(
+        ForeignKey("import_sessions.id"), nullable=False, index=True
+    )
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    source_scan_revision: Mapped[int] = mapped_column(nullable=False)
+    source_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_revisions.id"), index=True
+    )
+    candidate_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    semantic_key: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    proposed_value: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(100), nullable=False)
+    source_ref: Mapped[str] = mapped_column(String(2000), nullable=False)
+    source_file: Mapped[str] = mapped_column(String(2000), nullable=False)
+    source_location: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    parser_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    parser_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    canonical_ref: Mapped[str | None] = mapped_column(String(500))
+    apply_revision: Mapped[int | None] = mapped_column()
+    apply_evidence: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class ImportReviewRecord(CoreRecordMixin, Base):
+    """Append-only review decision for one import candidate revision."""
+
+    __tablename__ = "import_candidate_reviews"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    import_id: Mapped[str] = mapped_column(
+        ForeignKey("import_sessions.id"), nullable=False, index=True
+    )
+    candidate_id: Mapped[str] = mapped_column(
+        ForeignKey("import_candidates.id"), nullable=False, index=True
+    )
+    expected_candidate_revision: Mapped[int] = mapped_column(nullable=False)
+    action: Mapped[str] = mapped_column(String(30), nullable=False)
+    from_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    to_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    value: Mapped[object | None] = mapped_column(JSON)
+    note: Mapped[str | None] = mapped_column(Text)
+    actor_id: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class ImportConflictRecord(CoreRecordMixin, Base):
+    """Explicit apply conflict; canonical entities are never silently overwritten."""
+
+    __tablename__ = "import_conflicts"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("status IN ('OPEN', 'RESOLVED', 'BLOCKED')", name="status"),
+    )
+
+    import_id: Mapped[str] = mapped_column(
+        ForeignKey("import_sessions.id"), nullable=False, index=True
+    )
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    candidate_id: Mapped[str] = mapped_column(
+        ForeignKey("import_candidates.id"), nullable=False, index=True
+    )
+    conflict_kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    canonical_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    canonical_ref: Mapped[str | None] = mapped_column(String(500))
+    before_value: Mapped[object | None] = mapped_column(JSON)
+    after_value: Mapped[object | None] = mapped_column(JSON)
+    source_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_revisions.id"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class PatchProposalRecord(CoreRecordMixin, Base):
     """Review metadata for a proposed source mutation."""
 

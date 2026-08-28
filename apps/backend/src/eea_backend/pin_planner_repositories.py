@@ -174,8 +174,8 @@ class SqlAlchemyPinPlanRepository:
                 evidence_ids=[str(value) for value in assignment.evidence_ids],
             )
         )
-        result = cast(CursorResult[Any], self._session.execute(statement))
-        if result.rowcount != 1:
+        result = self._session.execute(statement)
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             if commit:
                 self._session.rollback()
             return None
@@ -227,8 +227,8 @@ class SqlAlchemyPinPlanRepository:
                 released_at=utc_now(),
             )
         )
-        result = cast(CursorResult[Any], self._session.execute(statement))
-        if result.rowcount != 1:
+        result = self._session.execute(statement)
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
             if commit:
                 self._session.rollback()
             return False

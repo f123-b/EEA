@@ -37,6 +37,16 @@ export async function reportDesktopSmokeReady(): Promise<boolean> {
   return invoke<boolean>("record_desktop_smoke_ready");
 }
 
+/** Native, user-mediated source selection; the renderer never receives filesystem access. */
+export async function pickImportFolder(): Promise<string | null> {
+  return invoke<string | null>("pick_import_folder");
+}
+
+/** Native, user-mediated archive selection; manual path entry remains available in web mode. */
+export async function pickImportArchive(): Promise<string | null> {
+  return invoke<string | null>("pick_import_archive");
+}
+
 /**
  * Renderer E2E/dev path. Production desktop sessions still come only from Tauri IPC;
  * this opt-in path requires both values at build time and never persists the token.
