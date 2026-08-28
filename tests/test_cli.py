@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from eea_backend.version import __version__
 from eea_cli.main import app
 from sqlalchemy import create_engine, inspect
 from typer.testing import CliRunner
