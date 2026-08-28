@@ -274,27 +274,24 @@ class SqlAlchemyTraceabilityRepository:
                 set(existing.evidence_ids) | {str(item) for item in edge.evidence_ids}
             )
             now = utc_now()
-            result = cast(
-                CursorResult[Any],
-                self.session.execute(
-                    update(TraceabilityEdgeRecord)
-                    .where(*identity, TraceabilityEdgeRecord.revision == current_revision)
-                    .values(
-                        evidence_ids=merged_evidence,
-                        revision=TraceabilityEdgeRecord.revision + 1,
-                        updated_at=case(
-                            (
-                                TraceabilityEdgeRecord.updated_at > now,
-                                TraceabilityEdgeRecord.updated_at,
-                            ),
-                            (
-                                TraceabilityEdgeRecord.created_at > now,
-                                TraceabilityEdgeRecord.created_at,
-                            ),
-                            else_=now,
+            result = self.session.execute(
+                update(TraceabilityEdgeRecord)
+                .where(*identity, TraceabilityEdgeRecord.revision == current_revision)
+                .values(
+                    evidence_ids=merged_evidence,
+                    revision=TraceabilityEdgeRecord.revision + 1,
+                    updated_at=case(
+                        (
+                            TraceabilityEdgeRecord.updated_at > now,
+                            TraceabilityEdgeRecord.updated_at,
                         ),
-                    )
-                ),
+                        (
+                            TraceabilityEdgeRecord.created_at > now,
+                            TraceabilityEdgeRecord.created_at,
+                        ),
+                        else_=now,
+                    ),
+                )
             )
             if isinstance(result, CursorResult) and result.rowcount == 1:
                 if commit:
@@ -513,13 +510,10 @@ class SqlAlchemyIssueRepository:
                 set(existing.evidence_ids) | {str(item) for item in finding.evidence_ids}
             )
             merged_refs = sorted(set(existing.affected_refs) | set(finding.affected_refs))
-            evidence_result = cast(
-                CursorResult[Any],
-                self.session.execute(
-                    update(IssueRecord)
-                    .where(*identity, IssueRecord.revision == expected_revision)
-                    .values(evidence_ids=merged_evidence, affected_refs=merged_refs)
-                ),
+            evidence_result = self.session.execute(
+                update(IssueRecord)
+                .where(*identity, IssueRecord.revision == expected_revision)
+                .values(evidence_ids=merged_evidence, affected_refs=merged_refs)
             )
             if not isinstance(evidence_result, CursorResult) or evidence_result.rowcount != 1:
                 self.session.refresh(existing)
@@ -563,22 +557,19 @@ class SqlAlchemyIssueRepository:
     def update_status(
         self, issue: Issue, *, status: IssueStatus, reason: str, expected_revision: int
     ) -> Issue | None:
-        result = cast(
-            CursorResult[Any],
-            self.session.execute(
-                update(IssueRecord)
-                .where(
-                    IssueRecord.id == str(issue.id),
-                    IssueRecord.project_id == str(issue.project_id),
-                    IssueRecord.revision == expected_revision,
-                )
-                .values(
-                    status=status.value,
-                    resolution=reason,
-                    revision=expected_revision + 1,
-                    updated_at=utc_now(),
-                )
-            ),
+        result = self.session.execute(
+            update(IssueRecord)
+            .where(
+                IssueRecord.id == str(issue.id),
+                IssueRecord.project_id == str(issue.project_id),
+                IssueRecord.revision == expected_revision,
+            )
+            .values(
+                status=status.value,
+                resolution=reason,
+                revision=expected_revision + 1,
+                updated_at=utc_now(),
+            )
         )
         if not isinstance(result, CursorResult) or result.rowcount != 1:
             self.session.rollback()

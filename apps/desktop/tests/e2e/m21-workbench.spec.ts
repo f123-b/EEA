@@ -118,6 +118,34 @@ test("@ui activates and deactivates domain UI from backend metadata", async ({ p
   await expect(motorNav).toHaveCount(0, { timeout: 60_000 });
 });
 
+test("@ui recalls memory and exposes canonical provenance with explicit history filtering", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("nav-projects").click();
+  await page.getByTestId("new-project").click();
+  await page.locator("#project-name").fill(`M23R Memory UI E2E ${Date.now()}`);
+  await page.getByTestId("confirm-create-project").click();
+  const projectId = await page.getByTestId("current-project").inputValue();
+  expect(projectId).not.toBe("");
+
+  const created = await page.request.post("http://127.0.0.1:8765/api/v1/memory/entries", {
+    headers: { Authorization: "Bearer m21-ui-e2e-token" },
+    data: {
+      project_id: projectId,
+      scope: "PROJECT_PRIVATE",
+      knowledge_type: "NOTE",
+      title: "M23R canonical provenance memory",
+      summary: "The canonical source remains authoritative.",
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+
+  const panel = page.getByTestId("memory-panel");
+  await panel.getByTestId("memory-recall").click();
+  await expect(panel.getByText("M23R canonical provenance memory")).toBeVisible();
+  await expect(panel.getByTestId("memory-provenance")).toContainText(/Canonical claims|规范声明/u);
+  await expect(panel.getByTestId("memory-include-history")).toBeVisible();
+});
+
 test("@ui defaults to Chinese and persists the Settings language switch", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");

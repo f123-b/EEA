@@ -4,6 +4,7 @@ from pathlib import Path
 
 from eea_backend.main import create_app
 from eea_backend.settings import Settings
+from eea_backend.version import CURRENT_MILESTONE, __version__
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
@@ -25,9 +26,9 @@ def test_version_uses_v1_envelope(client: TestClient) -> None:
         "success": True,
         "data": {
             "product": "Embedded Engineering Agent",
-            "version": "1.3.1.dev15",
+            "version": __version__,
             "api_version": "v1",
-            "milestone": "M15",
+            "milestone": CURRENT_MILESTONE,
         },
         "request_id": "req_test",
     }

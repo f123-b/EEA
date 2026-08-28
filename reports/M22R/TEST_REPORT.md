@@ -4,7 +4,7 @@
 
 M22R closes the parser-backed Existing Project Import boundary without executing imported build,
 test, install, or code-generation scripts. The final implementation code was verified at
-`0dee9bbebea61bcc79b6a5e4534d6a5d0c5554f8` and adds migration `0036_m22r_import_candidates`.
+the M22R implementation range and adds landing migration `0038_m23l_m22r_import_candidates`.
 
 ## Verified contracts
 
@@ -26,7 +26,7 @@ test, install, or code-generation scripts. The final implementation code was ver
 
 | Check | Result |
 |---|---|
-| M22/M22R/M23 focused tests | **15 passed**, 1 warning |
+| M22/M22R focused tests | **19 passed**, 1 warning |
 | Final CI pytest | **527 passed, 27 skipped, 13 warnings** |
 | Final CI coverage | **82.09%**, above the configured 80% gate |
 | Mypy | **161 source files passed** |

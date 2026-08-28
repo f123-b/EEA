@@ -714,6 +714,15 @@ def _source_changed(session: Session, event: OutboxEvent) -> str:
         DependencyGraphService(SqlAlchemyDependencyGraphRepository(session), providers).propagate(
             project_id, before, after, commit=False
         )
+    from eea_backend.knowledge_propagation import reconcile_memory_entries
+
+    reconcile_memory_entries(
+        session,
+        event_type="SourceRevisionChanged",
+        project_id=project_id,
+        source_revision_id=UUID(previous_id),
+        reason="SourceRevisionChanged invalidated the previous engineering source",
+    )
     return _journal_effect(
         session,
         event,
@@ -740,6 +749,14 @@ def _commissioning_hardware_action_requested(session: Session, event: OutboxEven
 
     del session
     return str(event.payload.get("action_id", event.aggregate_id))
+
+
+def _memory_propagation_event(session: Session, event: OutboxEvent) -> str:
+    """Replay canonical-to-memory invalidation idempotently."""
+
+    from eea_backend.knowledge_propagation import handle_memory_event
+
+    return handle_memory_event(session, event)
 
 
 def default_handler_registry() -> OutboxHandlerRegistry:
@@ -771,6 +788,22 @@ def default_handler_registry() -> OutboxHandlerRegistry:
             ),
             HandlerRegistration(
                 "source-changed-v1", "source.changed", frozenset({1}), _source_changed
+            ),
+            *tuple(
+                HandlerRegistration(
+                    f"memory-propagation-{event_type.lower()}-v1",
+                    event_type,
+                    frozenset({1}),
+                    _memory_propagation_event,
+                )
+                for event_type in (
+                    "ClaimChanged",
+                    "ClaimConflictOpened",
+                    "ClaimConflictResolved",
+                    "EvidenceInvalidated",
+                    "EvidenceSuperseded",
+                    "SourceRevisionChanged",
+                )
             ),
             *tuple(
                 HandlerRegistration(

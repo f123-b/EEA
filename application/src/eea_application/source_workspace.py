@@ -286,6 +286,21 @@ class SourceWorkspaceService:
             project_id=self.project_id,
             commit=False,
         )
+        # Keep the historical source.changed event for M18 consumers and add
+        # the explicit M23R semantic event for knowledge projections.
+        self.source_changed.enqueue(
+            event_type="SourceRevisionChanged",
+            aggregate_type="SourceRevision",
+            aggregate_id=str(after.id),
+            aggregate_revision=after.revision,
+            event_key=stable_event_key(
+                "SourceRevisionChanged", "SourceRevision", after.id, after.revision
+            ),
+            payload=payload,
+            payload_hash=payload_sha256(payload),
+            project_id=self.project_id,
+            commit=False,
+        )
 
     def _persist_snapshot(
         self,

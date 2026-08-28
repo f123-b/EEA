@@ -52,6 +52,7 @@ from eea_backend.errors import engineering_error_handler, validation_error_handl
 from eea_backend.identity_repositories import IdentityRepository
 from eea_backend.m18e_api import router as m18e_router
 from eea_backend.m22_api import router as m22_router
+from eea_backend.m23_api import router as m23_router
 from eea_backend.models import ProjectRecord, SourceWorkspaceRecord
 from eea_backend.recovery import OutboxDispatcher, RecoveryService
 from eea_backend.reliability_repositories import SqlAlchemyOutboxRepository
@@ -62,7 +63,8 @@ from eea_backend.schemas import ApiEnvelope, HealthResponse, VersionData
 from eea_backend.security import require_session_token
 from eea_backend.settings import Settings
 from eea_backend.source_repositories import SqlAlchemySourceRepository
-from eea_backend.version import __version__
+from eea_backend.version import CURRENT_MILESTONE, __version__
+from eea_backend.workflow_api import router as workflow_router
 from plugins.builtin.motor_control import build_motor_control_plugin
 
 
@@ -329,13 +331,15 @@ def create_app(
             product="Embedded Engineering Agent",
             version=__version__,
             api_version="v1",
-            milestone="M15",
+            milestone=CURRENT_MILESTONE,
         )
         return ApiEnvelope(data=data, request_id=request.state.request_id)
 
     api.include_router(core_router)
     api.include_router(m18e_router)
     api.include_router(m22_router)
+    api.include_router(m23_router)
+    api.include_router(workflow_router)
     application.include_router(api)
     return application
 

@@ -8,6 +8,7 @@ from typing import Any
 from eea_core.backup import RestoreOperationState
 from eea_core.enums import (
     ArtifactStatus,
+    AuthorityLevel,
     BuildStatus,
     ClaimConflictStatus,
     ClaimConflictStrategy,
@@ -31,6 +32,9 @@ from eea_core.enums import (
     IssueSeverity,
     IssueStatus,
     JobStatus,
+    KnowledgeLifecycle,
+    KnowledgeScope,
+    KnowledgeType,
     Permission,
     ProjectStatus,
     RequirementPriority,
@@ -39,6 +43,7 @@ from eea_core.enums import (
     SoftwareComponentRole,
     StaticAnalysisStatus,
     TraceabilityRelation,
+    TrustLevel,
 )
 from eea_core.hardware import (
     CapabilityVerificationStatus,
@@ -1208,6 +1213,114 @@ class ImportConflictRecord(CoreRecordMixin, Base):
         ForeignKey("source_revisions.id"), index=True
     )
     status: Mapped[str] = mapped_column(String(20), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class KnowledgeEntryRecord(CoreRecordMixin, Base):
+    """M23 structured memory; canonical claims and evidence stay referenced, not copied."""
+
+    __tablename__ = "knowledge_entries"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(f"scope IN ({_enum_values(KnowledgeScope)})", name="scope"),
+        CheckConstraint(
+            f"knowledge_type IN ({_enum_values(KnowledgeType)})", name="knowledge_type"
+        ),
+        CheckConstraint(
+            f"authority_level IN ({_enum_values(AuthorityLevel)})", name="authority_level"
+        ),
+        CheckConstraint(f"trust_level IN ({_enum_values(TrustLevel)})", name="trust_level"),
+        CheckConstraint(f"lifecycle IN ({_enum_values(KnowledgeLifecycle)})", name="lifecycle"),
+        CheckConstraint("confidence >= 0 AND confidence <= 1", name="confidence_range"),
+        CheckConstraint("freshness_score >= 0 AND freshness_score <= 1", name="freshness_range"),
+        CheckConstraint(
+            "scope NOT IN ('PROJECT_PRIVATE', 'TASK_ONLY') OR project_id IS NOT NULL",
+            name="project_scope_requires_project",
+        ),
+        CheckConstraint(
+            "scope <> 'USER_PRIVATE' OR owner_ref IS NOT NULL", name="user_scope_requires_owner"
+        ),
+        CheckConstraint(
+            "scope <> 'ORGANIZATION_PRIVATE' OR organization_ref IS NOT NULL",
+            name="organization_scope_requires_organization",
+        ),
+        CheckConstraint(
+            "scope <> 'TASK_ONLY' OR task_ref IS NOT NULL", name="task_scope_requires_task"
+        ),
+        Index("ix_knowledge_entries_scope_lifecycle", "scope", "lifecycle"),
+    )
+
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id"), nullable=True, index=True
+    )
+    scope: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    owner_ref: Mapped[str | None] = mapped_column(String(200))
+    organization_ref: Mapped[str | None] = mapped_column(String(200))
+    task_ref: Mapped[str | None] = mapped_column(String(200))
+    knowledge_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(300), nullable=False, index=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    tags: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    applicability: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    source_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=True, index=True
+    )
+    source_ref: Mapped[str | None] = mapped_column(String(2000))
+    source_version: Mapped[str | None] = mapped_column(String(200))
+    authority_level: Mapped[str] = mapped_column(String(30), nullable=False)
+    verification_levels: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    trust_level: Mapped[str] = mapped_column(String(20), nullable=False)
+    lifecycle: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    freshness_score: Mapped[float] = mapped_column(Float, nullable=False)
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    license_ref: Mapped[str | None] = mapped_column(String(500))
+    usage_policy: Mapped[str | None] = mapped_column(String(2000))
+    related_entry_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    search_text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    reviewed_by: Mapped[str | None] = mapped_column(String(200))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class KnowledgeRecallAuditRecord(CoreRecordMixin, Base):
+    """Append-only audit record for explicit, scope-filtered memory recall."""
+
+    __tablename__ = "knowledge_recall_audits"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    actor_ref: Mapped[str] = mapped_column(String(200), nullable=False)
+    query: Mapped[str] = mapped_column(String(2000), nullable=False)
+    scope_context: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    result_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    result_count: Mapped[int] = mapped_column(nullable=False)
+    request_id: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class KnowledgeAuditRecord(CoreRecordMixin, Base):
+    """Append-only audit trail for memory mutations and derived transitions."""
+
+    __tablename__ = "knowledge_audits"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        Index("ix_knowledge_audits_entry_created", "entry_id", "created_at"),
+        Index("ix_knowledge_audits_project_created", "project_id", "created_at"),
+    )
+
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    entry_id: Mapped[str | None] = mapped_column(
+        ForeignKey("knowledge_entries.id"), nullable=True, index=True
+    )
+    principal_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    session_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    action: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    before: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    after: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
 
 

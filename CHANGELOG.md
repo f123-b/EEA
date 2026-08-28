@@ -5,9 +5,18 @@ the frozen documentation changelogs under `docs/`.
 
 ## [Unreleased]
 
-Current closeout milestone: `M22R` (final CI and milestone landing preparation), product
-development version `1.3.1.dev23`. M23R follow-up and M24 are not started in this closeout.
+Current closeout milestone: `M23R` (Knowledge & Memory trust closure), product development
+version `1.3.1.dev23`. M24 is not started.
+
 ### Added
+
+- M23R adds a server-owned `IdentityContext`, fail-closed user/project/organization/task scope
+  authorization, backend-only verification provenance, conservative trust/freshness derivation,
+  lifecycle transition policy, append-only Knowledge audit records, revision CAS for memory and
+  evidence mutations, exact canonical propagation events (`ClaimChanged`, `ClaimConflictOpened`,
+  `ClaimConflictResolved`, `EvidenceInvalidated`, `EvidenceSuperseded`, and
+  `SourceRevisionChanged`), conflict/evidence lifecycle APIs, and desktop provenance/history
+  filtering. PR #15 remains Draft/Open and no merge is performed.
 
 - M22R final implementation CI is green at `0dee9bbebea61bcc79b6a5e4534d6a5d0c5554f8`.
   Push CI `32952283021` and Draft PR CI `32952288652` passed backend, desktop web/Tauri,
@@ -23,8 +32,15 @@ development version `1.3.1.dev23`. M23R follow-up and M24 are not started in thi
   rows in landing migration `0038_m23l_m22r_import_candidates`; CAS-protected candidate review, preview, and
   candidate-only Claim/HardwareIR/MCUConfigIR/ProtocolIR apply; structured rescan added/modified/
   removed/unchanged buckets; DependencyGraph Changed/Affected/Stale/Blocked impact output; and
-  native Tauri folder/archive dialogs with deny-by-default dialog permission. M22R remains local
- until the final branch/PR delivery action is explicitly authorized.
+  native Tauri folder/archive dialogs with deny-by-default dialog permission. M22R final CI is
+  closed; delivery remains subject to human review and explicit landing action.
+- M23R hardening establishes the milestone metadata SSOT in
+  `apps/backend/src/eea_backend/version.py`, records explicit M21/M22/M23 boundaries, exposes a
+  backend-owned `WorkflowDescriptor`, and adds the authority/freshness/promotion closure work.
+- Knowledge review ignores caller-supplied actor, owner, organization, authority, and verification
+  fields for authorization; verification levels are derived from current backend evidence, and
+  source/claim/evidence changes reconcile projections to `STALE` or `CONFLICTED` fail-closed.
+
 - M22 Existing Project Import vertical slice is implemented on the M21 desktop branch. Added durable
   import sessions and migration `0034_m22_existing_project_import`, isolated Local Folder/Git/Archive
   materialization, non-executing scan stages, confidence/source/evidence findings, `.ioc` mismatch

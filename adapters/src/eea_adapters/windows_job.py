@@ -113,7 +113,11 @@ class WindowsJob:
             | self._JOB_OBJECT_LIMIT_JOB_MEMORY
             | self._JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
         )
-        info.BasicLimitInformation.ActiveProcessLimit = policy.max_processes
+        # A Windows virtualenv executable is a small launcher that creates the
+        # base interpreter as a second process.  Reserve one slot for that
+        # implementation detail so ``max_processes=1`` still means one
+        # user-command process rather than an unusable launcher boundary.
+        info.BasicLimitInformation.ActiveProcessLimit = policy.max_processes + 1
         info.ProcessMemoryLimit = policy.max_memory_bytes
         info.JobMemoryLimit = policy.max_memory_bytes
         if not self._kernel32.SetInformationJobObject(

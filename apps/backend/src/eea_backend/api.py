@@ -130,6 +130,8 @@ from eea_backend.domain_repositories import (
     SqlAlchemyDomainCompositionStateRepository,
 )
 from eea_backend.firmware_repositories import SqlAlchemyFirmwareRepository
+from eea_backend.identity_repositories import IdentityRepository
+from eea_backend.knowledge_propagation import enqueue_memory_event, reconcile_memory_entries
 from eea_backend.m17_repositories import (
     SqlAlchemyIssueRepository,
     SqlAlchemyReviewRepository,
@@ -286,7 +288,7 @@ from eea_backend.schemas import (
     TraceabilityData,
 )
 from eea_backend.schematic_repositories import SqlAlchemySchematicRepository
-from eea_backend.security import authenticated_actor_id
+from eea_backend.security import authenticated_actor_id, authenticated_principal
 from eea_backend.source_repositories import SqlAlchemySourceRepository
 from eea_backend.static_analysis_repositories import SqlAlchemyFirmwareStaticAnalysisRepository
 
@@ -306,6 +308,25 @@ SessionDependency = Annotated[Session, Depends(get_session)]
 
 def _service(session: Session) -> ProjectService:
     return ProjectService(SqlAlchemyProjectRepository(session))
+
+
+def _authorize_authenticated_project(
+    request: Request, session: Session, project_id: UUID, *, action: str = "read"
+) -> None:
+    principal = authenticated_principal(request)
+    context = IdentityRepository(session).load_context(
+        principal_id=principal.actor_id,
+        user_id=principal.user_id,
+        session_id=principal.session_id,
+        authentication_source=principal.authentication_source,
+        task_id=principal.task_id,
+    )
+    if not context.can_project(str(project_id), action):
+        raise EngineeringError(
+            EngineeringErrorCode.KNOWLEDGE_SCOPE_DENIED,
+            "Project access is not granted by the authenticated identity",
+            details={"project_id": str(project_id), "action": action},
+        )
 
 
 def _recovery_service(request: Request) -> RecoveryService:
@@ -593,6 +614,7 @@ def mutate_claim_lifecycle(
     session: SessionDependency,
 ) -> ApiEnvelope[dict[str, object]]:
     _service(session).get(payload.project_id)
+    _authorize_authenticated_project(request, session, payload.project_id, action="write")
     claims = SqlAlchemyEngineeringClaimRepository(session)
     claim = claims.get(claim_id)
     if claim is None or (claim.project_id is not None and claim.project_id != payload.project_id):
@@ -628,6 +650,32 @@ def mutate_claim_lifecycle(
         payload.project_id, "Claim", str(claim_id)
     )
     plan = _dependency_service(session).propagate(payload.project_id, before, after, commit=False)
+    principal = authenticated_principal(request)
+    reconcile_memory_entries(
+        session,
+        event_type="ClaimChanged",
+        project_id=payload.project_id,
+        claim_ids=[claim_id],
+        principal_id=principal.actor_id,
+        user_id=principal.user_id,
+        session_id=principal.session_id,
+        request_id=_request_id(request),
+        reason=f"claim lifecycle changed to {payload.lifecycle.value}",
+    )
+    enqueue_memory_event(
+        session,
+        event_type="ClaimChanged",
+        aggregate_type="EngineeringClaim",
+        aggregate_id=str(claim_id),
+        aggregate_revision=saved.revision,
+        project_id=payload.project_id,
+        payload={
+            "project_id": str(payload.project_id),
+            "claim_id": str(claim_id),
+            "claim_revision": saved.revision,
+            "reason": f"claim lifecycle changed to {payload.lifecycle.value}",
+        },
+    )
     session.commit()
     return ApiEnvelope(
         data={"claim": saved.model_dump(mode="json"), "impact_plan": plan.model_dump(mode="json")},
@@ -3226,6 +3274,7 @@ def register_evidence(
     session: SessionDependency,
 ) -> ApiEnvelope[EvidenceData]:
     _service(session).get(project_id)
+    _authorize_authenticated_project(request, session, project_id, action="write")
     evidence = SqlAlchemyEvidenceRepository(session).add(
         Evidence(
             project_id=project_id,
@@ -3251,6 +3300,7 @@ def get_evidence(
     session: SessionDependency,
 ) -> ApiEnvelope[EvidenceData]:
     _service(session).get(project_id)
+    _authorize_authenticated_project(request, session, project_id, action="read")
     repository = SqlAlchemyEvidenceRepository(session)
     evidence = repository.get(evidence_id, project_id=project_id)
     if evidence is None:
@@ -3439,6 +3489,11 @@ def create_project(
     session: SessionDependency,
 ) -> ApiEnvelope[ProjectData]:
     project = _service(session).create(**payload.model_dump(), commit=False)
+    # The local desktop is a real, server-owned principal.  Record its OWNER
+    # project access in the same transaction as project creation so memory
+    # authorization never relies on a request actor hint.
+    identity = IdentityRepository(session).ensure_local_user(commit=False)
+    IdentityRepository(session).ensure_project_owner(project.id, identity, commit=False)
     event_payload = {
         "project_id": str(project.id),
         "name": project.name,

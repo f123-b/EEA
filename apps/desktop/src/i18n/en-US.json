@@ -29,5 +29,18 @@
   "Tests": "Tests",
   "Review": "Review",
   "Domains": "Domains",
-  "AI Panel": "AI Panel"
+  "AI Panel": "AI Panel",
+  "M23 MEMORY": "M23 MEMORY",
+  "Knowledge & Memory": "Knowledge & Memory",
+  "Recall reviewed project knowledge without creating a second source of truth.": "Recall reviewed project knowledge without creating a second source of truth.",
+  "Memory query": "Memory query",
+  "Search project memory": "Search project memory",
+  "Recalling…": "Recalling…",
+  "Recall": "Recall",
+  "Memory recall failed": "Memory recall failed",
+  "No memory recalled yet.": "No memory recalled yet.",
+  "Untitled memory": "Untitled memory",
+  "No summary": "No summary",
+  "score": "score",
+  "Recall audit": "Recall audit"
 }

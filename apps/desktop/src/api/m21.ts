@@ -22,6 +22,15 @@ export type M21DomainComposition = JsonRecord & {
 
 export type M21Status = "PASS" | "FAIL" | "BLOCKED" | "UNKNOWN" | "STALE" | "CURRENT" | "RUNNING";
 
+export type EngineeringDataState<T> =
+  | { state: "NOT_AVAILABLE" }
+  | { state: "LOADING" }
+  | { state: "CURRENT"; data: T }
+  | { state: "STALE"; data: T; reason: string }
+  | { state: "BLOCKED"; reason: string }
+  | { state: "UNKNOWN"; reason?: string }
+  | { state: "ERROR"; error: BackendRequestError };
+
 export class BackendRequestError extends Error {
   readonly status: number;
   readonly code: string | null;
@@ -90,6 +99,7 @@ export function createM21Api(client: BackendClient) {
 
   return {
     listProjects: () => get<ProjectListData>("/api/v1/projects"),
+    getWorkflowDescriptor: () => get<JsonRecord>("/api/v1/workflows/descriptor"),
     createProject: (payload: { name: string; description: string; metadata?: JsonRecord }) =>
       post<ProjectData>("/api/v1/projects", payload),
     createImport: (payload: JsonRecord) => post<JsonRecord>("/api/v1/imports", payload),
@@ -119,8 +129,28 @@ export function createM21Api(client: BackendClient) {
     createImportWorkspace: (importId: string, payload: JsonRecord = {}) =>
       post<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/create-workspace`, payload),
     rescanImport: (importId: string) => post<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/rescan`, {}),
+    createMemoryEntry: (payload: JsonRecord) => post<JsonRecord>("/api/v1/memory/entries", payload),
+    updateMemoryEntry: (entryId: string, payload: JsonRecord) =>
+      patch<JsonRecord>(`/api/v1/memory/entries/${encodeURIComponent(entryId)}`, payload),
+    getMemoryEntry: (entryId: string, projectId: string) =>
+      get<JsonRecord>(`/api/v1/memory/entries/${encodeURIComponent(entryId)}?project_id=${encodeURIComponent(projectId)}`),
+    recallMemory: (payload: JsonRecord) => post<JsonRecord>("/api/v1/memory/recall", payload),
+    reviewMemoryEntry: (entryId: string, payload: JsonRecord) =>
+      post<JsonRecord>(`/api/v1/memory/entries/${encodeURIComponent(entryId)}/review`, payload),
+    createImportMemoryEntry: (importId: string, payload: JsonRecord) =>
+      post<JsonRecord>(`/api/v1/imports/${encodeURIComponent(importId)}/memory-entry`, payload),
     registerEvidence: (projectId: string, payload: JsonRecord) =>
       post<JsonRecord>(`${pathForProject(projectId)}/evidence`, payload),
+    invalidateEvidence: (projectId: string, evidenceId: string, payload: JsonRecord) =>
+      post<JsonRecord>(
+        `${pathForProject(projectId, `/evidence/${encodeURIComponent(evidenceId)}/invalidate`)}`,
+        payload,
+      ),
+    supersedeEvidence: (projectId: string, evidenceId: string, payload: JsonRecord) =>
+      post<JsonRecord>(
+        `${pathForProject(projectId, `/evidence/${encodeURIComponent(evidenceId)}/supersede`)}`,
+        payload,
+      ),
     getProject: (projectId: string) => get<ProjectData>(pathForProject(projectId)),
     getConsistency: (projectId: string) => get<JsonRecord>(pathForProject(projectId, "/consistency")),
     getDomains: (projectId: string) =>

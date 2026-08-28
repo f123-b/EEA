@@ -230,21 +230,18 @@ class SqlAlchemySourceRepository:
                 SourceWorkspaceRecord.workspace_revision == expected_workspace_revision
             )
         conditions.append(SourceWorkspaceRecord.active_mutation_id.is_(None))
-        result = cast(
-            CursorResult[Any],
-            self.session.execute(
-                update(SourceWorkspaceRecord)
-                .where(*conditions)
-                .values(
-                    current_source_revision_id=str(revision_id),
-                    workspace_revision=workspace_revision,
-                    base_commit=base_commit,
-                    repository_id=revision.repository_id,
-                    last_reconciled_manifest_hash=revision.source_manifest_hash,
-                    updated_at=utc_now(),
-                    revision=SourceWorkspaceRecord.revision + 1,
-                )
-            ),
+        result = self.session.execute(
+            update(SourceWorkspaceRecord)
+            .where(*conditions)
+            .values(
+                current_source_revision_id=str(revision_id),
+                workspace_revision=workspace_revision,
+                base_commit=base_commit,
+                repository_id=revision.repository_id,
+                last_reconciled_manifest_hash=revision.source_manifest_hash,
+                updated_at=utc_now(),
+                revision=SourceWorkspaceRecord.revision + 1,
+            )
         )
         if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise EngineeringError(
@@ -276,19 +273,16 @@ class SqlAlchemySourceRepository:
             conditions.append(
                 SourceWorkspaceRecord.current_source_revision_id == str(expected_source_revision_id)
             )
-        result = cast(
-            CursorResult[Any],
-            self.session.execute(
-                update(SourceWorkspaceRecord)
-                .where(*conditions)
-                .values(
-                    active_mutation_id=str(operation_id),
-                    active_mutation_started_at=utc_now(),
-                    active_mutation_expected_revision=expected_workspace_revision,
-                    updated_at=utc_now(),
-                    revision=SourceWorkspaceRecord.revision + 1,
-                )
-            ),
+        result = self.session.execute(
+            update(SourceWorkspaceRecord)
+            .where(*conditions)
+            .values(
+                active_mutation_id=str(operation_id),
+                active_mutation_started_at=utc_now(),
+                active_mutation_expected_revision=expected_workspace_revision,
+                updated_at=utc_now(),
+                revision=SourceWorkspaceRecord.revision + 1,
+            )
         )
         if not isinstance(result, CursorResult) or result.rowcount != 1:
             # A failed conditional UPDATE still opens a transaction on
@@ -320,22 +314,19 @@ class SqlAlchemySourceRepository:
     def release_source_mutation(
         self, project_id: UUID, operation_id: UUID, *, commit: bool = True
     ) -> None:
-        result = cast(
-            CursorResult[Any],
-            self.session.execute(
-                update(SourceWorkspaceRecord)
-                .where(
-                    SourceWorkspaceRecord.project_id == str(project_id),
-                    SourceWorkspaceRecord.active_mutation_id == str(operation_id),
-                )
-                .values(
-                    active_mutation_id=None,
-                    active_mutation_started_at=None,
-                    active_mutation_expected_revision=None,
-                    updated_at=utc_now(),
-                    revision=SourceWorkspaceRecord.revision + 1,
-                )
-            ),
+        result = self.session.execute(
+            update(SourceWorkspaceRecord)
+            .where(
+                SourceWorkspaceRecord.project_id == str(project_id),
+                SourceWorkspaceRecord.active_mutation_id == str(operation_id),
+            )
+            .values(
+                active_mutation_id=None,
+                active_mutation_started_at=None,
+                active_mutation_expected_revision=None,
+                updated_at=utc_now(),
+                revision=SourceWorkspaceRecord.revision + 1,
+            )
         )
         if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise EngineeringError(
@@ -374,24 +365,21 @@ class SqlAlchemySourceRepository:
             conditions.append(
                 SourceWorkspaceRecord.current_source_revision_id == str(expected_source_revision_id)
             )
-        result = cast(
-            CursorResult[Any],
-            self.session.execute(
-                update(SourceWorkspaceRecord)
-                .where(*conditions)
-                .values(
-                    current_source_revision_id=str(new_source_revision_id),
-                    workspace_revision=new_workspace_revision,
-                    base_commit=base_commit,
-                    repository_id=revision.repository_id,
-                    last_reconciled_manifest_hash=revision.source_manifest_hash,
-                    active_mutation_id=None,
-                    active_mutation_started_at=None,
-                    active_mutation_expected_revision=None,
-                    updated_at=utc_now(),
-                    revision=SourceWorkspaceRecord.revision + 1,
-                )
-            ),
+        result = self.session.execute(
+            update(SourceWorkspaceRecord)
+            .where(*conditions)
+            .values(
+                current_source_revision_id=str(new_source_revision_id),
+                workspace_revision=new_workspace_revision,
+                base_commit=base_commit,
+                repository_id=revision.repository_id,
+                last_reconciled_manifest_hash=revision.source_manifest_hash,
+                active_mutation_id=None,
+                active_mutation_started_at=None,
+                active_mutation_expected_revision=None,
+                updated_at=utc_now(),
+                revision=SourceWorkspaceRecord.revision + 1,
+            )
         )
         if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise EngineeringError(
@@ -446,19 +434,16 @@ class SqlAlchemySourceRepository:
         return _to_proposal(record) if record else None
 
     def update_proposal(self, proposal: PatchProposal, *, commit: bool = True) -> PatchProposal:
-        result = cast(
-            CursorResult[Any],
-            self.session.execute(
-                update(PatchProposalRecord)
-                .where(PatchProposalRecord.id == str(proposal.id))
-                .values(
-                    revision=proposal.revision,
-                    updated_at=proposal.updated_at,
-                    entity_metadata=proposal.metadata,
-                    status=proposal.status.value,
-                    failure_reason=proposal.failure_reason,
-                )
-            ),
+        result = self.session.execute(
+            update(PatchProposalRecord)
+            .where(PatchProposalRecord.id == str(proposal.id))
+            .values(
+                revision=proposal.revision,
+                updated_at=proposal.updated_at,
+                entity_metadata=proposal.metadata,
+                status=proposal.status.value,
+                failure_reason=proposal.failure_reason,
+            )
         )
         if not isinstance(result, CursorResult) or result.rowcount != 1:
             raise ValueError("patch proposal disappeared during update")
