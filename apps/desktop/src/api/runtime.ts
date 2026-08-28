@@ -12,6 +12,10 @@ export type RuntimeBootstrap = Readonly<{
   version: unknown;
 }>;
 
+type DesktopImportMeta = ImportMeta & {
+  env?: Record<string, string | undefined>;
+};
+
 /** Obtain the Tauri-managed session; the token stays in this closure-owned path. */
 export async function loadRuntimeSession(): Promise<RuntimeSession> {
   return invoke<RuntimeSession>("get_runtime_session");
@@ -21,6 +25,30 @@ export async function loadRuntimeSession(): Promise<RuntimeSession> {
 export async function bootstrapRuntime(): Promise<RuntimeBootstrap> {
   const session = await loadRuntimeSession();
   const client = createBackendClient(session.backend_url, session.session_token);
+  const response = await client.request("/api/v1/meta/version");
+  if (!response.ok) {
+    throw new Error(`backend readiness request failed (${response.status})`);
+  }
+  return { client, version: await response.json() };
+}
+
+/** Test-only observation hook. Rust ignores it unless the packaged smoke evidence env is set. */
+export async function reportDesktopSmokeReady(): Promise<boolean> {
+  return invoke<boolean>("record_desktop_smoke_ready");
+}
+
+/**
+ * Renderer E2E/dev path. Production desktop sessions still come only from Tauri IPC;
+ * this opt-in path requires both values at build time and never persists the token.
+ */
+export async function bootstrapConfiguredWebRuntime(): Promise<RuntimeBootstrap | null> {
+  const env = (import.meta as DesktopImportMeta).env ?? {};
+  const backendUrl = env.VITE_EEA_API_URL;
+  const sessionToken = env.VITE_EEA_SESSION_TOKEN;
+  if (!backendUrl || !sessionToken) {
+    return null;
+  }
+  const client = createBackendClient(backendUrl, sessionToken);
   const response = await client.request("/api/v1/meta/version");
   if (!response.ok) {
     throw new Error(`backend readiness request failed (${response.status})`);

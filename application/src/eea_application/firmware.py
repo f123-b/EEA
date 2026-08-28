@@ -1106,10 +1106,11 @@ class FirmwareBuildService:
                         }
                     )
                 ),
-                # CMake must be able to start its generator (and Ninja must be
-                # able to start one compiler process). Keep the boundary finite
-                # while allowing the DEVICE toolchain's required subprocesses.
-                max_processes=64,
+                # RLIMIT_NPROC is user-wide on Linux. The M21 release workflow
+                # runs beside Playwright's Chromium/Node processes, so leave a
+                # finite allowance for those existing threads plus CMake,
+                # Ninja, and the single DEVICE compiler process.
+                max_processes=256,
                 network_access=release_tool_policy_network_access(),
             )
             try:

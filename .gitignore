@@ -13,6 +13,8 @@ htmlcov/
 .eea/
 .eea-component-cache/
 .eea-toolchains/
+.eea-m21-e2e/
+.eea-m21-release-e2e/
 *.db
 *.sqlite
 *.sqlite3
@@ -25,6 +27,13 @@ dist/
 # Rust / Tauri
 target/
 apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/resources/eea-api*
+build/backend-sidecar/
+build/backend-sidecar-spec/
+apps/desktop/test-results/
+apps/desktop/playwright-report/
+m21-ui-release-evidence/
+desktop-package-evidence/
 
 # Editors and operating systems
 .idea/

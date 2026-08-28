@@ -50,3 +50,22 @@ def test_configured_session_token_protects_versioned_api(tmp_path: Path) -> None
             ).status_code
             == 200
         )
+
+
+def test_packaged_tauri_origin_can_preflight_authenticated_loopback_api(
+    tmp_path: Path,
+) -> None:
+    settings = Settings(data_dir=tmp_path, session_token=SecretStr("desktop-token"))
+    with TestClient(create_app(settings)) as protected_client:
+        response = protected_client.options(
+            "/api/v1/meta/version",
+            headers={
+                "Origin": "http://tauri.localhost",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://tauri.localhost"
+    assert "authorization" in response.headers["access-control-allow-headers"].lower()

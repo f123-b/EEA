@@ -7,6 +7,17 @@ the frozen documentation changelogs under `docs/`.
 
 ### Added
 
+- M21 Desktop release artifact upload and Chinese localization default are complete on
+  `codex/m21-desktop-ui-vertical-slice`. The green artifact-producing runs are push CI
+  `32496409227` and Draft PR CI `32496414796`. The uploaded `desktop-release-artifact` contains
+  `EEA-Desktop-v1.3.1-linux-x64.AppImage` (125,684,216 bytes;
+  `6c2f6752a17ee867293c6960fc725781ac6c0a731767e82d209461c2f4d5aa40`) and
+  `EEA-Desktop-v1.3.1-windows-x64.exe` (27,147,136 bytes;
+  `e9a620be56d5585c9c65011c90f9a8e548648684d5fb171cd06a4d94e5f534e9`), plus
+  `SHA256SUMS.txt`, `release/release-manifest.json`, and `release/release-size-report.json`.
+  Artifact validation and secret scanning passed. Desktop now defaults to `zh-CN`; Settings
+  persists the Chinese/English selection in `eea.locale`.
+
 - M20 Core Neutrality Smoke Gate is implemented from green main
   `7573e1f3525c54cd5fb1155f634b77034d74b255` on `codex/m20-core-neutrality-smoke` at implementation
   HEAD `59477be150d7a37bdbc1f00102e341c68c407079`. Added the generic embedded-controller
@@ -17,7 +28,27 @@ the frozen documentation changelogs under `docs/`.
   Cppcheck/Firmware Rules, executed KiCad ERC, 9-case software TestRun, traceability, impact, and
   required Review; P0/P1 are zero and MotorControl is inactive. Final push CI `32046538805` and
   final Draft PR CI `32046544964` are green. M20 final acceptance is recorded as `ACCEPTED`, with
-  `APPROVED_TO_MERGE=YES`; PR #14 remains open Draft until the formal merge.
+  `APPROVED_TO_MERGE=YES`. Acceptance docs were finalized in commit
+  `5578e4f359326bc275f65ae90eb0dbce871b16f9`; PR #14 was merged normally at merge commit
+  `67c7e3ea42d00f67cc473b2041929555764a3daf` on `2026-08-18T04:21:20Z`. Post-merge main CI
+  `32098839155` is green. M21 is now implemented on `codex/m21-desktop-ui-vertical-slice`.
+
+- M21 Desktop UI Vertical Slice final gates are closed from green main
+  `67c7e3ea42d00f67cc473b2041929555764a3daf` at final implementation HEAD
+  `a47d2d3efee866f14791a28e26d92640b86671e5`. Added the metadata-driven engineering workbench,
+  M20 generic benchmark renderer workflow, dynamic Domain UI activation/deactivation, controlled
+  AI surface, authenticated Tauri sidecar bootstrap, PyInstaller packaging, renderer/unit E2E,
+  and `desktop-ui-test` / `desktop-package-smoke` CI jobs. Final push CI `32329951312` and final
+  Draft PR CI `32329955310` are green across backend, desktop-web, desktop-tauri,
+  desktop-ui-test, desktop-package-smoke, m19-release, m20-release, and m21-ui-release. The
+  real DEVICE workflow reports Build/Static/ERC/TestRun/traceability/Review PASS with a 9/9
+  TestRun; the packaged AppImage auto-started its bundled sidecar, passed authenticated and
+  unauthenticated boundary checks, reached renderer/workbench ready, passed token leak scanning,
+  and terminated with the backend closed. Backend regression is 510 passed, 27 skipped, with
+  83.04% coverage; desktop unit tests are 6 passed and the UI/domain Playwright gates passed.
+  `M21=IMPLEMENTED_AND_FINAL_GATE_CLOSED`, `P0=0`, `P1=0`,
+  `READY_FOR_M21_FINAL_REVIEW=YES`, `APPROVED_TO_MERGE=NO`, and `M22=NOT_STARTED`. PR #15
+  remains Draft/Open and M21 is not merged.
 
 - M19A FOC Minimal E2E was accepted and merged. Its final pre-acceptance implementation HEAD
   was

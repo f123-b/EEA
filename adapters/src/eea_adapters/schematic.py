@@ -71,7 +71,10 @@ class KiCadErcAdapter:
             )
             policy = SandboxPolicy(
                 allowed_executables=(executable,),
-                max_processes=64,
+                # RLIMIT_NPROC is user-wide on Linux. The release UI gate also
+                # runs Chromium/Node, so 64 can already be consumed before the
+                # trusted local KiCad process initializes its worker threads.
+                max_processes=256,
                 allowed_environment=(
                     "PATH",
                     "HOME",
