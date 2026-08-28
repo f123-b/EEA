@@ -8,6 +8,16 @@ the frozen documentation changelogs under `docs/`.
 Current closeout milestone: `M23R` (Knowledge & Memory trust closure), product development
 version `1.3.1.dev23`. M24 is not started.
 
+### M23L Final Landing
+
+- **M21 LANDED**: PR #16 was merged into `main` with merge commit
+  `f06dac6fb6fdf5505e9fd5133f2461315cc9fdf9`.
+- **M22/M22R LANDED**: PR #17 was retargeted to `main` and merged with merge commit
+  `d854a53224ae30ca968fa7ec0f71afe59f2c5f13`.
+- **M23/M23R LANDED**: PR #18 was retargeted to `main` and merged with merge commit
+  `1988ecf019492ac44cf3936e24836fb6b9bd9458`.
+- The sequential landing was validated by main push CI; M24 remains **NOT_STARTED**.
+
 ### Added
 
 - M23R adds a server-owned `IdentityContext`, fail-closed user/project/organization/task scope
@@ -16,7 +26,7 @@ version `1.3.1.dev23`. M24 is not started.
   evidence mutations, exact canonical propagation events (`ClaimChanged`, `ClaimConflictOpened`,
   `ClaimConflictResolved`, `EvidenceInvalidated`, `EvidenceSuperseded`, and
   `SourceRevisionChanged`), conflict/evidence lifecycle APIs, and desktop provenance/history
-  filtering. PR #15 remains Draft/Open and no merge is performed.
+  filtering. PR #15 is a historical integrated snapshot and is not merged.
 
 - M22R final implementation CI is green at `0dee9bbebea61bcc79b6a5e4534d6a5d0c5554f8`.
   Push CI `32952283021` and Draft PR CI `32952288652` passed backend, desktop web/Tauri,
@@ -24,8 +34,8 @@ version `1.3.1.dev23`. M24 is not started.
   manifest validation, and secret scanning. Final backend evidence is **527 passed, 27 skipped**,
   with **82.09%** coverage. The push-run release manifest contains the required artifacts and
   SHA256 checksums: AppImage `0ca065d4b900932ac45d97f2df3e8e257d2e126cf84664ccd652a0ec47bd078e`
-  and NSIS `f7b3d78b6f4829a0e822676bb09a8674728346dda32d7889e9ed8609c493ef10`. PR #15 remains
-  Draft/Open; no merge was performed.
+  and NSIS `f7b3d78b6f4829a0e822676bb09a8674728346dda32d7889e9ed8609c493ef10`. PR #15 was
+  superseded by the sequential landing PRs; no direct merge was performed.
 
 - M22R closes the existing-project import follow-up with deterministic STM32CubeMX `.ioc`, KiCad
   S-expression, and CAN DBC parser candidates; durable evidence-linked candidate/review/conflict
