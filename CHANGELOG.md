@@ -5,8 +5,24 @@ the frozen documentation changelogs under `docs/`.
 
 ## [Unreleased]
 
-Current closeout milestone: `M23R` (Knowledge & Memory trust closure), product development
-version `1.3.1.dev23`. M24 is not started.
+Current development milestone: `M24A` (Engineering Planning Copilot), product development version
+`1.3.1.dev24`. M24A is plan-only and remains subject to human review.
+
+### M24A Engineering Planning Copilot
+
+- Added project-scoped engineering requirement intake, strict request validation, and migration
+  `0041_m24a_engineering_planning`.
+- Added bounded authoritative context assembly with source-as-untrusted-data labeling, memory
+  trust/freshness filtering, deterministic selection, provenance, revision maps, and stale
+  propagation.
+- Added provider-neutral structured `EngineeringPlan` output with steps, proposed changes, risks,
+  assumptions, unknowns, acceptance mapping, future verification, impact analysis, review/CAS,
+  comments, and append-only audit records.
+- Added the desktop Planning Copilot flow: Requirement → Analyze → Plan → Context/Impact → Human
+  Review. The panel has no execute/apply/run/deploy/flash controls and approvals persist no
+  execution authority.
+- Added focused M24A contract/security/UI tests and acceptance documentation. M24B controlled
+  execution is not started.
 
 ### M23L Final Landing
 
