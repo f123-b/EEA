@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-from eea_backend.version import __version__
+from eea_backend.version import CURRENT_MILESTONE, __version__
 
 
 def test_current_version_metadata_is_aligned() -> None:
@@ -15,4 +15,4 @@ def test_current_version_metadata_is_aligned() -> None:
 
     assert re.search(rf'version = "{re.escape(__version__)}"', pyproject)
     assert desktop["version"] == __version__.replace(".dev", "-dev.")
-    assert "M23R" in readme
+    assert CURRENT_MILESTONE in readme

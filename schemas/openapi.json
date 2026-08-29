@@ -7038,6 +7038,37 @@
         "title": "EngineeringFreshnessData",
         "type": "object"
       },
+      "EngineeringRequirementPriority": {
+        "enum": [
+          "UNKNOWN",
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "CRITICAL",
+          "MUST",
+          "SHOULD",
+          "COULD"
+        ],
+        "title": "EngineeringRequirementPriority",
+        "type": "string"
+      },
+      "EngineeringRequirementType": {
+        "enum": [
+          "FEATURE",
+          "BUG_FIX",
+          "PERFORMANCE",
+          "RELIABILITY",
+          "HARDWARE_CHANGE",
+          "FIRMWARE_CHANGE",
+          "PROTOCOL_CHANGE",
+          "BUILD_CHANGE",
+          "TEST_CHANGE",
+          "REFACTOR",
+          "INVESTIGATION"
+        ],
+        "title": "EngineeringRequirementType",
+        "type": "string"
+      },
       "EngineeringValue": {
         "additionalProperties": false,
         "description": "A display value plus its immutable canonical-unit representation.",
@@ -12096,6 +12127,108 @@
         "title": "PinRequirementCreate",
         "type": "object"
       },
+      "PlanCommentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "target_kind": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Target Kind",
+            "type": "string"
+          },
+          "target_ref": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Target Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_kind",
+          "target_ref",
+          "body"
+        ],
+        "title": "PlanCommentRequest",
+        "type": "object"
+      },
+      "PlanCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "default": "deterministic",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "source_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Revision Id"
+          },
+          "supersedes_plan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Plan Id"
+          }
+        },
+        "title": "PlanCreateRequest",
+        "type": "object"
+      },
+      "PlanReviewAction": {
+        "enum": [
+          "APPROVE",
+          "REJECT",
+          "REQUEST_REVISION"
+        ],
+        "title": "PlanReviewAction",
+        "type": "string"
+      },
+      "PlanReviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/PlanReviewAction"
+          },
+          "comment": {
+            "default": "",
+            "maxLength": 8000,
+            "title": "Comment",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "action"
+        ],
+        "title": "PlanReviewRequest",
+        "type": "object"
+      },
       "PowerNet": {
         "additionalProperties": false,
         "properties": {
@@ -13259,6 +13392,82 @@
         "title": "RequirementCompletenessData",
         "type": "object"
       },
+      "RequirementCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance_criteria": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Acceptance Criteria",
+            "type": "array"
+          },
+          "constraints": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Constraints",
+            "type": "array"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deprecated compatibility field; identity is server-owned",
+            "title": "Created By"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Description",
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/EngineeringRequirementPriority",
+            "default": "UNKNOWN"
+          },
+          "requirement_type": {
+            "$ref": "#/components/schemas/EngineeringRequirementType",
+            "default": "INVESTIGATION"
+          },
+          "source": {
+            "additionalProperties": true,
+            "title": "Source",
+            "type": "object"
+          },
+          "source_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Revision Id"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "RequirementCreateRequest",
+        "type": "object"
+      },
       "RequirementData": {
         "properties": {
           "acceptance_criteria": {
@@ -13672,119 +13881,6 @@
         ],
         "title": "RequirementType",
         "type": "string"
-      },
-      "RequirementUpdateRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "acceptance_criteria": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "maxItems": 50,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Acceptance Criteria"
-          },
-          "expected_revision": {
-            "minimum": 1.0,
-            "title": "Expected Revision",
-            "type": "integer"
-          },
-          "priority": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RequirementPriority"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "rationale": {
-            "anyOf": [
-              {
-                "maxLength": 8000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rationale"
-          },
-          "requirement_type": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RequirementType"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "source_evidence_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Evidence Ids"
-          },
-          "statement": {
-            "anyOf": [
-              {
-                "maxLength": 8000,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Statement"
-          },
-          "status": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RequirementStatus"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "title": {
-            "anyOf": [
-              {
-                "maxLength": 300,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          }
-        },
-        "required": [
-          "expected_revision"
-        ],
-        "title": "RequirementUpdateRequest",
-        "type": "object"
       },
       "RequirementValueType": {
         "enum": [
@@ -16367,6 +16463,233 @@
         },
         "title": "WatchdogState",
         "type": "object"
+      },
+      "eea_backend__m24a_api__RequirementUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance_criteria": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptance Criteria"
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Constraints"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringRequirementPriority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requirement_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngineeringRequirementType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "source_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Revision Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "RequirementUpdateRequest",
+        "type": "object"
+      },
+      "eea_backend__schemas__RequirementUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance_criteria": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptance Criteria"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequirementPriority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "maxLength": 8000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "requirement_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequirementType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_evidence_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Evidence Ids"
+          },
+          "statement": {
+            "anyOf": [
+              {
+                "maxLength": 8000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequirementStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "RequirementUpdateRequest",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -16379,7 +16702,7 @@
   "info": {
     "description": "Versioned API for the Embedded Engineering Agent platform.",
     "title": "Embedded Engineering Agent API",
-    "version": "1.3.1.dev23"
+    "version": "1.3.1.dev24"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -17619,6 +17942,428 @@
         "summary": "Query Device Pin",
         "tags": [
           "devices"
+        ]
+      }
+    },
+    "/api/v1/engineering-plans/{plan_id}": {
+      "get": {
+        "operationId": "get_plan_api_v1_engineering_plans__plan_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Plan",
+        "tags": [
+          "m24a-planning"
+        ]
+      }
+    },
+    "/api/v1/engineering-plans/{plan_id}/comments": {
+      "post": {
+        "operationId": "comment_plan_api_v1_engineering_plans__plan_id__comments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanCommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Comment Plan",
+        "tags": [
+          "m24a-planning"
+        ]
+      }
+    },
+    "/api/v1/engineering-plans/{plan_id}/context": {
+      "get": {
+        "operationId": "get_plan_context_api_v1_engineering_plans__plan_id__context_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Plan Context",
+        "tags": [
+          "m24a-planning"
+        ]
+      }
+    },
+    "/api/v1/engineering-plans/{plan_id}/impact": {
+      "get": {
+        "operationId": "get_plan_impact_api_v1_engineering_plans__plan_id__impact_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Plan Impact",
+        "tags": [
+          "m24a-planning"
+        ]
+      }
+    },
+    "/api/v1/engineering-plans/{plan_id}/review": {
+      "post": {
+        "operationId": "review_plan_api_v1_engineering_plans__plan_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Review Plan",
+        "tags": [
+          "m24a-planning"
+        ]
+      }
+    },
+    "/api/v1/engineering-requirements/{requirement_id}": {
+      "get": {
+        "operationId": "get_requirement_api_v1_engineering_requirements__requirement_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Requirement",
+        "tags": [
+          "m24a-planning"
+        ]
+      },
+      "patch": {
+        "operationId": "update_requirement_api_v1_engineering_requirements__requirement_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/eea_backend__m24a_api__RequirementUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Requirement",
+        "tags": [
+          "m24a-planning"
+        ]
+      }
+    },
+    "/api/v1/engineering-requirements/{requirement_id}/plans": {
+      "post": {
+        "operationId": "create_plan_api_v1_engineering_requirements__requirement_id__plans_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requirement_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Requirement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Plan",
+        "tags": [
+          "m24a-planning"
         ]
       }
     },
@@ -21432,6 +22177,110 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/engineering-requirements": {
+      "get": {
+        "operationId": "list_requirements_api_v1_projects__project_id__engineering_requirements_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_list_dict_str__object___"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Requirements",
+        "tags": [
+          "m24a-planning"
+        ]
+      },
+      "post": {
+        "operationId": "create_requirement_api_v1_projects__project_id__engineering_requirements_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequirementCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiEnvelope_dict_str__object__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Requirement",
+        "tags": [
+          "m24a-planning"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/evidence": {
       "post": {
         "operationId": "register_evidence_api_v1_projects__project_id__evidence_post",
@@ -22773,7 +23622,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RequirementUpdateRequest"
+                "$ref": "#/components/schemas/eea_backend__schemas__RequirementUpdateRequest"
               }
             }
           },

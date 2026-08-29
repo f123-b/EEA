@@ -13,6 +13,7 @@ import {
 
 test("core navigation is domain-neutral and maps stable routes", () => {
   assert.equal(coreNavigation.some((item) => item.label.includes("Motor")), false);
+  assert.equal(coreNavigation.find((item) => item.id === "planning")?.route, "planning");
   assert.equal(routeFromLocation("/requirements/details"), "requirements");
   assert.equal(routeFromLocation("/"), "dashboard");
   assert.equal(statusTone("PASS"), "pass");

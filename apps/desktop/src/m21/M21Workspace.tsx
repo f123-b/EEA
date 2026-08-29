@@ -31,6 +31,7 @@ import {
 } from "./uiModel";
 import { ImportWizard } from "./ImportWizard";
 import { MemoryPanel } from "./MemoryPanel";
+import { M24APlanningPanel } from "./M24APlanningPanel";
 
 type WorkflowState = {
   analysis: JsonRecord | null;
@@ -332,7 +333,7 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
   const refreshProjects = useCallback(async () => {
     const result = await api.listProjects();
     setProjects(result.items);
-    setProjectId((current) => current && result.items.some((item) => item.id === current) ? current : result.items[0]?.id ?? null);
+    setProjectId((current) => current ?? result.items[0]?.id ?? null);
   }, [api]);
 
   const refreshProject = useCallback(async (nextProjectId: string) => {
@@ -851,7 +852,7 @@ export function M21Workspace({ api, runtimeVersion, onReady }: { api: M21Api; ru
            {nonCurrentStates.length > 0 && <div className="feedback-banner feedback-warning" role="status"><strong>{text("Engineering data state")}</strong><span>{nonCurrentStates.map(([key, state]) => `${key}: ${state.state}`).join(" · ")}</span></div>}
           {notice && <div className="feedback-banner feedback-success" role="status"><strong>{text("Action complete")}</strong><span>{notice}</span><button className="icon-button" onClick={() => setNotice(null)} aria-label={text("Dismiss notice")}>×</button></div>}
           {busy && <div className="running-strip" role="status"><span className="spinner" aria-hidden="true" /> {text(busy)} · {text("deterministic backend operation running")}</div>}
-          {showImport ? <ImportWizard api={api} onClose={() => setShowImport(false)} onComplete={async (createdProjectId) => { await refreshProjects(); setProjectId(createdProjectId); navigate("projects"); }} /> : !selectedProject && route !== "projects" ? <StartPanel onCreate={() => setShowCreate(true)} onOpen={() => navigate("projects")} /> : <PageRouter route={route} selectedProject={selectedProject} workflow={workflow} context={context} busy={busy} rawContext={rawContext} setRawContext={setRawContext} onNavigate={navigate} onAnalyze={analyzeM20} onGeneratePins={generatePins} onLockPins={lockPins} onGenerateHardware={generateHardware} onGenerateSchematic={generateSchematic} onRunErc={runErc} onGenerateMcu={generateMcu} onGenerateFirmware={generateFirmware} onRunBuild={runBuild} onRunStatic={runStatic} onGenerateProtocol={generateProtocol} onRunTests={generateAndRunTests} onTraceability={runTraceability} onReview={runReview} onActivateDomain={activateDomain} onDeactivateDomain={deactivateDomain} onUploadDocument={uploadDocument} documentFile={documentFile} setDocumentFile={setDocumentFile} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} aiResult={aiResult} onAskAi={askAi} projects={projects} onSelectProject={setProjectId} onCreate={() => setShowCreate(true)} onImport={() => setShowImport(true)} />}
+          {showImport ? <ImportWizard api={api} onClose={() => setShowImport(false)} onComplete={async (createdProjectId) => { await refreshProjects(); setProjectId(createdProjectId); navigate("projects"); }} /> : !selectedProject && route !== "projects" ? <StartPanel onCreate={() => setShowCreate(true)} onOpen={() => navigate("projects")} /> : <PageRouter api={api} route={route} selectedProject={selectedProject} workflow={workflow} context={context} busy={busy} rawContext={rawContext} setRawContext={setRawContext} onNavigate={navigate} onAnalyze={analyzeM20} onGeneratePins={generatePins} onLockPins={lockPins} onGenerateHardware={generateHardware} onGenerateSchematic={generateSchematic} onRunErc={runErc} onGenerateMcu={generateMcu} onGenerateFirmware={generateFirmware} onRunBuild={runBuild} onRunStatic={runStatic} onGenerateProtocol={generateProtocol} onRunTests={generateAndRunTests} onTraceability={runTraceability} onReview={runReview} onActivateDomain={activateDomain} onDeactivateDomain={deactivateDomain} onUploadDocument={uploadDocument} documentFile={documentFile} setDocumentFile={setDocumentFile} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} aiResult={aiResult} onAskAi={askAi} projects={projects} onSelectProject={setProjectId} onCreate={() => setShowCreate(true)} onImport={() => setShowImport(true)} />}
         </main>
 
         <aside className="context-panel" aria-label={text("Context and AI panel")}>
@@ -885,6 +886,7 @@ function PageRouter(props: PageProps) {
   if (route === "dashboard") return <DashboardPage {...pageProps} />;
   if (route === "projects") return <ProjectsPage {...pageProps} />;
   if (route === "requirements") return <RequirementsPage {...pageProps} />;
+  if (route === "planning") return <M24APlanningPanel api={pageProps.api} projectId={pageProps.selectedProject?.id ?? null} busy={pageProps.busy} />;
   if (route === "documents") return <DocumentsPage {...pageProps} />;
   if (route === "pin-planner") return <PinPlannerPage {...pageProps} />;
   if (route === "hardware") return <HardwarePage {...pageProps} />;
@@ -903,6 +905,7 @@ function PageRouter(props: PageProps) {
 
 type PageProps = {
   route?: string;
+  api: M21Api;
   selectedProject: ProjectData | null;
   workflow: WorkflowState;
   context: ProjectContext;

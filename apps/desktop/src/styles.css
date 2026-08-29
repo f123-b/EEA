@@ -173,6 +173,41 @@ pre { max-width: 100%; overflow: auto; }
 .domain-card button { width: 100%; }
 .dynamic-contract { margin-top: 1rem; }
 .dynamic-contract p { color: var(--muted); font-size: 0.76rem; line-height: 1.6; }
+.planning-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr); gap: 1rem; margin-bottom: 1rem; }
+.planning-intake { display: grid; gap: 0.5rem; }
+.planning-intake input, .planning-intake textarea { width: 100%; padding: 0.62rem 0.68rem; border: 1px solid var(--border); border-radius: 0.3rem; outline: 0; color: var(--text); background: rgba(7, 16, 24, 0.55); font-size: 0.76rem; resize: vertical; }
+.planning-intake input:focus, .planning-intake textarea:focus { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(85, 209, 196, 0.1); }
+.planning-boundary-badge { padding: 0.45rem 0.6rem; border: 1px solid rgba(237, 185, 105, 0.42); border-radius: 0.28rem; color: var(--amber); font-family: ui-monospace, monospace; font-size: 0.58rem; letter-spacing: 0.05em; white-space: nowrap; }
+.planning-feedback { margin-bottom: 1rem; padding: 0.65rem 0.75rem; border: 1px solid var(--border); border-radius: 0.35rem; font-size: 0.75rem; }
+.planning-feedback.error { border-color: rgba(241, 126, 131, 0.45); color: var(--red); background: rgba(88, 21, 30, 0.22); }
+.planning-feedback.success { border-color: rgba(85, 209, 196, 0.4); color: var(--teal); background: var(--teal-soft); }
+.planning-requirements { display: grid; gap: 0.35rem; max-height: 20rem; overflow: auto; }
+.planning-requirement { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.62rem; border: 1px solid transparent; border-radius: 0.3rem; color: var(--text); background: rgba(7, 16, 24, 0.3); text-align: left; }
+.planning-requirement:hover, .planning-requirement.selected { border-color: rgba(85, 209, 196, 0.42); background: var(--teal-soft); }
+.planning-requirement > span:first-child { display: grid; gap: 0.18rem; min-width: 0; }
+.planning-requirement strong { overflow: hidden; font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.planning-requirement small, .planning-selected small { color: var(--muted); font-size: 0.63rem; }
+.planning-selected { display: grid; gap: 0.28rem; margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid var(--border); }
+.planning-plan-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.planning-plan-header h2 { max-width: 62rem; margin: 0.32rem 0 0.4rem; font-size: 1rem; line-height: 1.45; }
+.planning-plan-header p { margin: 0; font-size: 0.66rem; }
+.planning-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.7rem; margin: 1rem 0; }
+.planning-steps, .planning-context-list, .planning-impact-list { display: grid; gap: 0.45rem; }
+.planning-step { display: grid; grid-template-columns: 2rem 1fr; gap: 0.6rem; padding: 0.65rem; border: 1px solid rgba(142, 168, 190, 0.12); border-radius: 0.3rem; background: rgba(7, 16, 24, 0.3); }
+.planning-step-number { color: var(--teal); font-family: ui-monospace, monospace; font-size: 0.68rem; }
+.planning-step strong { font-size: 0.76rem; }
+.planning-step p { margin: 0.25rem 0; color: var(--muted); font-size: 0.7rem; line-height: 1.45; }
+.planning-step small, .planning-impact-item small { color: var(--dim); font-size: 0.62rem; line-height: 1.4; }
+.planning-review-actions { display: grid; gap: 0.45rem; margin: 1rem 0; }
+.planning-review-note { display: flex; justify-content: space-between; gap: 0.5rem; padding-top: 0.75rem; border-top: 1px solid var(--border); color: var(--dim); font-size: 0.62rem; }
+.planning-review-note strong { color: var(--amber); font-family: ui-monospace, monospace; font-size: 0.61rem; }
+.planning-context-item, .planning-impact-item { display: grid; gap: 0.18rem; padding: 0.55rem 0.6rem; border-left: 2px solid rgba(85, 209, 196, 0.42); background: rgba(7, 16, 24, 0.25); }
+.planning-context-item strong, .planning-impact-item strong { font-size: 0.7rem; }
+.planning-context-item span, .planning-impact-item span { overflow: hidden; color: var(--muted); font-family: ui-monospace, monospace; font-size: 0.61rem; text-overflow: ellipsis; white-space: nowrap; }
+.planning-context-item small { color: var(--dim); font-size: 0.59rem; }
+.planning-untrusted-note { margin: 0.8rem 0 0; color: var(--amber); font-size: 0.65rem; line-height: 1.45; }
+.planning-impact-item { border-left-color: rgba(128, 174, 234, 0.45); }
+@media (max-width: 850px) { .planning-grid, .planning-metrics { grid-template-columns: 1fr; } .planning-plan-header { display: grid; } .planning-boundary-badge { width: max-content; } }
 
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem; }
 .readonly-field { display: grid; gap: 0.22rem; padding: 0.58rem; border: 1px solid rgba(142, 168, 190, 0.12); border-radius: 0.28rem; background: rgba(7, 16, 24, 0.32); }

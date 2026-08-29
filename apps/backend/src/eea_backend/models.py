@@ -755,6 +755,283 @@ class RequirementAnalysisRecord(CoreRecordMixin, Base):
     claim_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
 
 
+class EngineeringRequirementRecord(CoreRecordMixin, Base):
+    """M24A requirement intake; separate from the M6 profile-analysis DSL."""
+
+    __tablename__ = "engineering_requirements"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            "requirement_type IN ("
+            "'FEATURE', 'BUG_FIX', 'PERFORMANCE', 'RELIABILITY', "
+            "'HARDWARE_CHANGE', 'FIRMWARE_CHANGE', 'PROTOCOL_CHANGE', 'BUILD_CHANGE', "
+            "'TEST_CHANGE', 'REFACTOR', 'INVESTIGATION')",
+            name="requirement_type",
+        ),
+        CheckConstraint(
+            "status IN ("
+            "'DRAFT', 'READY', 'ANALYZING', 'PLANNED', 'NEEDS_INPUT', 'BLOCKED', "
+            "'APPROVED', 'REJECTED', 'ARCHIVED')",
+            name="status",
+        ),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    requirement_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    priority: Mapped[str] = mapped_column(String(30), nullable=False)
+    constraints: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    acceptance_criteria: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    source: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class PlanningContextSnapshotRecord(CoreRecordMixin, Base):
+    """Bounded planner input snapshot, not a canonical truth projection."""
+
+    __tablename__ = "planning_context_snapshots"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    source_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=True, index=True
+    )
+    selected_context: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    excluded_context: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    selection_reason: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    claim_revisions: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+    evidence_revisions: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+    memory_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    source_content_is_untrusted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class EngineeringPlanRecord(CoreRecordMixin, Base):
+    """One immutable M24A plan revision."""
+
+    __tablename__ = "engineering_plans"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            "status IN ("
+            "'DRAFT', 'READY_FOR_REVIEW', 'NEEDS_INPUT', 'BLOCKED', 'APPROVED', "
+            "'REJECTED', 'SUPERSEDED', 'STALE')",
+            name="status",
+        ),
+        CheckConstraint("plan_only = 1", name="plan_only"),
+    )
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    requirement_id: Mapped[str] = mapped_column(
+        ForeignKey("engineering_requirements.id"), nullable=False, index=True
+    )
+    source_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("source_revisions.id"), nullable=True, index=True
+    )
+    context_snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("planning_context_snapshots.id"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    affected_components: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    memory_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    provider: Mapped[str] = mapped_column(String(200), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(200), nullable=False)
+    prompt_template_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    planning_policy_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    supersedes_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("engineering_plans.id"), nullable=True, index=True
+    )
+    validation_issues: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    quality_issues: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    plan_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class EngineeringPlanStepRecord(CoreRecordMixin, Base):
+    __tablename__ = "engineering_plan_steps"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        UniqueConstraint("plan_id", "step_order", name="uq_engineering_plan_steps_order"),
+    )
+
+    plan_id: Mapped[str] = mapped_column(
+        ForeignKey("engineering_plans.id"), nullable=False, index=True
+    )
+    step_order: Mapped[int] = mapped_column(nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    action_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    target_ref: Mapped[str] = mapped_column(String(2_000), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    dependencies: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    preconditions: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    expected_result: Mapped[str] = mapped_column(Text, nullable=False)
+    verification_plan: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(20), nullable=False)
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+
+class EngineeringPlanChangeRecord(CoreRecordMixin, Base):
+    __tablename__ = "engineering_plan_changes"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint(
+            "status IN ('PROPOSED', 'ACCEPTED', 'REJECTED', 'NEEDS_REVISION', 'BLOCKED')",
+            name="status",
+        ),
+    )
+
+    plan_id: Mapped[str] = mapped_column(
+        ForeignKey("engineering_plans.id"), nullable=False, index=True
+    )
+    change_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    target_kind: Mapped[str] = mapped_column(String(60), nullable=False)
+    target_ref: Mapped[str] = mapped_column(String(2_000), nullable=False)
+    current_state: Mapped[object | None] = mapped_column(JSON)
+    proposed_state: Mapped[object | None] = mapped_column(JSON)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    impact: Mapped[str] = mapped_column(Text, nullable=False)
+    risk: Mapped[str] = mapped_column(String(20), nullable=False)
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    confidence: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    expected_diff_intent: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class EngineeringPlanRiskRecord(CoreRecordMixin, Base):
+    __tablename__ = "engineering_plan_risks"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    plan_id: Mapped[str] = mapped_column(
+        ForeignKey("engineering_plans.id"), nullable=False, index=True
+    )
+    category: Mapped[str] = mapped_column(String(40), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    likelihood: Mapped[str] = mapped_column(String(20), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    affected_ref: Mapped[str] = mapped_column(String(500), nullable=False)
+    mitigation: Mapped[str] = mapped_column(Text, nullable=False)
+    verification: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+
+class EngineeringPlanAssumptionRecord(CoreRecordMixin, Base):
+    __tablename__ = "engineering_plan_assumptions"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    plan_id: Mapped[str] = mapped_column(
+        ForeignKey("engineering_plans.id"), nullable=False, index=True
+    )
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    basis: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[str] = mapped_column(String(20), nullable=False)
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    validation_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class EngineeringPlanUnknownRecord(CoreRecordMixin, Base):
+    __tablename__ = "engineering_plan_unknowns"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    plan_id: Mapped[str] = mapped_column(
+        ForeignKey("engineering_plans.id"), nullable=False, index=True
+    )
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    why_needed: Mapped[str] = mapped_column(Text, nullable=False)
+    blocking: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    recommended_resolution: Mapped[str] = mapped_column(Text, nullable=False)
+    related_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+
+class EngineeringPlanAcceptanceMappingRecord(CoreRecordMixin, Base):
+    __tablename__ = "engineering_plan_acceptance_mappings"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    plan_id: Mapped[str] = mapped_column(
+        ForeignKey("engineering_plans.id"), nullable=False, index=True
+    )
+    criterion: Mapped[str] = mapped_column(Text, nullable=False)
+    step_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    verification_refs: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+
+
+class EngineeringPlanVerificationRecord(CoreRecordMixin, Base):
+    __tablename__ = "engineering_plan_verifications"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("execution_allowed_in_m24a = 0", name="execution_allowed_in_m24a"),
+    )
+
+    plan_id: Mapped[str] = mapped_column(
+        ForeignKey("engineering_plans.id"), nullable=False, index=True
+    )
+    change_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    method: Mapped[str] = mapped_column(String(500), nullable=False)
+    expected_result: Mapped[str] = mapped_column(Text, nullable=False)
+    execution_allowed_in_m24a: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class EngineeringPlanReviewRecord(CoreRecordMixin, Base):
+    __tablename__ = "engineering_plan_reviews"
+    __table_args__ = (
+        CheckConstraint("revision >= 1", name="revision_positive"),
+        CheckConstraint("execution_authorized = 0", name="execution_authorized"),
+        CheckConstraint("action IN ('APPROVE', 'REJECT', 'REQUEST_REVISION')", name="action"),
+    )
+
+    plan_id: Mapped[str] = mapped_column(
+        ForeignKey("engineering_plans.id"), nullable=False, index=True
+    )
+    action: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    expected_plan_revision: Mapped[int] = mapped_column(nullable=False)
+    comment: Mapped[str] = mapped_column(Text, nullable=False)
+    reviewed_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    execution_authorized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class EngineeringPlanReviewCommentRecord(CoreRecordMixin, Base):
+    __tablename__ = "engineering_plan_review_comments"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    plan_id: Mapped[str] = mapped_column(
+        ForeignKey("engineering_plans.id"), nullable=False, index=True
+    )
+    target_kind: Mapped[str] = mapped_column(String(100), nullable=False)
+    target_ref: Mapped[str] = mapped_column(String(500), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class EngineeringPlanningAuditRecord(CoreRecordMixin, Base):
+    """Append-only M24A audit events."""
+
+    __tablename__ = "engineering_planning_audits"
+    __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    requirement_id: Mapped[str | None] = mapped_column(
+        ForeignKey("engineering_requirements.id"), nullable=True, index=True
+    )
+    plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("engineering_plans.id"), nullable=True, index=True
+    )
+    principal_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    session_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    action: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    before: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    after: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class PinPlanRecord(CoreRecordMixin, Base):
     __tablename__ = "pin_plans"
     __table_args__ = (CheckConstraint("revision >= 1", name="revision_positive"),)

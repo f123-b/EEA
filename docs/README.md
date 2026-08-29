@@ -51,6 +51,9 @@
 | 24 | 24_DOMAIN_COMPOSITION_SPEC.md | 0..N Domain 组合契约 |
 | 25 | 25_SOURCE_AUTHORITY_WORKSPACE_GIT_SPEC.md | Git/Workspace/Source SSOT |
 | 26 | 26_NON_FUNCTIONAL_RELIABILITY_SPEC.md | NFR / Reliability / Failure Injection |
+| 27 | 27_M23_KNOWLEDGE_MEMORY_ACCEPTANCE.md | M23/M23R knowledge and memory acceptance |
+| M24A | M24A_ENGINEERING_PLANNING_ARCHITECTURE.md | Engineering planning architecture |
+| M24A | M24A_PLANNING_TRUST_BOUNDARY.md | Planning trust and no-execution boundary |
 
 ## 编号兼容性说明
 

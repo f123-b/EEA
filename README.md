@@ -9,16 +9,15 @@ Implementation advances one milestone at a time using the required sequence:
 
 ## Current milestone
 
-The repository is currently in `M23R` Knowledge / Release / Milestone Hardening
-(development version `1.3.1.dev23`). The milestone metadata SSOT is
+The repository is currently in `M24A` Engineering Planning Copilot
+(development version `1.3.1.dev24`). The milestone metadata SSOT is
 [`apps/backend/src/eea_backend/version.py`](apps/backend/src/eea_backend/version.py); the API
 returns the same milestone from `/api/v1/meta/version`.
 
 ### Stable main
 
-M20 is accepted and merged. M21 is accepted on the development branch with its desktop release
-gate closed. M22 is an implemented vertical slice, and M23 Core is implemented pending the M23R
-hardening gate.
+M20 through M23/M23R are integrated in `main`. M24A is the current plan-only development branch;
+its draft PR is intentionally held for human review and is not an execution or merge approval.
 
 ### Implemented capabilities
 
@@ -73,13 +72,17 @@ hardening gate.
   immutable SourceRevision history, and review workflow.
 - M23 knowledge and memory projection over canonical claims/evidence with scope filtering,
   optimistic review, audit records, backend-derived verification authority, and freshness status.
+- M24A engineering planning copilot with project-scoped requirement intake, bounded authoritative
+  context snapshots, deterministic provider-neutral structured plans, risk/impact/provenance,
+  stale propagation, CAS review, and a desktop review-only planning panel. M24A has no execution
+  authority; controlled change execution is deferred to M24B.
 
 ### Known boundaries
 
 Knowledge and Memory are projections, indexes, context, and recall surfaces—not canonical facts.
 User claims, UI state, and AI output never create tool- or hardware-verified facts. M22 parser depth,
 native import pickers, and full generic workflow rendering remain bounded follow-up work in this
-milestone; M24 has not started.
+milestone; M24B controlled execution has not started.
 
 ## Development
 

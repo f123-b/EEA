@@ -53,3 +53,12 @@ split. No remote PR mutation was performed by this local closeout.
 - No historical migration was edited. M23L uses additive revisions `0038`, `0039`, and `0040` to
   linearize the landing chain after M22.
 - M24 work must not be mixed into the M23R acceptance commit.
+
+## M24A planning boundary
+
+M24A starts from the accepted `main` snapshot `403c43d4e6bdbb2de86b009bfd5c1e57877d16a9` on
+`codex/m24a-engineering-planning-copilot`. Its additive migration is `0041_m24a_engineering_planning`.
+M24A is limited to requirement intake, authoritative context assembly, structured planning,
+impact/provenance/review, and a plan-only desktop flow. It does not mutate source/configuration/
+schematics/IOC/DBC/canonical records, execute shell/build/test/hardware/deployment actions, or
+grant execution authority. M24B controlled execution remains not started.
