@@ -15,6 +15,7 @@ export const coreNavigation: NavigationItem[] = [
   { id: "dashboard", label: "Dashboard", route: "dashboard", icon: "⌂" },
   { id: "projects", label: "Projects", route: "projects", icon: "▦" },
   { id: "requirements", label: "Requirements", route: "requirements", icon: "≡" },
+  { id: "planning", label: "Planning Copilot", route: "planning", icon: "✦" },
   { id: "documents", label: "Documents", route: "documents", icon: "▤" },
   { id: "pin-planner", label: "Pin Planner", route: "pin-planner", icon: "⌗" },
   { id: "hardware", label: "Hardware", route: "hardware", icon: "◈" },

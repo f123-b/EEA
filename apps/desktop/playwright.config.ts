@@ -31,7 +31,7 @@ export default defineConfig({
         EEA_RUNTIME_HOST: "127.0.0.1",
         EEA_RUNTIME_PORT: "8765",
         EEA_SESSION_TOKEN: token,
-        EEA_DATA_DIR: releaseGate ? ".eea-m21-release-e2e" : ".eea-m21-e2e",
+        EEA_DATA_DIR: process.env.EEA_E2E_DATA_DIR ?? (releaseGate ? ".eea-m21-release-e2e" : ".eea-m21-e2e"),
         EEA_ENV: "development",
         EEA_INSECURE_LOCAL_DEV: "false",
         ...(process.env.EEA_TRUSTED_TOOL_NETWORK_ACCESS ? { EEA_TRUSTED_TOOL_NETWORK_ACCESS: process.env.EEA_TRUSTED_TOOL_NETWORK_ACCESS } : {}),

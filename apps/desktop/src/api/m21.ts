@@ -99,6 +99,24 @@ export function createM21Api(client: BackendClient) {
 
   return {
     listProjects: () => get<ProjectListData>("/api/v1/projects"),
+    listEngineeringRequirements: (projectId: string) =>
+      get<JsonRecord[]>(`${pathForProject(projectId, "/engineering-requirements")}`),
+    createEngineeringRequirement: (projectId: string, payload: JsonRecord) =>
+      post<JsonRecord>(`${pathForProject(projectId, "/engineering-requirements")}`, payload),
+    updateEngineeringRequirement: (requirementId: string, payload: JsonRecord) =>
+      patch<JsonRecord>(`/api/v1/engineering-requirements/${encodeURIComponent(requirementId)}`, payload),
+    createEngineeringPlan: (requirementId: string, payload: JsonRecord = {}) =>
+      post<JsonRecord>(`/api/v1/engineering-requirements/${encodeURIComponent(requirementId)}/plans`, payload),
+    getEngineeringPlan: (planId: string) =>
+      get<JsonRecord>(`/api/v1/engineering-plans/${encodeURIComponent(planId)}`),
+    getEngineeringPlanContext: (planId: string) =>
+      get<JsonRecord>(`/api/v1/engineering-plans/${encodeURIComponent(planId)}/context`),
+    getEngineeringPlanImpact: (planId: string) =>
+      get<JsonRecord>(`/api/v1/engineering-plans/${encodeURIComponent(planId)}/impact`),
+    reviewEngineeringPlan: (planId: string, payload: JsonRecord) =>
+      post<JsonRecord>(`/api/v1/engineering-plans/${encodeURIComponent(planId)}/review`, payload),
+    commentEngineeringPlan: (planId: string, payload: JsonRecord) =>
+      post<JsonRecord>(`/api/v1/engineering-plans/${encodeURIComponent(planId)}/comments`, payload),
     getWorkflowDescriptor: () => get<JsonRecord>("/api/v1/workflows/descriptor"),
     createProject: (payload: { name: string; description: string; metadata?: JsonRecord }) =>
       post<ProjectData>("/api/v1/projects", payload),

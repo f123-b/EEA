@@ -124,6 +124,7 @@ test("@ui recalls memory and exposes canonical provenance with explicit history 
   await page.getByTestId("new-project").click();
   await page.locator("#project-name").fill(`M23R Memory UI E2E ${Date.now()}`);
   await page.getByTestId("confirm-create-project").click();
+  await expect(page.locator("h1")).toHaveText(/M23R Memory UI E2E/u);
   const projectId = await page.getByTestId("current-project").inputValue();
   expect(projectId).not.toBe("");
 
@@ -140,6 +141,7 @@ test("@ui recalls memory and exposes canonical provenance with explicit history 
   expect(created.ok()).toBeTruthy();
 
   const panel = page.getByTestId("memory-panel");
+  await panel.getByRole("textbox", { name: "记忆查询" }).fill("canonical provenance memory");
   await panel.getByTestId("memory-recall").click();
   await expect(panel.getByText("M23R canonical provenance memory")).toBeVisible();
   await expect(panel.getByTestId("memory-provenance")).toContainText(/Canonical claims|规范声明/u);
@@ -162,4 +164,27 @@ test("@ui defaults to Chinese and persists the Settings language switch", async 
   expect(storedLocale).toBe("en-US");
   await page.getByTestId("locale-select").selectOption("zh-CN");
   await expect(page.getByTestId("page-title")).toHaveText("设置");
+});
+
+test("@ui exposes the M24A plan-only requirement and review flow", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("nav-projects").click();
+  await page.getByTestId("new-project").click();
+  await page.locator("#project-name").fill(`M24A Planning UI E2E ${Date.now()}`);
+  await page.getByTestId("confirm-create-project").click();
+  await page.getByTestId("nav-planning").click();
+
+  const panel = page.getByTestId("m24a-planning-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText("PLAN ONLY · NO EXECUTION AUTHORITY")).toBeVisible();
+  await expect(panel.getByTestId("m24a-create-requirement")).toBeVisible();
+  await expect(panel.getByTestId("m24a-analyze-plan")).toBeDisabled();
+  await panel.getByTestId("m24a-create-requirement").click();
+  await expect(panel.getByTestId("m24a-analyze-plan")).toBeEnabled();
+  await panel.getByTestId("m24a-analyze-plan").click();
+  await expect(panel.getByText("STRUCTURED ENGINEERING PLAN")).toBeVisible();
+  await expect(panel.getByTestId("m24a-approve")).toHaveText("Approve plan");
+  await expect(panel.getByTestId("m24a-revision")).toHaveText("Request revision");
+  await expect(panel.getByTestId("m24a-reject")).toHaveText("Reject plan");
+  await expect(panel.locator("button").filter({ hasText: /execute|apply|run|deploy|flash/i })).toHaveCount(0);
 });
