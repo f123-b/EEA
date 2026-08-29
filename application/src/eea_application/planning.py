@@ -48,6 +48,7 @@ from pydantic import BaseModel, ConfigDict, Field
 PLANNING_POLICY_VERSION = "m24a-planning-policy-1"
 PLANNING_PROMPT_TEMPLATE_VERSION = "m24a-planning-prompt-1"
 PLANNING_PROVIDER_VERSION = "deterministic-m24a-1"
+_STABILITY_QUERY_TOKENS = ("foc", "low-speed", "stability", "stabil")
 
 
 class PlanningModelOutput(BaseModel):
@@ -250,13 +251,25 @@ class EngineeringContextAssembler:
                     authority=authority,
                     trust=trust_value,
                     freshness=freshness_value,
-                    evidence_refs=self._uuid_list(record.get("evidence_ids")),
+                    evidence_refs=sorted(
+                        {
+                            *self._uuid_list(record.get("evidence_ids")),
+                            *(
+                                [UUID(str(record["id"]))]
+                                if kind == "Evidence" and record.get("id") is not None
+                                else []
+                            ),
+                        },
+                        key=str,
+                    ),
                     source_revision_ref=source_revision_id,
                     reason="authoritative project record"
                     if authority is ContextAuthority.CANONICAL
                     else "memory is context only",
                 )
                 score = self._relevance(_serialize(record), query)
+                if kind == "Evidence":
+                    score += 1
                 if kind in {"HardwareIR", "ProtocolIR", "FirmwareIR", "Dependency"}:
                     score += 2
                 add(
@@ -364,7 +377,7 @@ class DeterministicPlanningProvider:
         criteria = requirement.acceptance_criteria
         if any(token in text for token in ("pin", "uart tx", "mcu", ".ioc")):
             output = self._pin_change(requirement, context, target_file)
-        elif any(token in text for token in ("foc", "low-speed", "stability", "stabil")):
+        elif any(token in text for token in _STABILITY_QUERY_TOKENS):
             output = self._foc_investigation(requirement, context)
         elif any(token in text for token in ("can", "heartbeat", "100 ms", "100ms")):
             output = self._can_heartbeat(requirement, context, target_file)
@@ -479,6 +492,19 @@ class DeterministicPlanningProvider:
             ),
         ]
         unknown = self._base_unknown(requirement)
+        change = ProposedEngineeringChange(
+            change_type=PlanningActionType.MODIFY_SOURCE,
+            target_kind=target_type,
+            target_ref=target_ref,
+            current_state="UNKNOWN",
+            proposed_state="Schedule and publish a 100 ms CAN heartbeat",
+            reason="Requirement requests heartbeat reporting.",
+            impact="Touches scheduler, CAN protocol, and tests.",
+            risk=EngineeringRiskSeverity.MEDIUM,
+            confidence=EngineeringRiskSeverity.UNKNOWN,
+            evidence_refs=context.evidence_refs,
+            expected_diff_intent="Describe scheduler and publisher intent only; no executable patch.",
+        )
         return PlanningModelOutput(
             summary="Plan-only proposal for a 100 ms CAN heartbeat with scheduler, protocol, and timing verification boundaries.",
             assumptions=[
@@ -516,25 +542,18 @@ class DeterministicPlanningProvider:
                 ),
             ],
             steps=steps,
-            proposed_changes=[
-                ProposedEngineeringChange(
-                    change_type=PlanningActionType.MODIFY_SOURCE,
-                    target_kind=target_type,
-                    target_ref=target_ref,
-                    current_state="UNKNOWN",
-                    proposed_state="Schedule and publish a 100 ms CAN heartbeat",
-                    reason="Requirement requests heartbeat reporting.",
-                    impact="Touches scheduler, CAN protocol, and tests.",
-                    risk=EngineeringRiskSeverity.MEDIUM,
-                    confidence=EngineeringRiskSeverity.UNKNOWN,
-                    evidence_refs=context.evidence_refs,
-                    expected_diff_intent="Describe scheduler and publisher intent only; no executable patch.",
-                )
-            ],
+            proposed_changes=[change],
             affected_components=["CAN/Protocol", "scheduler/task", "firmware", "verification"],
             evidence_refs=context.evidence_refs,
             memory_refs=context.memory_refs,
-            verification_plans=[],
+            verification_plans=[
+                PlanVerification(
+                    change_id=change.id,
+                    method="Measure inter-frame period and scheduler jitter",
+                    expected_result="The proposed heartbeat intent is verified against the reviewed timing criterion.",
+                    execution_allowed_in_m24a=False,
+                )
+            ],
         )
 
     def _pin_change(
@@ -604,6 +623,19 @@ class DeterministicPlanningProvider:
                 evidence_refs=context.evidence_refs,
             ),
         ]
+        change = ProposedEngineeringChange(
+            change_type=PlanningActionType.MODIFY_CONFIG,
+            target_kind=target_type,
+            target_ref=target_ref,
+            current_state="Current pin assignment unresolved",
+            proposed_state="Move UART TX to a reviewer-selected valid pin",
+            reason="Requested UART TX change.",
+            impact="MCUConfig → firmware → schematic/PCB → build/test",
+            risk=EngineeringRiskSeverity.HIGH,
+            confidence=EngineeringRiskSeverity.UNKNOWN,
+            evidence_refs=context.evidence_refs,
+            expected_diff_intent="Describe the configuration intent only; do not emit .ioc mutation.",
+        )
         return PlanningModelOutput(
             summary="Plan-only pin-change investigation spanning MCUConfig, firmware, schematic/PCB evidence, build and verification.",
             assumptions=[
@@ -641,21 +673,7 @@ class DeterministicPlanningProvider:
                 ),
             ],
             steps=steps,
-            proposed_changes=[
-                ProposedEngineeringChange(
-                    change_type=PlanningActionType.MODIFY_CONFIG,
-                    target_kind=target_type,
-                    target_ref=target_ref,
-                    current_state="Current pin assignment unresolved",
-                    proposed_state="Move UART TX to a reviewer-selected valid pin",
-                    reason="Requested UART TX change.",
-                    impact="MCUConfig → firmware → schematic/PCB → build/test",
-                    risk=EngineeringRiskSeverity.HIGH,
-                    confidence=EngineeringRiskSeverity.UNKNOWN,
-                    evidence_refs=context.evidence_refs,
-                    expected_diff_intent="Describe the configuration intent only; do not emit .ioc mutation.",
-                )
-            ],
+            proposed_changes=[change],
             affected_components=[
                 "MCUConfigIR",
                 ".ioc",
@@ -667,6 +685,14 @@ class DeterministicPlanningProvider:
             ],
             evidence_refs=context.evidence_refs,
             memory_refs=context.memory_refs,
+            verification_plans=[
+                PlanVerification(
+                    change_id=change.id,
+                    method="Review pin constraints, configuration rules, electrical connectivity, and interface evidence",
+                    expected_result="The proposed pin intent has a reviewed MCU, board, firmware, and interface verification path.",
+                    execution_allowed_in_m24a=False,
+                )
+            ],
         )
 
     def _foc_investigation(
