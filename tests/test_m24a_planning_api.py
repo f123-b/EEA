@@ -176,9 +176,7 @@ def test_m24a_rejects_unknown_request_fields_and_exposes_missing_context_as_inpu
         f"/api/v1/projects/{project_id}/engineering-requirements",
         json={"title": "Plan with no source snapshot"},
     ).json()["data"]
-    plan = client.post(
-        f"/api/v1/engineering-requirements/{requirement['id']}/plans", json={}
-    )
+    plan = client.post(f"/api/v1/engineering-requirements/{requirement['id']}/plans", json={})
     assert plan.status_code == 201, plan.text
     assert plan.json()["data"]["status"] == "NEEDS_INPUT"
     assert plan.json()["data"]["plan_only"] is True
